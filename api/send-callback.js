@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Julien - Expert FAP Re-Fap | Diagnostic Gratuit</title>
+    <meta name="description" content="Diagnostic gratuit FAP/EGR/AdBlue avec Julien, expert depuis 20 ans. Analysez vos voyants moteur, obtenez solutions et devis Re-Fap.">
+    
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const JulienProduction = () => {
+            const [messages, setMessages] = useState([
+                {
+                    type: 'bot',
+                    content: "Salut ! 👋 Moi c'est Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Je vais diagnostiquer ton problème GRATUITEMENT ! Décris-moi ton souci ou envoie une photo de ton voyant 📸",
+                    timestamp: new Date()
+                }
+            ]);
+            const [inputMessage, setInputMessage] = useState('');
+            const [isTyping, setIsTyping] = useState(false);
+            const [showCallbackForm, setShowCallbackForm] = useState(false);
+            const [callbackData, setCallbackData] = useState({
+                nom: '',
+                telephone: '',
+                email: '',
+                probleme: '',
+                vehicule: ''
+            });
+            const [leadData, setLeadData] = useState({
+                sessionId: Math.random().toString(36).substr(2, 9),
+                startTime: new Date(),
+                symptoms: [],
+                vehicle: {},
+                profile: '',
+                contactRequested: false
+            });
+
+            useEffect(() => {
+                trackEvent('session_start', { sessionId: leadData.sessionId });
+            }, []);
+
+            const trackEvent = (event, data = {}) => {
+                console.log('📊 Event tracked:', event, data);
+            };
+
+            const addMessage = (content, type = 'bot', source = 'auto') => {
+                setMessages(prev => [...prev, {
+                    type,
+                    content,
+                    timestamp: new Date(),
+                    source
+                }]);
+            };
+
+            // CLAUDE FAIT TOUT LE DIALOGUE !
+            const getClaudeResponse = async (userMsg, conversationHistory) => {
+                try {
+                    console.log('🧠 Claude prend le relais complet...');
+                    
+                    // Construire l'historique pour Claude
+                    const claudeHistory = conversationHistory.slice(-6).map(msg => ({
+                        role: msg.type === 'user' ? 'user' : 'assistant',
+                        content: typeof msg.content === 'string' ? msg.content : 'Message système'
+                    }));
+                    
+                    // Ajouter le nouveau message
+                    claudeHistory.push({
+                        role: 'user',
+                        content: userMsg
+                    });
+
+                    const response = await fetch('/api/analyze-image', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            conversation: claudeHistory,
+                            prompt: `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. 
+
+RÈGLES ABSOLUES:
+1. REBONDIS TOUJOURS sur ce que dit le client
+2. DONNES ton diagnostic expert  
+3. TERMINES OBLIGATOIREMENT par 2-3 questions précises pour continuer
+4. RESTES conversationnel comme si tu parlais à un pote
+
+STYLE JULIEN:
+- Mécano expert mais sympa
+- "Ah !", "OK !", "Dis-moi..." 
+- Questions directes et pratiques
+- Pousse vers une solution Re-Fap
+
+SPÉCIALITÉS:
+- FAP encrassé → Nettoyage Re-Fap  
+- EGR défaillante → Solutions Re-Fap
+- Fumées, perte puissance, codes P2002/P2463
+- Profil bricoleur VS garage
+
+FORMAT OBLIGATOIRE:
+[Diagnostic] + [Questions pour continuer] + [Orientation solution]
+
+EXEMPLE:
+"Ah ! Fumées + perte puissance = FAP saturé à 90% ! 
+
+Dis-moi : tu as tenté l'autoroute récemment ? Et niveau voyants, tu as quoi d'allumé exactement ?
+
+Si ça marche pas, faudra passer au nettoyage Re-Fap !"
+
+OBJECTIF: Diagnostic → Questions → Lead qualifié
+
+TERMINES TOUJOURS PAR DES QUESTIONS !`
+                        })
+                    });
+
+                    if (!response.ok) {
+                        console.error('❌ Erreur Claude API:', response.status);
+                        throw new Error(`Claude API Error: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    console.log('✅ Réponse Claude:', data);
+                    
+                    if (data.success && data.analysis) {
+                        trackEvent('claude_dialogue', { success: true, length: data.analysis.length });
+                        return data.analysis;
+                    } else if (data.fallback) {
+                        return data.fallback;
+                    } else {
+                        throw new Error('Réponse Claude invalide');
+                    }
+
+                } catch (error) {
+                    console.error('💥 Erreur Claude dialogue:', error);
+                    trackEvent('claude_dialogue', { success: false, error: error.message });
+                    
+                    // Fallback minimal
+                    return `Salut ! Décris-moi ton problème auto, je vais t'aider à diagnostiquer ça ! 
+                    
+Spécialité : FAP/EGR/AdBlue 🔧
+
+Erreur temporaire : ${error.message}`;
+                }
+            };
+
+            const handleSendMessage = async (e) => {
+                e.preventDefault();
+                if (!inputMessage.trim()) return;
+                
+                const userMsg = inputMessage.trim();
+                addMessage(userMsg, 'user');
+                setInputMessage('');
+                setIsTyping(true);
+
+                trackEvent('message_sent', { message: userMsg.substring(0, 50) });
+
+                // CLAUDE FAIT TOUT !
+                const response = await getClaudeResponse(userMsg, messages);
+                addMessage(response, 'bot', 'claude');
+                setIsTyping(false);
+            };
+
+            const handleImageUpload = async (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    if (!file.type.startsWith('image/')) {
+                        alert('📸 Merci d\'envoyer une image (JPG, PNG...)');
+                        return;
+                    }
+                    
+                    addMessage(`📸 Photo envoyée : ${file.name}`, 'user');
+                    setIsTyping(true);
+                    trackEvent('photo_uploaded', { fileName: file.name, fileSize: file.size });
+                    
+                    // Compression d'image
+                    const compressImage = (file, maxWidth = 800, quality = 0.8) => {
+                        return new Promise((resolve) => {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            const img = new Image();
+                            
+                            img.onload = () => {
+                                let { width, height } = img;
+                                if (width > maxWidth) {
+                                    height = (height * maxWidth) / width;
+                                    width = maxWidth;
+                                }
+                                
+                                canvas.width = width;
+                                canvas.height = height;
+                                ctx.drawImage(img, 0, 0, width, height);
+                                
+                                const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                                resolve(compressedDataUrl);
+                            };
+                            
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                img.src = e.target.result;
+                            };
+                            reader.readAsDataURL(file);
+                        });
+                    };
+                    
+                    try {
+                        let imageData;
+                        
+                        if (file.size > 1024 * 1024) {
+                            console.log('🗜️ Compression image en cours...');
+                            imageData = await compressImage(file, 800, 0.8);
+                            console.log('✅ Image compressée');
+                        } else {
+                            const reader = new FileReader();
+                            imageData = await new Promise((resolve) => {
+                                reader.onload = (e) => resolve(e.target.result);
+                                reader.readAsDataURL(file);
+                            });
+                        }
+                        
+                        // Analyse photo avec Claude
+                        const response = await fetch('/api/analyze-image', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                image: imageData,
+                                prompt: `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Analyse cette photo de tableau de bord automobile et réponds COMME JULIEN avec ton expertise !`
+                            })
+                        });
+
+                        const data = await response.json();
+                        
+                        if (data.success && data.analysis) {
+                            addMessage(`📸 **ANALYSE PHOTO EXPERT** 🧠\n\n${data.analysis}`, 'bot', 'claude');
+                        } else {
+                            addMessage(`📸 Photo reçue ! Dis-moi ce que tu vois : voyants allumés, messages affichés, marque du véhicule ?`, 'bot', 'auto');
+                        }
+                        
+                    } catch (error) {
+                        console.error('❌ Erreur upload:', error);
+                        addMessage(`❌ Erreur analyse : ${error.message}`, 'bot');
+                    }
+                    
+                    setIsTyping(false);
+                    event.target.value = '';
+                }
+            };
+
+            const handleGarageClick = () => {
+                trackEvent('garage_redirect', { sessionId: leadData.sessionId });
+                window.open('https://www.idgarages.com/fr-fr/prestations/diagnostic-electronique?utm_source=re-fap&utm_medium=partenariat&utm_campaign=diagnostic-electronique&ept-publisher=re-fap&ept-name=re-fap-diagnostic-electronique', '_blank');
+            };
+
+            const handleCallbackClick = () => {
+                trackEvent('callback_requested', { sessionId: leadData.sessionId });
+                setShowCallbackForm(true);
+                addMessage("Je souhaite être rappelé gratuitement", 'user');
+                setTimeout(() => {
+                    addMessage("📞 **Formulaire de rappel activé !**\n\nRemplis le formulaire qui s'affiche et un expert Re-Fap va t'appeler dans les 2h ! 🎯", 'bot', 'form');
+                }, 500);
+            };
+
+            const handleCallbackSubmit = async (e) => {
+                e.preventDefault();
+                
+                if (!callbackData.nom || !callbackData.telephone) {
+                    alert('Nom et téléphone obligatoires !');
+                    return;
+                }
+
+                try {
+                    console.log('📧 Envoi demande de rappel...');
+                    
+                    // Envoyer via notre API webhook
+                    const response = await fetch('/api/send-callback', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            nom: callbackData.nom,
+                            telephone: callbackData.telephone,
+                            email: callbackData.email,
+                            probleme: callbackData.probleme,
+                            vehicule: callbackData.vehicule,
+                            sessionId: leadData.sessionId,
+                            chatUrl: window.location.href
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        console.log('✅ Email envoyé avec succès:', result);
+
+                        trackEvent('callback_form_submitted', { 
+                            sessionId: leadData.sessionId,
+                            phone: callbackData.telephone.substring(0, 4) + 'xxxx',
+                            success: true,
+                            emailId: result.emailId
+                        });
+
+                        addMessage(`✅ **Demande de rappel envoyée !**
+
+📧 **Email envoyé à :**
+• mgaume@re-fap.fr
+• contact@re-fap.fr
+
+📋 **Récapitulatif :**
+• Nom : ${callbackData.nom}
+• Téléphone : ${callbackData.telephone}
+• Problème : ${callbackData.probleme || 'Non précisé'}
+
+📞 **Un expert Re-Fap va t'appeler sous 2h !**
+
+En attendant, continue à me poser des questions ! 🔧`, 'bot', 'confirmation');
+
+                    } else {
+                        console.warn('⚠️ Email partiellement envoyé:', result);
+
+                        addMessage(`⚠️ **Demande enregistrée !**
+
+📋 **Tes informations :**
+• Nom : ${callbackData.nom}
+• Téléphone : ${callbackData.telephone}
+
+📞 **Re-Fap va te contacter sous 2h !**
+
+Continue le diagnostic avec moi ! 💪`, 'bot', 'partial');
+                    }
+
+                    setShowCallbackForm(false);
+                    setCallbackData({ nom: '', telephone: '', email: '', probleme: '', vehicule: '' });
+                    
+                } catch (error) {
+                    console.error('❌ Erreur envoi callback:', error);
+                    
+                    // Fallback : au moins logger les données
+                    console.log('📊 DONNÉES CALLBACK SAUVEGARDÉES:', {
+                        nom: callbackData.nom,
+                        telephone: callbackData.telephone,
+                        email: callbackData.email,
+                        probleme: callbackData.probleme,
+                        vehicule: callbackData.vehicule,
+                        sessionId: leadData.sessionId,
+                        timestamp: new Date().toISOString(),
+                        destinataires: ['mgaume@re-fap.fr', 'contact@re-fap.fr']
+                    });
+
+                    trackEvent('callback_form_error', { 
+                        sessionId: leadData.sessionId,
+                        error: error.message
+                    });
+
+                    addMessage(`⚠️ **Problème technique temporaire**
+
+📞 **Tes données sont sauvegardées :**
+• Nom : ${callbackData.nom}
+• Téléphone : ${callbackData.telephone}
+
+🔧 **Solutions :**
+• Appelle directement Re-Fap
+• Ou réessaie dans quelques minutes
+
+En attendant, continue le diagnostic ! 💪`, 'bot', 'error');
+
+                    setShowCallbackForm(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-orange-50">
+                    {/* Header */}
+                    <header className="bg-white shadow-sm border-b">
+                        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+                            <div className="flex items-center">
+                                <div className="mr-3 bg-gradient-to-r from-green-500 to-green-600 px-4 py-2 rounded-lg shadow-sm">
+                                    <span className="text-white font-bold text-lg">re-fap</span>
+                                </div>
+                                <div>
+                                    <h1 className="text-lg font-bold text-gray-800">Julien - Expert FAP</h1>
+                                    <p className="text-xs text-gray-600">Diagnostic gratuit • 20 ans d'expérience</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => window.open('https://re-fap.fr/contact/', '_blank')}
+                                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                            >
+                                📞 Devis gratuit
+                            </button>
+                        </div>
+                    </header>
+
+                    {/* Chat principal avec CTA responsive */}
+                    <div className="max-w-6xl mx-auto p-4">
+                        <div className="flex flex-col lg:flex-row gap-4">
+                            {/* Chat principal */}
+                            <div className="flex-1 bg-white rounded-xl shadow-lg overflow-hidden">
+                                {/* Header chat */}
+                                <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white p-4">
+                                    <div className="flex items-center">
+                                        <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-3">
+                                            <span className="text-2xl">👨‍🔧</span>
+                                        </div>
+                                        <div>
+                                            <h2 className="text-xl font-bold">Julien, ton expert FAP</h2>
+                                            <p className="text-orange-100 text-sm">Diagnostic GRATUIT • Spécialiste Re-Fap depuis 20 ans</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Messages */}
+                                <div className="h-96 overflow-y-auto p-4 bg-gray-50">
+                                    {messages.map((message, index) => (
+                                        <div key={index} className={`mb-4 ${message.type === 'user' ? 'text-right' : ''}`}>
+                                            <div className={`inline-block p-3 rounded-lg max-w-md ${
+                                                message.type === 'user' 
+                                                    ? 'bg-blue-500 text-white' 
+                                                    : message.source === 'claude'
+                                                        ? 'bg-purple-100 text-gray-800 border-l-4 border-purple-500'
+                                                        : 'bg-white text-gray-800 border border-gray-200'
+                                            }`}>
+                                                {typeof message.content === 'string' ? 
+                                                    message.content.split('\n').map((line, i) => (
+                                                        <div key={i} className={line.startsWith('**') && line.endsWith('**') ? 'font-bold' : ''}>
+                                                            {line.replace(/\*\*/g, '')}
+                                                        </div>
+                                                    )) : 
+                                                    <div>Erreur affichage message</div>
+                                                }
+                                                
+                                                {message.type === 'bot' && (
+                                                    <div className="text-xs text-gray-400 mt-2">
+                                                        {message.source === 'claude' ? '🧠 IA' : '⚡ Expert'} • {new Date(message.timestamp).toLocaleTimeString()}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    
+                                    {isTyping && (
+                                        <div className="mb-4">
+                                            <div className="inline-block bg-white p-3 rounded-lg border border-gray-200">
+                                                <div className="flex items-center space-x-2">
+                                                    <div className="flex space-x-1">
+                                                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                                                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                                                    </div>
+                                                    <span className="text-sm text-gray-600">Julien analyse...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Input */}
+                                <div className="p-4 border-t bg-white">
+                                    <form onSubmit={handleSendMessage} className="flex gap-2 mb-3">
+                                        <input
+                                            type="text"
+                                            value={inputMessage}
+                                            onChange={(e) => setInputMessage(e.target.value)}
+                                            placeholder="💬 Décris ton problème... (ex: 'Ça pue et ça fume en ville')"
+                                            className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                                            disabled={isTyping}
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={isTyping || !inputMessage.trim()}
+                                            className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                                        >
+                                            Envoyer
+                                        </button>
+                                    </form>
+
+                                    {/* Upload photo */}
+                                    <div className="mb-3 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-dashed border-blue-300">
+                                        <div className="text-center">
+                                            <input
+                                                type="file"
+                                                id="imageUpload"
+                                                accept="image/*"
+                                                onChange={handleImageUpload}
+                                                className="hidden"
+                                                disabled={isTyping}
+                                            />
+                                            <label 
+                                                htmlFor="imageUpload" 
+                                                className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg inline-flex items-center gap-2 font-medium transition-colors"
+                                            >
+                                                📸 Photo de mon voyant
+                                            </label>
+                                            <p className="text-xs text-gray-600 mt-2">
+                                                JPG/PNG max 5MB • Julien analysera automatiquement ! 🧠
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Quick options */}
+                                    <div className="grid grid-cols-2 gap-2 mb-4 lg:mb-0">
+                                        {[
+                                            { text: "🟡 Voyant FAP", msg: "Voyant FAP allumé" },
+                                            { text: "💨 Ça fume", msg: "Ça pue et ça fume" },
+                                            { text: "⚡ Perte puissance", msg: "Plus de puissance en ville" },
+                                            { text: "🔧 Je suis bricoleur", msg: "Je démonte moi-même" }
+                                        ].map((option, index) => (
+                                            <button
+                                                key={index}
+                                                onClick={async () => {
+                                                    addMessage(option.msg, 'user');
+                                                    setIsTyping(true);
+                                                    const response = await getClaudeResponse(option.msg, messages);
+                                                    addMessage(response, 'bot', 'claude');
+                                                    setIsTyping(false);
+                                                }}
+                                                disabled={isTyping}
+                                                className="bg-gray-100 hover:bg-gray-200 p-2 rounded text-sm disabled:opacity-50 transition-colors"
+                                            >
+                                                {option.text}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* CTA mobile - en bas du chat */}
+                                    <div className="lg:hidden p-3 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
+                                        <h4 className="font-bold text-orange-800 text-sm mb-2 text-center">🎯 Besoin d'aide ?</h4>
+                                        <div className="grid grid-cols-1 gap-2">
+                                            <button
+                                                onClick={handleGarageClick}
+                                                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded text-sm font-medium transition-colors"
+                                            >
+                                                🏪 Trouver un garage de confiance
+                                            </button>
+                                            <button
+                                                onClick={handleCallbackClick}
+                                                className="bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded text-sm font-medium transition-colors"
+                                            >
+                                                📞 Être rappelé gratuitement
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* CTA Section verticale - DESKTOP SEULEMENT */}
+                            <div className="hidden lg:block w-64 space-y-4">
+                                {/* Titre CTA */}
+                                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
+                                    <h4 className="font-bold text-orange-800 text-sm mb-1">🎯 Besoin d'aide ?</h4>
+                                    <p className="text-xs text-orange-600">Solutions Re-Fap personnalisées</p>
+                                </div>
+
+                                {/* Bouton Garage */}
+                                <button
+                                    onClick={handleGarageClick}
+                                    className="w-full bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
+                                >
+                                    <div className="text-center">
+                                        <div className="text-2xl mb-2">🏪</div>
+                                        <div className="font-bold">Trouver un garage</div>
+                                        <div className="font-bold">de confiance</div>
+                                        <div className="text-xs mt-1 opacity-90">Réseau partenaire Re-Fap</div>
+                                    </div>
+                                </button>
+
+                                {/* Bouton Rappel */}
+                                <button
+                                    onClick={handleCallbackClick}
+                                    className="w-full bg-green-500 hover:bg-green-600 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
+                                >
+                                    <div className="text-center">
+                                        <div className="text-2xl mb-2">📞</div>
+                                        <div className="font-bold">Être rappelé</div>
+                                        <div className="font-bold">gratuitement</div>
+                                        <div className="text-xs mt-1 opacity-90">Expert sous 2h</div>
+                                    </div>
+                                </button>
+
+                                {/* Info complémentaire */}
+                                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
+                                    <div className="text-xs text-gray-600">
+                                        <div className="font-semibold text-green-600 mb-1">✅ Diagnostic gratuit</div>
+                                        <div>🧠 IA + 20 ans expérience</div>
+                                        <div>💰 Solutions économiques</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* FORMULAIRE DE RAPPEL - Modal */}
+                        {showCallbackForm && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                                <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-screen overflow-y-auto">
+                                    {/* Header formulaire */}
+                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-t-xl">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className="text-lg font-bold">📞 Rappel gratuit Re-Fap</h3>
+                                                <p className="text-sm opacity-90">Expert sous 2h ouvrées</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => setShowCallbackForm(false)}
+                                                className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Formulaire */}
+                                    <form onSubmit={handleCallbackSubmit} className="p-6 space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Nom / Prénom *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={callbackData.nom}
+                                                onChange={(e) => setCallbackData({...callbackData, nom: e.target.value})}
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                                placeholder="Votre nom complet"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Téléphone *
+                                            </label>
+                                            <input
+                                                type="tel"
+                                                required
+                                                value={callbackData.telephone}
+                                                onChange={(e) => setCallbackData({...callbackData, telephone: e.target.value})}
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                                placeholder="06 12 34 56 78"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Email
+                                            </label>
+                                            <input
+                                                type="email"
+                                                value={callbackData.email}
+                                                onChange={(e) => setCallbackData({...callbackData, email: e.target.value})}
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                                placeholder="votre@email.com"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Résumé du problème
+                                            </label>
+                                            <textarea
+                                                value={callbackData.probleme}
+                                                onChange={(e) => setCallbackData({...callbackData, probleme: e.target.value})}
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                                placeholder="Voyants allumés, fumées, perte puissance..."
+                                                rows="3"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Véhicule
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={callbackData.vehicule}
+                                                onChange={(e) => setCallbackData({...callbackData, vehicule: e.target.value})}
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                                placeholder="Marque, modèle, année (ex: Peugeot 308 2018)"
+                                            />
+                                        </div>
+
+                                        {/* Info RGPD */}
+                                        <div className="bg-gray-50 p-3 rounded-lg text-xs text-gray-600">
+                                            ✅ Vos données sont utilisées uniquement pour le rappel. Aucun spam.
+                                        </div>
+
+                                        {/* Boutons */}
+                                        <div className="flex gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCallbackForm(false)}
+                                                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 px-4 rounded-lg font-medium transition-colors"
+                                            >
+                                                Annuler
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-lg font-medium transition-colors"
+                                            >
+                                                📞 Demander le rappel
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <footer className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-gray-600">
+                        <div className="flex items-center justify-center space-x-6 mb-3">
+                            <span className="flex items-center"><span className="text-green-500 mr-1">✅</span> Diagnostic gratuit</span>
+                            <span className="flex items-center"><span className="text-blue-500 mr-1">🧠</span> IA + 20 ans expérience</span>
+                            <span className="flex items-center"><span className="text-orange-500 mr-1">💰</span> Solutions économiques</span>
+                        </div>
+                        <p className="text-xs">
+                            Powered by <a href="https://re-fap.fr" className="text-orange-600 hover:underline">Re-Fap</a> • 
+                            Expert nettoyage FAP depuis 2015 • 
+                            Session: {leadData.sessionId}
+                        </p>
+                    </footer>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<JulienProduction />, document.getElementById('root'));
+    </script>
+</body>
+</html>
