@@ -7,12 +7,6 @@
     <meta name="description" content="Diagnostic gratuit FAP/EGR/AdBlue avec Julien, expert depuis 20 ans. Analysez vos voyants moteur, obtenez solutions et devis Re-Fap.">
     <meta name="keywords" content="diagnostic FAP, expert Re-Fap, voyant moteur, nettoyage FAP, EGR, AdBlue">
     
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="Julien - Expert FAP Re-Fap | Diagnostic Gratuit">
-    <meta property="og:description" content="Diagnostic gratuit de vos problèmes FAP/EGR/AdBlue avec notre expert Julien. Photo de voyant analysée, solutions personnalisées.">
-    <meta property="og:image" content="https://re-fap.fr/assets/images/julien-expert-fap.jpg">
-    
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -43,25 +37,20 @@
             ]);
             const [inputMessage, setInputMessage] = useState('');
             const [isTyping, setIsTyping] = useState(false);
-            const [conversationHistory, setConversationHistory] = useState([]);
             const [leadData, setLeadData] = useState({
                 sessionId: Math.random().toString(36).substr(2, 9),
                 startTime: new Date(),
                 symptoms: [],
                 vehicle: {},
+                profile: '',
                 contactRequested: false
             });
 
-            // Configuration Claude API (à configurer côté serveur)
-            const CLAUDE_API_KEY = ''; // À configurer via variables d'environnement
-
             useEffect(() => {
-                // Track session start
                 trackEvent('session_start', { sessionId: leadData.sessionId });
             }, []);
 
             const trackEvent = (event, data = {}) => {
-                // Google Analytics
                 if (typeof gtag !== 'undefined') {
                     gtag('event', event, {
                         custom_parameter_1: data.sessionId,
@@ -69,12 +58,7 @@
                         custom_parameter_3: data.vehicle || ''
                     });
                 }
-                
-                // Log pour debug
                 console.log('📊 Event tracked:', event, data);
-                
-                // Envoi vers votre CRM (à implémenter)
-                // fetch('/api/track-lead', { method: 'POST', body: JSON.stringify({event, data}) });
             };
 
             const addMessage = (content, type = 'bot', source = 'auto') => {
@@ -109,7 +93,6 @@ ANALYSE PRÉCISE :
 RÉPONDS COMME JULIEN :
 - Direct, précis, professionnel mais humain
 - Propose solution Re-Fap si dépollution
-- Sinon redirige vers partenaires
 - Termine par une question pour continuer le diagnostic
 
 OBJECTIF : Générer un lead qualifié pour Re-Fap`
@@ -141,7 +124,6 @@ OBJECTIF : Générer un lead qualifié pour Re-Fap`
                     console.error('💥 Erreur analyse photo:', error);
                     trackEvent('photo_analyzed', { success: false, error: error.message });
                     
-                    // Fallback intelligent
                     return `📸 **Photo reçue !** Analyse en cours...
 
 🔍 **Dis-moi ce que tu vois :**
@@ -157,8 +139,8 @@ OBJECTIF : Générer un lead qualifié pour Re-Fap`
             const getAutonomousResponse = (userMsg) => {
                 const lowerMsg = userMsg.toLowerCase();
 
-                // Détection véhicule + symptômes pour tracking
-                const vehicleMatch = lowerMsg.match(/\b(audi|bmw|peugeot|citroën|citroen|renault|volkswagen|vw|mercedes|ford|opel|seat|skoda|volvo|nissan|toyota|hyundai|kia|mazda|subaru|mitsubishi|honda|fiat|alfa romeo|mini|land rover|jaguar|porsche|bentley|aston martin|ferrari|lamborghini|maserati|lexus|acura|infiniti)\b/i);
+                // Détection véhicule
+                const vehicleMatch = lowerMsg.match(/\b(audi|bmw|peugeot|citroën|citroen|renault|volkswagen|vw|mercedes|ford|opel|seat|skoda|volvo|nissan|toyota|hyundai|kia|mazda|subaru|mitsubishi|honda|fiat|alfa romeo|mini|land rover|jaguar|porsche)\b/i);
                 
                 if (vehicleMatch) {
                     setLeadData(prev => ({...prev, vehicle: {brand: vehicleMatch[0]}}));
@@ -179,7 +161,7 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** noté ! 👍` : ''}
 **Je te donne la solution la + économique selon ta situation !** 💰`;
                 }
 
-                // CODES DÉFAUTS FAP - DIAGNOSTIC AVANCÉ
+                // CODES DÉFAUTS FAP
                 if (lowerMsg.includes('p2002') || lowerMsg.includes('p2463') || lowerMsg.includes('p0401')) {
                     const code = lowerMsg.match(/p\d{4}/i)?.[0].toUpperCase();
                     trackEvent('dtc_code_detected', { code, vehicle: vehicleMatch?.[0] });
@@ -202,7 +184,38 @@ ${vehicleMatch ? `**${vehicleMatch[0]} ${code}** - j'ai traité 100+ cas identiq
 **Solution personnalisée selon ton profil !** 🛠️`;
                 }
 
-                // FUMÉE - QUALIFICATION IMMÉDIATE
+                // PROFIL BRICOLEUR
+                if (lowerMsg.includes('bricoleur') || lowerMsg.includes('démonter') || lowerMsg.includes('moi-même')) {
+                    setLeadData(prev => ({...prev, profile: 'bricoleur'}));
+                    return `🔧 **Profil bricoleur détecté !** Parfait pour Re-Fap !
+
+**Avantages pour toi :**
+💰 **Économie max** : pas de main d'œuvre garage
+⚡ **Direct producteur** : tarifs préférentiels  
+🗺️ **500+ points** de collecte en France
+📦 **Envoi postal** possible si éloigné
+
+**Prochaine étape :**
+Tu démontés ton FAP et on s'occupe du reste !
+
+**Veux-tu qu'on te rappelle** pour t'expliquer la procédure exacte ?`;
+                }
+
+                // PROFIL GARAGE
+                if (lowerMsg.includes('garage') || lowerMsg.includes('professionnel') || lowerMsg.includes('confier')) {
+                    setLeadData(prev => ({...prev, profile: 'garage'}));
+                    return `🏪 **Tu préfères un garage ?** Excellent choix !
+
+**Avantages garage partenaire :**
+🔍 **Diagnostic confirmé** avant démontage
+🔧 **Installation pro** + garantie
+📋 **Prise en charge complète** sans stress
+🤝 **Réseau Re-Fap** : 200+ garages de confiance
+
+**Je te recommande vivement** un diagnostic pro pour confirmer !`;
+                }
+
+                // FUMÉE
                 if (lowerMsg.includes('fumée') || lowerMsg.includes('fume')) {
                     trackEvent('symptom_detected', { symptom: 'fumee', vehicle: vehicleMatch?.[0] });
                     
@@ -218,44 +231,27 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** - problème classique ! ` : ''}
 
 **→ Je te guide vers la solution la + rentable !** 💰`;
                     }
+                }
+
+                // HORS SPÉCIALITÉ
+                if (lowerMsg.includes('vibration') || lowerMsg.includes('frein') || lowerMsg.includes('boîte') || 
+                    lowerMsg.includes('embrayage') || lowerMsg.includes('direction') || lowerMsg.includes('suspension')) {
                     
-                    if (lowerMsg.includes('blanc')) {
-                        return `💨 **Fumée blanche = EGR suspecte !**
+                    const probleme = lowerMsg.includes('vibration') ? 'vibrations' :
+                                   lowerMsg.includes('frein') ? 'freinage' :
+                                   lowerMsg.includes('boîte') ? 'boîte de vitesses' :
+                                   'mécanique générale';
+                    
+                    trackEvent('out_of_scope', { problem: probleme, vehicle: vehicleMatch?.[0] });
+                    
+                    return `🔧 **Problème ${probleme} détecté**
 
-**Questions rapides :**
-🌡️ **Seulement à froid** au démarrage ?
-🔧 **Ralenti instable** ?
-💪 **Tu démontés toi-même** ou tu préfères un garage ?
+**Pas ma spécialité** - Expert dépollution FAP/EGR/AdBlue uniquement.
 
-${vehicleMatch ? `**${vehicleMatch[0]}** - EGR problématique connue ! ` : ''}
-
-**Solutions Re-Fap selon ton profil !** 🛠️`;
-                    }
+**Je te redirige vers nos partenaires** pour ce type de diagnostic !`;
                 }
 
-                // RÉPONSES DE QUALIFICATION CLIENT
-                if (lowerMsg.includes('bricoleur') || lowerMsg.includes('démonter') || lowerMsg.includes('moi-même') || lowerMsg.includes('moi même')) {
-                    setLeadData(prev => ({...prev, profile: 'bricoleur'}));
-                    return generateBricoleurResponse(lowerMsg, vehicleMatch?.[0]);
-                }
-
-                if (lowerMsg.includes('garage') || lowerMsg.includes('professionnel') || lowerMsg.includes('confier')) {
-                    setLeadData(prev => ({...prev, profile: 'garage'}));
-                    return generateGarageResponse(lowerMsg, vehicleMatch?.[0]);
-                }
-
-                // DÉTECTION PROBLÈME RÉSOLU OU HÉSITATION
-                if (lowerMsg.includes('déjà') && (lowerMsg.includes('démonté') || lowerMsg.includes('enlevé'))) {
-                    return `🔧 **FAP déjà démonté ?** Parfait !
-
-**Options Re-Fap :**
-📍 **Point de collecte** proche de toi
-📦 **Envoi postal** sécurisé
-⚡ **Nettoyage 24-48h** garanti
-
-**Dis-moi ta région** pour t'orienter ! 🗺️`;
-                }
-
+                // PRIX/TARIFS
                 if (lowerMsg.includes('prix') || lowerMsg.includes('coût') || lowerMsg.includes('tarif')) {
                     return `💰 **Coûts Re-Fap vs Concurrence :**
 
@@ -270,26 +266,7 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** - EGR problématique connue ! ` : ''}
 **Quelle option t'intéresse ?** 🎯`;
                 }
 
-                // PROBLÈMES HORS SPÉCIALITÉ (redirection partenaire)
-                if (lowerMsg.includes('vibration') || lowerMsg.includes('frein') || lowerMsg.includes('boîte') || 
-                    lowerMsg.includes('embrayage') || lowerMsg.includes('direction') || lowerMsg.includes('suspension')) {
-                    
-                    const probleme = lowerMsg.includes('vibration') ? 'vibrations' :
-                                   lowerMsg.includes('frein') ? 'freinage' :
-                                   lowerMsg.includes('boîte') ? 'boîte de vitesses' :
-                                   lowerMsg.includes('embrayage') ? 'embrayage' :
-                                   lowerMsg.includes('direction') ? 'direction' : 'suspension';
-                    
-                    trackEvent('out_of_scope', { problem: probleme, vehicle: vehicleMatch?.[0] });
-                    
-                    return `🔧 **Problème ${probleme} détecté**
-
-**Pas ma spécialité** - Expert dépollution FAP/EGR/AdBlue uniquement.
-
-**Redirection partenaire :**`;
-                }
-
-                // CAS GÉNÉRAL - ORIENTATION RAPIDE
+                // CAS GÉNÉRAL
                 trackEvent('general_inquiry', { vehicle: vehicleMatch?.[0] });
                 return `🎯 **Diagnostic FAP/EGR/AdBlue express :**
 
@@ -303,46 +280,6 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** noté ! 👍` : ''}
 📸 **Photo de voyant = diagnostic ultra-précis !**`;
             };
 
-            // Réponse pour profil bricoleur
-            const generateBricoleurResponse = (msg, vehicle) => {
-                return `🔧 **Profil bricoleur détecté !** Parfait pour Re-Fap !
-
-**Avantages pour toi :**
-💰 **Économie max** : pas de main d'œuvre garage
-⚡ **Direct producteur** : tarifs préférentiels  
-🗺️ **500+ points** de collecte en France
-📦 **Envoi postal** possible si éloigné
-
-**Prochaine étape :**
-Tu démontés ton FAP et on s'occupe du reste !
-
-**Veux-tu qu'on te rappelle** pour t'expliquer la procédure exacte ?`;
-            };
-
-            // Réponse pour profil garage
-            const generateGarageResponse = (msg, vehicle) => {
-                return `🏪 **Tu préfères un garage ?** Excellent choix !
-
-**Avantages garage partenaire :**
-🔍 **Diagnostic confirmé** avant démontage
-🔧 **Installation pro** + garantie
-📋 **Prise en charge complète** sans stress
-🤝 **Réseau Re-Fap** : 200+ garages de confiance
-
-**Je te recommande vivement** un diagnostic pro pour confirmer !`;
-            };
-
-            // Fonction pour générer les boutons CTA selon le profil
-            const generateCTAButtons = (profile, symptom) => {
-                if (profile === 'bricoleur') {
-                    return `**Rappel gratuit** pour procédure exacte`;
-                } else if (profile === 'garage') {
-                    return `**Garage de confiance** près de chez toi`;
-                } else {
-                    return `**Diagnostic pro** pour confirmer`;
-                }
-            };
-
             const handleSendMessage = async (e) => {
                 e.preventDefault();
                 if (!inputMessage.trim()) return;
@@ -352,7 +289,6 @@ Tu démontés ton FAP et on s'occupe du reste !
                 setInputMessage('');
                 setIsTyping(true);
 
-                // Track message
                 trackEvent('message_sent', { message: userMsg.substring(0, 50) });
 
                 setTimeout(() => {
@@ -382,7 +318,6 @@ Tu démontés ton FAP et on s'occupe du reste !
                             const img = new Image();
                             
                             img.onload = () => {
-                                // Calculer nouvelles dimensions
                                 let { width, height } = img;
                                 if (width > maxWidth) {
                                     height = (height * maxWidth) / width;
@@ -391,11 +326,8 @@ Tu démontés ton FAP et on s'occupe du reste !
                                 
                                 canvas.width = width;
                                 canvas.height = height;
-                                
-                                // Dessiner l'image redimensionnée
                                 ctx.drawImage(img, 0, 0, width, height);
                                 
-                                // Convertir en base64 avec compression
                                 const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
                                 resolve(compressedDataUrl);
                             };
@@ -411,8 +343,7 @@ Tu démontés ton FAP et on s'occupe du reste !
                     try {
                         let imageData;
                         
-                        // Si l'image est trop grosse, on la compresse
-                        if (file.size > 1024 * 1024) { // > 1MB
+                        if (file.size > 1024 * 1024) {
                             console.log('🗜️ Compression image en cours...');
                             imageData = await compressImage(file, 800, 0.8);
                             console.log('✅ Image compressée');
@@ -437,46 +368,16 @@ Tu démontés ton FAP et on s'occupe du reste !
                 }
             };
 
-            // Génération de message CTA selon contexte
-            const generateCTAMessage = (context) => {
-                const lowerContext = context.toLowerCase();
-                
-                if (lowerContext.includes('voyant fap') || lowerContext.includes('code')) {
-                    return `🎯 **Prochaine étape recommandée :**
-
-Pour **confirmer le diagnostic** et éviter une erreur coûteuse, je recommande vivement :
-
-🔍 **Diagnostic professionnel** chez un garage partenaire Re-Fap
-✅ **Confirmation** avant démontage  
-💰 **Évite** les frais inutiles
-🤝 **Réseau de confiance** vérifié
-
-**Ou** si tu es bricoleur confirmé : 
-
-📞 **Rappel gratuit** pour procédure exacte de démontage`;
-                }
-                
-                if (lowerContext.includes('bricoleur') || lowerContext.includes('démonte')) {
-                    return `🔧 **Parfait pour un profil bricoleur !**
-
-**Options Re-Fap pour toi :**
-📍 **500+ points de collecte** en France  
-📦 **Envoi postal** sécurisé possible
-⚡ **Nettoyage 24-48h** garanti
-💰 **Tarif préférentiel** sans main d'œuvre
-
-**Veux-tu qu'on t'explique** la procédure exacte ?`;
-                }
-                
-                return `🎯 **Je te recommande :**
-
-🏪 **Garage de confiance** → Diagnostic + installation pro
-📞 **Rappel gratuit** → Conseil personnalisé`;
+            const handleGarageClick = () => {
+                trackEvent('garage_redirect', { sessionId: leadData.sessionId });
+                window.open('https://www.idgarages.com/fr-fr/prestations/diagnostic-electronique?utm_source=re-fap&utm_medium=partenariat&utm_campaign=diagnostic-electronique&ept-publisher=re-fap&ept-name=re-fap-diagnostic-electronique', '_blank');
             };
 
-            // Formulaire de callback
-            const generateCallbackForm = () => {
-                return `📞 **Rappel gratuit Re-Fap**
+            const handleCallbackClick = () => {
+                trackEvent('callback_requested', { sessionId: leadData.sessionId });
+                addMessage("Je souhaite être rappelé gratuitement", 'user');
+                setTimeout(() => {
+                    const callbackMsg = `📞 **Rappel gratuit Re-Fap**
 
 **Un expert va t'appeler** dans les 2h ouvrées !
 
@@ -488,12 +389,9 @@ Pour **confirmer le diagnostic** et éviter une erreur coûteuse, je recommande 
 
 **Formulaire** : https://re-fap.fr/contact/
 
-**Ou SMS direct** au **06.XX.XX.XX.XX** avec :
-- Nom/Prénom
-- Téléphone  
-- Marque véhicule + symptôme
-
 **Rappel garanti sous 2h !** ⏱️`;
+                    addMessage(callbackMsg, 'bot', 'form');
+                }, 1000);
             };
 
             return (
@@ -509,7 +407,7 @@ Pour **confirmer le diagnostic** et éviter une erreur coûteuse, je recommande 
                                 </div>
                             </div>
                             <button 
-                                onClick={handleContactRequest}
+                                onClick={() => window.open('https://re-fap.fr/contact/', '_blank')}
                                 className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                             >
                                 📞 Devis gratuit
@@ -619,13 +517,13 @@ Pour **confirmer le diagnostic** et éviter une erreur coûteuse, je recommande 
                                     </div>
                                 </div>
 
-                                {/* Quick options avec CTA optimisés */}
-                                <div className="grid grid-cols-2 gap-2">
+                                {/* Quick options avec CTA */}
+                                <div className="grid grid-cols-2 gap-2 mb-4">
                                     {[
-                                        { text: "🟡 Voyant FAP", msg: "Voyant FAP allumé", cta: true },
-                                        { text: "💨 Fumée noire", msg: "Fumée noire à l'échappement", cta: true },
-                                        { text: "📱 Code erreur", msg: "J'ai un code erreur affiché", cta: false },
-                                        { text: "🔧 Je suis bricoleur", msg: "Je démonte moi-même", cta: true }
+                                        { text: "🟡 Voyant FAP", msg: "Voyant FAP allumé" },
+                                        { text: "💨 Fumée noire", msg: "Fumée noire à l'échappement" },
+                                        { text: "📱 Code erreur", msg: "J'ai un code erreur affiché" },
+                                        { text: "🔧 Je suis bricoleur", msg: "Je démonte moi-même" }
                                     ].map((option, index) => (
                                         <button
                                             key={index}
@@ -635,13 +533,6 @@ Pour **confirmer le diagnostic** et éviter une erreur coûteuse, je recommande 
                                                 setTimeout(() => {
                                                     const response = getAutonomousResponse(option.msg);
                                                     addMessage(response, 'bot', 'auto');
-                                                    
-                                                    // Ajouter CTA si nécessaire
-                                                    if (option.cta) {
-                                                        setTimeout(() => {
-                                                            addMessage(generateCTAMessage(option.msg), 'bot', 'cta');
-                                                        }, 2000);
-                                                    }
                                                     setIsTyping(false);
                                                 }, 1000);
                                             }}
@@ -653,24 +544,18 @@ Pour **confirmer le diagnostic** et éviter une erreur coûteuse, je recommande 
                                     ))}
                                 </div>
 
-                                {/* CTA Section - Toujours visible */}
-                                <div className="mt-4 p-3 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
+                                {/* CTA Section */}
+                                <div className="p-3 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
                                     <h4 className="font-bold text-orange-800 text-sm mb-2">🎯 Besoin d'aide ?</h4>
                                     <div className="grid grid-cols-1 gap-2">
                                         <button
-                                            onClick={() => window.open('https://www.idgarages.com/fr-fr/prestations/diagnostic-electronique?utm_source=re-fap&utm_medium=partenariat&utm_campaign=diagnostic-electronique&ept-publisher=re-fap&ept-name=re-fap-diagnostic-electronique', '_blank')}
+                                            onClick={handleGarageClick}
                                             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
                                         >
                                             🏪 Trouver un garage de confiance
                                         </button>
                                         <button
-                                            onClick={() => {
-                                                trackEvent('callback_requested', { sessionId: leadData.sessionId });
-                                                addMessage("Je souhaite être rappelé gratuitement", 'user');
-                                                setTimeout(() => {
-                                                    addMessage(generateCallbackForm(), 'bot', 'form');
-                                                }, 1000);
-                                            }}
+                                            onClick={handleCallbackClick}
                                             className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
                                         >
                                             📞 Être rappelé gratuitement
