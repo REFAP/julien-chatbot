@@ -257,7 +257,7 @@ Erreur temporaire : ${error.message}`;
 
             const handleGarageClick = () => {
                 trackEvent('garage_redirect', { sessionId: leadData.sessionId });
-                window.open('https://www.idgarages.com/fr-fr/prestations/diagnostic-electronique?utm_source=re-fap&utm_medium=partenariat&utm_campaign=diagnostic-electronique&ept-publisher=re-fap&ept-name=re-fap-diagnostic-electronique', '_blank');
+                window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank');
             };
 
             const handleCallbackClick = () => {
@@ -412,7 +412,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                                 </div>
                             </div>
                             <button 
-                                onClick={() => window.open('https://re-fap.fr/contact/', '_blank')}
+                                onClick={() => window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank')}
                                 className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                             >
                                 📞 Devis gratuit
