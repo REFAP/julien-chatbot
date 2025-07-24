@@ -279,8 +279,52 @@ Erreur temporaire : ${error.message}`;
                     <header className="bg-white shadow-sm border-b">
                         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
                             <div className="flex items-center">
-                                <div className="mr-3 bg-green-500 px-3 py-1 rounded text-white font-bold text-lg">
-                                    re-fap
+                                <div className="mr-3">
+                                    {/* Logo Re-Fap vectoriel basé sur ton design */}
+                                    <svg width="100" height="32" viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg">
+                                        <defs>
+                                            {/* Dégradé vert comme ton logo */}
+                                            <linearGradient id="refapGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                <stop offset="0%" stopColor="#8BC34A" />
+                                                <stop offset="50%" stopColor="#9CCC65" />
+                                                <stop offset="100%" stopColor="#AED581" />
+                                            </linearGradient>
+                                            <linearGradient id="refapGreen2" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                <stop offset="0%" stopColor="#7CB342" />
+                                                <stop offset="100%" stopColor="#8BC34A" />
+                                            </linearGradient>
+                                        </defs>
+                                        
+                                        {/* Formes géométriques vertes (style de ton logo) */}
+                                        <g transform="translate(2,4)">
+                                            {/* Première forme - parallélogramme */}
+                                            <path d="M0 8 L12 4 L20 16 L8 20 Z" 
+                                                  fill="url(#refapGreen)" 
+                                                  transform="rotate(-10 10 12)" />
+                                            
+                                            {/* Deuxième forme - superposition */}
+                                            <path d="M8 6 L20 2 L28 14 L16 18 Z" 
+                                                  fill="url(#refapGreen2)" 
+                                                  transform="rotate(-10 18 10)" 
+                                                  opacity="0.85" />
+                                            
+                                            {/* Troisième forme - accent */}
+                                            <path d="M4 12 L16 8 L24 20 L12 24 Z" 
+                                                  fill="url(#refapGreen)" 
+                                                  transform="rotate(-10 14 16)" 
+                                                  opacity="0.7" />
+                                        </g>
+                                        
+                                        {/* Texte "re-fap" avec la typo de ton logo */}
+                                        <text x="44" y="20" 
+                                              fontFamily="Arial, Helvetica, sans-serif" 
+                                              fontSize="18" 
+                                              fontWeight="bold" 
+                                              fill="#2E4A47"
+                                              letterSpacing="-0.5px">
+                                            re-fap
+                                        </text>
+                                    </svg>
                                 </div>
                                 <div>
                                     <h1 className="text-lg font-bold text-gray-800">Julien - Expert FAP</h1>
