@@ -21,14 +21,7 @@ export default async function handler(request, response) {
 
     try {
         // Récupérer les données de la requête
-        const { image, prompt } = request.body;
-
-        // Vérifier que l'image est fournie
-        if (!image) {
-            return response.status(400).json({ 
-                error: 'Image manquante' 
-            });
-        }
+        const { image, conversation, prompt } = request.body;
 
         // Récupérer la clé API depuis les variables d'environnement
         const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
@@ -37,7 +30,86 @@ export default async function handler(request, response) {
             console.error('❌ Clé API Claude manquante');
             return response.status(500).json({ 
                 error: 'Configuration API manquante',
-                fallback: generateFallbackAnalysis(image)
+                fallback: generateFallbackAnalysis()
+            });
+        }
+
+        let messageContent = [];
+        
+        // Si c'est une conversation (pas d'image)
+        if (conversation && Array.isArray(conversation)) {
+            // Mode dialogue pur - Claude fait tout
+            console.log('🔄 Mode conversation détecté, messages:', conversation.length);
+            
+            // Nettoyer et valider les messages
+            const cleanMessages = conversation
+                .filter(msg => msg.content && msg.content.trim().length > 0)
+                .map(msg => ({
+                    role: msg.role === 'user' ? 'user' : 'assistant',
+                    content: String(msg.content).trim().slice(0, 1000) // Limiter à 1000 chars
+                }));
+            
+            // S'assurer qu'on a au moins un message user
+            if (cleanMessages.length === 0 || cleanMessages[cleanMessages.length - 1].role !== 'user') {
+                return response.status(400).json({
+                    error: 'Aucun message utilisateur valide',
+                    fallback: generateFallbackAnalysis()
+                });
+            }
+            
+            console.log('📤 Envoi à Claude:', JSON.stringify(cleanMessages, null, 2));
+            
+            const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'x-api-key': CLAUDE_API_KEY,
+                    'Content-Type': 'application/json',
+                    'anthropic-version': '2023-06-01'
+                },
+                body: JSON.stringify({
+                    model: "claude-3-5-sonnet-20241022",
+                    max_tokens: 250,
+                    messages: cleanMessages,
+                    system: prompt || "Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Réponds comme un vrai mécano expert : direct, précis, conversationnel. Analyse les symptômes et guide vers des solutions Re-Fap."
+                })
+            });
+
+            const responseText = await claudeResponse.text();
+            console.log('📥 Réponse brute Claude:', claudeResponse.status, responseText);
+
+            if (!claudeResponse.ok) {
+                console.error('❌ Erreur Claude Conversation:', claudeResponse.status, responseText);
+                
+                return response.status(500).json({
+                    error: `Erreur Claude Conversation: ${claudeResponse.status}`,
+                    fallback: generateFallbackAnalysis(),
+                    debug: responseText
+                });
+            }
+
+            const claudeData = JSON.parse(responseText);
+            
+            console.log('✅ Dialogue Claude réussi:', {
+                timestamp: new Date().toISOString(),
+                tokensUsed: claudeData.usage?.input_tokens + claudeData.usage?.output_tokens
+            });
+
+            return response.status(200).json({
+                success: true,
+                analysis: claudeData.content[0].text,
+                metadata: {
+                    timestamp: new Date().toISOString(),
+                    model: 'claude-3-5-sonnet',
+                    type: 'conversation',
+                    tokensUsed: claudeData.usage?.input_tokens + claudeData.usage?.output_tokens
+                }
+            });
+        }
+        
+        // Mode analyse d'image (code existant)
+        if (!image) {
+            return response.status(400).json({ 
+                error: 'Image ou conversation manquante' 
             });
         }
 
@@ -56,23 +128,10 @@ export default async function handler(request, response) {
             imageData = image;
         }
 
-        // Appel à Claude Vision API
-        const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'x-api-key': CLAUDE_API_KEY,
-                'Content-Type': 'application/json',
-                'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-                model: "claude-3-5-sonnet-20241022",
-                max_tokens: 500,
-                messages: [{
-                    role: "user",
-                    content: [
-                        {
-                            type: "text",
-                            text: prompt || `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Analyse cette photo de tableau de bord automobile et réponds COMME JULIEN :
+        messageContent = [
+            {
+                type: "text",
+                text: prompt || `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Analyse cette photo de tableau de bord automobile et réponds COMME JULIEN :
 
 🔍 ANALYSE PRÉCISE :
 1. Quels voyants sont allumés (couleur, forme, position) ?
@@ -89,16 +148,31 @@ export default async function handler(request, response) {
 - Reste dans ta spécialité FAP/EGR/AdBlue
 
 🎯 OBJECTIF : Générer un lead qualifié pour Re-Fap`
-                        },
-                        {
-                            type: "image",
-                            source: {
-                                type: "base64",
-                                media_type: mediaType,
-                                data: imageData
-                            }
-                        }
-                    ]
+            },
+            {
+                type: "image",
+                source: {
+                    type: "base64",
+                    media_type: mediaType,
+                    data: imageData
+                }
+            }
+        ];
+
+        // Appel à Claude Vision API
+        const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'x-api-key': CLAUDE_API_KEY,
+                'Content-Type': 'application/json',
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+                model: "claude-3-5-sonnet-20241022",
+                max_tokens: 500,
+                messages: [{
+                    role: "user",
+                    content: messageContent
                 }]
             })
         });
@@ -139,41 +213,26 @@ export default async function handler(request, response) {
         
         return response.status(500).json({
             error: 'Erreur interne du serveur',
-            fallback: generateFallbackAnalysis(request.body?.image),
+            fallback: generateFallbackAnalysis(),
             debug: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 }
 
 // Fonction de fallback intelligente
-function generateFallbackAnalysis(imageData) {
+function generateFallbackAnalysis() {
     const responses = [
-        `📸 **Photo reçue !** Je vois ton tableau de bord.
+        `Salut ! Julien ici, expert FAP/EGR depuis 20 ans ! 
 
-**Analyse en cours...** 🔍 L'IA n'est pas disponible actuellement, mais je peux t'aider !
+Décris-moi ton problème auto : voyants allumés, fumées, codes erreur... 
 
-**Dis-moi précisément :**
-🟡 **Quels voyants** sont allumés (couleur, forme) ?
-📱 **Messages affichés** ? ("Antipollution défaillante", "Mode dégradé"...)
-🚗 **Marque/modèle** de ta voiture ?
+Je vais te donner un diagnostic précis ! 🔧`,
 
-**Voyants FAP typiques :**
-- 🟡 Voyant moteur orange
-- 🔸 Voyant FAP (forme de filtre)
-- ⚡ Voyant préchauffage qui clignote
+        `Hello ! C'est Julien, spécialiste dépollution Re-Fap !
 
-**Avec ces infos, je te donne un diagnostic précis !** 🎯`,
+Explique-moi tes symptômes : perte puissance, surconsommation, fumées...
 
-        `📸 **Photo analysée !** Je distingue ton tableau de bord.
-
-**Questions de diagnostic :**
-🔍 **Voyant principal** : Orange, rouge ou jaune ?
-📍 **Position** : Gauche, centre ou droite du tableau ?
-💬 **Message** : Y a-t-il du texte affiché sur l'écran ?
-🏷️ **Véhicule** : Quelle marque/modèle ?
-
-**Mon expertise Re-Fap :**
-Je vais croiser tes réponses avec ma base de 500+ interventions pour te donner la solution la plus économique ! 💪`
+Mon expertise à ton service ! 🎯`
     ];
 
     return responses[Math.floor(Math.random() * responses.length)];
