@@ -278,7 +278,88 @@ Erreur temporaire : ${error.message}`;
                 }
 
                 try {
-                    // Email direct via mailto (SOLUTION GARANTIE)
+                    console.log('📧 Envoi email automatique via EmailJS...');
+                    
+                    // Charger EmailJS si pas encore fait
+                    if (!window.emailjs) {
+                        const script = document.createElement('script');
+                        script.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js';
+                        document.head.appendChild(script);
+                        await new Promise(resolve => script.onload = resolve);
+                    }
+
+                    // Initialiser EmailJS avec ta clé publique
+                    emailjs.init('mUrOzXIRFoYWzUmeW');
+
+                    // Préparer les données pour l'email
+                    const templateParams = {
+                        name: callbackData.nom,
+                        subject: `🔥 NOUVEAU RAPPEL RE-FAP - ${callbackData.nom}`,
+                        message: `NOUVEAU RAPPEL RE-FAP - ${callbackData.nom}
+
+📋 INFORMATIONS CLIENT :
+• Nom/Prénom : ${callbackData.nom}
+• Téléphone : ${callbackData.telephone}
+• Email : ${callbackData.email || 'Non renseigné'}
+
+🚗 PROBLÈME VÉHICULE :
+• Véhicule : ${callbackData.vehicule || 'Non précisé'}
+• Problème : ${callbackData.probleme || 'Non précisé'}
+
+🧠 DONNÉES CHATBOT :
+• Session ID : ${leadData.sessionId}
+• Horodatage : ${new Date().toLocaleString('fr-FR')}
+• URL conversation : ${window.location.href}
+
+⚡ ACTION REQUISE : Rappeler ${callbackData.nom} au ${callbackData.telephone} sous 2h !
+
+---
+Généré automatiquement par Julien Chatbot Re-Fap`
+                    };
+
+                    console.log('📤 Envoi via EmailJS...', templateParams);
+
+                    // Envoyer l'email automatiquement
+                    const response = await emailjs.send(
+                        'service_mnjblro',    // Ton Service ID
+                        'template_trg4q0n',   // Ton Template ID
+                        templateParams
+                    );
+
+                    console.log('✅ Email automatique envoyé:', response);
+
+                    trackEvent('callback_form_submitted', { 
+                        sessionId: leadData.sessionId,
+                        phone: callbackData.telephone.substring(0, 4) + 'xxxx',
+                        success: true,
+                        method: 'emailjs_auto',
+                        emailjs_status: response.status
+                    });
+
+                    addMessage(`✅ **Email automatique envoyé !**
+
+📧 **Email envoyé automatiquement à :**
+• mgaume@re-fap.fr
+• contact@re-fap.fr
+
+📋 **Récapitulatif :**
+• Nom : ${callbackData.nom}
+• Téléphone : ${callbackData.telephone}
+• Problème : ${callbackData.probleme || 'Non précisé'}
+
+📞 **Un expert Re-Fap va t'appeler sous 2h !**
+
+✨ **Aucune action requise de ta part !**
+
+En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_confirmation');
+
+                    setShowCallbackForm(false);
+                    setCallbackData({ nom: '', telephone: '', email: '', probleme: '', vehicule: '' });
+                    
+                } catch (error) {
+                    console.error('❌ Erreur email automatique:', error);
+                    
+                    // Fallback vers mailto si EmailJS échoue
                     const emailBody = `NOUVEAU RAPPEL RE-FAP - ${callbackData.nom}
 
 📋 INFORMATIONS CLIENT :
@@ -300,71 +381,29 @@ Erreur temporaire : ${error.message}`;
 ---
 Généré automatiquement par Julien Chatbot Re-Fap`;
 
-                    const emailSubject = `🔥 NOUVEAU RAPPEL RE-FAP - ${callbackData.nom}`;
+                    const mailtoLink = `mailto:mgaume@re-fap.fr,contact@re-fap.fr?subject=🔥 NOUVEAU RAPPEL RE-FAP - ${encodeURIComponent(callbackData.nom)}&body=${encodeURIComponent(emailBody)}`;
                     
-                    // Construire le lien mailto avec les deux destinataires
-                    const mailtoLink = `mailto:mgaume@re-fap.fr,contact@re-fap.fr?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
-                    
-                    console.log('📧 Ouverture client email avec données complètes');
-                    
-                    // Ouvrir le client email
+                    console.log('📧 Fallback mailto activé');
                     window.open(mailtoLink, '_blank');
-                    
-                    trackEvent('callback_form_submitted', { 
+
+                    trackEvent('callback_form_fallback', { 
                         sessionId: leadData.sessionId,
-                        phone: callbackData.telephone.substring(0, 4) + 'xxxx',
-                        success: true,
+                        error: error.message,
                         method: 'mailto'
                     });
 
-                    addMessage(`📧 **Client email ouvert !**
+                    addMessage(`⚠️ **Fallback activé !**
 
-✅ **Email pré-rempli envoyé vers :**
-• mgaume@re-fap.fr
-• contact@re-fap.fr
+📧 **Email client ouvert en secours**
 
-📋 **Tes informations :**
-• Nom : ${callbackData.nom}
-• Téléphone : ${callbackData.telephone}
-• Problème : ${callbackData.probleme || 'Non précisé'}
+📋 **Tes informations sont prêtes !**
+Clique juste "Envoyer" dans ton email !
 
-💬 **Instructions :**
-1. Ton client email s'est ouvert
-2. L'email est déjà écrit avec tes infos
-3. Clique juste "Envoyer" !
+📞 **Ou appelle directement Re-Fap !**
 
-📞 **Un expert Re-Fap va t'appeler sous 2h !**
-
-En attendant, continue à me poser des questions ! 🔧`, 'bot', 'mailto');
+Continue le diagnostic avec moi ! 💪`, 'bot', 'fallback');
 
                     setShowCallbackForm(false);
-                    setCallbackData({ nom: '', telephone: '', email: '', probleme: '', vehicule: '' });
-                    
-                } catch (error) {
-                    console.error('❌ Erreur mailto:', error);
-                    
-                    // Fallback ultime : afficher les données pour copier-coller
-                    addMessage(`⚠️ **Copie ces informations et envoie par email :**
-
-📧 **À :** mgaume@re-fap.fr, contact@re-fap.fr
-📝 **Sujet :** 🔥 NOUVEAU RAPPEL RE-FAP - ${callbackData.nom}
-
-📋 **Message :**
-Nom : ${callbackData.nom}
-Téléphone : ${callbackData.telephone}
-Email : ${callbackData.email || 'Non renseigné'}
-Problème : ${callbackData.probleme || 'Non précisé'}
-Véhicule : ${callbackData.vehicule || 'Non précisé'}
-
-Action requise : Rappeler sous 2h !
-
-📞 **Ou appelle directement Re-Fap !**`, 'bot', 'fallback');
-
-                    setShowCallbackForm(false);
-                    trackEvent('callback_form_fallback', { 
-                        sessionId: leadData.sessionId,
-                        error: error.message
-                    });
                 }
             };
 
