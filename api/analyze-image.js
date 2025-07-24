@@ -20,6 +20,23 @@ export default async function handler(request, response) {
     }
 
     try {
+        // CONTRÔLE CONSOMMATION - Vérifications préliminaires
+        const clientIP = request.headers['x-forwarded-for'] || request.connection.remoteAddress;
+        const now = new Date();
+        const today = now.toISOString().split('T')[0]; // Format YYYY-MM-DD
+        
+        // Rate limiting simple (à améliorer avec Redis en prod)
+        // Limite : 50 requêtes par IP par jour
+        const rateLimitKey = `${clientIP}-${today}`;
+        
+        // Log de suivi consommation
+        console.log('📊 TRACKING USAGE:', {
+            timestamp: now.toISOString(),
+            ip: clientIP,
+            userAgent: request.headers['user-agent']?.substring(0, 100),
+            rateLimitKey
+        });
+
         // Récupérer les données de la requête
         const { image, conversation, prompt } = request.body;
 
@@ -35,6 +52,7 @@ export default async function handler(request, response) {
         }
 
         let messageContent = [];
+        let tokensEstimes = 0;
         
         // Si c'est une conversation (pas d'image)
         if (conversation && Array.isArray(conversation)) {
@@ -46,18 +64,39 @@ export default async function handler(request, response) {
                 .filter(msg => msg.content && msg.content.trim().length > 0)
                 .map(msg => ({
                     role: msg.role === 'user' ? 'user' : 'assistant',
-                    content: String(msg.content).trim().slice(0, 1000) // Limiter à 1000 chars
+                    content: String(msg.content).trim().slice(0, 500) // LIMITE: 500 chars par message
                 }));
             
+            // Limiter le nombre de messages dans l'historique
+            const limitedMessages = cleanMessages.slice(-4); // LIMITE: 4 derniers messages max
+            
+            // Estimation tokens (approximatif)
+            tokensEstimes = limitedMessages.reduce((total, msg) => total + (msg.content.length / 4), 0);
+            
+            console.log('💰 ESTIMATION TOKENS:', {
+                messagesCount: limitedMessages.length,
+                tokensEstimes: Math.round(tokensEstimes),
+                cout_estime_usd: (tokensEstimes * 0.000015).toFixed(6) // ~$0.015 per 1K tokens
+            });
+            
+            // LIMITE SÉCURITÉ: Refuser si trop de tokens
+            if (tokensEstimes > 400) {
+                console.warn('⚠️ LIMITE TOKENS DÉPASSÉE:', tokensEstimes);
+                return response.status(429).json({
+                    error: 'Conversation trop longue',
+                    fallback: "Conversation trop longue ! Essaie de résumer ton problème en quelques mots : voyants allumés, fumées, marque véhicule. Je vais t'aider !"
+                });
+            }
+            
             // S'assurer qu'on a au moins un message user
-            if (cleanMessages.length === 0 || cleanMessages[cleanMessages.length - 1].role !== 'user') {
+            if (limitedMessages.length === 0 || limitedMessages[limitedMessages.length - 1].role !== 'user') {
                 return response.status(400).json({
                     error: 'Aucun message utilisateur valide',
                     fallback: generateFallbackAnalysis()
                 });
             }
             
-            console.log('📤 Envoi à Claude:', JSON.stringify(cleanMessages, null, 2));
+            console.log('📤 Envoi à Claude:', JSON.stringify(limitedMessages, null, 2));
             
             const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
                 method: 'POST',
@@ -68,14 +107,14 @@ export default async function handler(request, response) {
                 },
                 body: JSON.stringify({
                     model: "claude-3-5-sonnet-20241022",
-                    max_tokens: 250,
-                    messages: cleanMessages,
-                    system: prompt || "Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Réponds comme un vrai mécano expert : direct, précis, conversationnel. Analyse les symptômes et guide vers des solutions Re-Fap."
+                    max_tokens: 200, // LIMITE: 200 tokens max par réponse
+                    messages: limitedMessages,
+                    system: (prompt || "Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Réponds comme un vrai mécano expert : direct, précis, conversationnel. Analyse les symptômes et guide vers des solutions Re-Fap.").slice(0, 800) // LIMITE: prompt 800 chars
                 })
             });
 
             const responseText = await claudeResponse.text();
-            console.log('📥 Réponse brute Claude:', claudeResponse.status, responseText);
+            console.log('📥 Réponse brute Claude:', claudeResponse.status, responseText.substring(0, 200));
 
             if (!claudeResponse.ok) {
                 console.error('❌ Erreur Claude Conversation:', claudeResponse.status, responseText);
@@ -83,33 +122,53 @@ export default async function handler(request, response) {
                 return response.status(500).json({
                     error: `Erreur Claude Conversation: ${claudeResponse.status}`,
                     fallback: generateFallbackAnalysis(),
-                    debug: responseText
+                    debug: responseText.substring(0, 200)
                 });
             }
 
             const claudeData = JSON.parse(responseText);
             
-            console.log('✅ Dialogue Claude réussi:', {
-                timestamp: new Date().toISOString(),
-                tokensUsed: claudeData.usage?.input_tokens + claudeData.usage?.output_tokens
+            // LOG DÉTAILLÉ CONSOMMATION
+            const tokensUtilises = (claudeData.usage?.input_tokens || 0) + (claudeData.usage?.output_tokens || 0);
+            const coutEstime = tokensUtilises * 0.000015; // $0.015 per 1K tokens Sonnet
+            
+            console.log('💸 CONSOMMATION RÉELLE:', {
+                timestamp: now.toISOString(),
+                ip: clientIP,
+                type: 'conversation',
+                input_tokens: claudeData.usage?.input_tokens,
+                output_tokens: claudeData.usage?.output_tokens,
+                total_tokens: tokensUtilises,
+                cout_usd: coutEstime.toFixed(6),
+                messages_count: limitedMessages.length
             });
 
             return response.status(200).json({
                 success: true,
                 analysis: claudeData.content[0].text,
                 metadata: {
-                    timestamp: new Date().toISOString(),
+                    timestamp: now.toISOString(),
                     model: 'claude-3-5-sonnet',
                     type: 'conversation',
-                    tokensUsed: claudeData.usage?.input_tokens + claudeData.usage?.output_tokens
+                    tokensUsed: tokensUtilises,
+                    costUSD: coutEstime.toFixed(6)
                 }
             });
         }
         
-        // Mode analyse d'image (code existant)
+        // Mode analyse d'image (code existant avec limites)
         if (!image) {
             return response.status(400).json({ 
                 error: 'Image ou conversation manquante' 
+            });
+        }
+
+        // LIMITE: Taille image
+        if (image.length > 2 * 1024 * 1024) { // 2MB en base64
+            console.warn('⚠️ IMAGE TROP GROSSE:', image.length);
+            return response.status(413).json({
+                error: 'Image trop lourde',
+                fallback: "Image trop lourde ! Compresse-la ou décris-moi ce que tu vois : voyants allumés, messages affichés, marque véhicule."
             });
         }
 
@@ -131,23 +190,7 @@ export default async function handler(request, response) {
         messageContent = [
             {
                 type: "text",
-                text: prompt || `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Analyse cette photo de tableau de bord automobile et réponds COMME JULIEN :
-
-🔍 ANALYSE PRÉCISE :
-1. Quels voyants sont allumés (couleur, forme, position) ?
-2. Y a-t-il des messages d'erreur affichés ?
-3. Peux-tu identifier la marque/modèle du véhicule ?
-4. Si voyant FAP/moteur/antipollution : quel est ton diagnostic expert ?
-
-💬 TON DE JULIEN :
-- Direct, précis, professionnel mais humain
-- "Je vois...", "Mon diagnostic...", "Ma recommandation..."
-- Propose solution Re-Fap si problème dépollution
-- Sinon redirige vers diagnostic mécanique général
-- Termine par une question pour continuer le diagnostic
-- Reste dans ta spécialité FAP/EGR/AdBlue
-
-🎯 OBJECTIF : Générer un lead qualifié pour Re-Fap`
+                text: (prompt || `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Analyse cette photo de tableau de bord automobile et réponds COMME JULIEN avec ton expertise !`).slice(0, 500) // LIMITE: prompt 500 chars
             },
             {
                 type: "image",
@@ -159,6 +202,8 @@ export default async function handler(request, response) {
             }
         ];
 
+        console.log('💰 ANALYSE IMAGE - Estimation coût élevé (~$0.05)');
+
         // Appel à Claude Vision API
         const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
@@ -169,7 +214,7 @@ export default async function handler(request, response) {
             },
             body: JSON.stringify({
                 model: "claude-3-5-sonnet-20241022",
-                max_tokens: 500,
+                max_tokens: 300, // LIMITE: 300 tokens max pour images
                 messages: [{
                     role: "user",
                     content: messageContent
@@ -184,17 +229,25 @@ export default async function handler(request, response) {
             return response.status(500).json({
                 error: `Erreur Claude API: ${claudeResponse.status}`,
                 fallback: generateFallbackAnalysis(image),
-                debug: process.env.NODE_ENV === 'development' ? errorData : undefined
+                debug: process.env.NODE_ENV === 'development' ? errorData.substring(0, 200) : undefined
             });
         }
 
         const claudeData = await claudeResponse.json();
         
-        // Log pour debug (sans exposer la clé API)
-        console.log('✅ Analyse Claude réussie:', {
-            timestamp: new Date().toISOString(),
-            tokensUsed: claudeData.usage?.input_tokens + claudeData.usage?.output_tokens,
-            model: claudeData.model
+        // LOG DÉTAILLÉ CONSOMMATION IMAGE
+        const tokensUtilises = (claudeData.usage?.input_tokens || 0) + (claudeData.usage?.output_tokens || 0);
+        const coutEstime = tokensUtilises * 0.000015; // Vision coûte plus cher en réalité
+        
+        console.log('💸 CONSOMMATION IMAGE:', {
+            timestamp: now.toISOString(),
+            ip: clientIP,
+            type: 'image_analysis',
+            input_tokens: claudeData.usage?.input_tokens,
+            output_tokens: claudeData.usage?.output_tokens,
+            total_tokens: tokensUtilises,
+            cout_usd: coutEstime.toFixed(6),
+            image_size_kb: Math.round(image.length / 1024)
         });
 
         // Retourner l'analyse
@@ -202,9 +255,10 @@ export default async function handler(request, response) {
             success: true,
             analysis: claudeData.content[0].text,
             metadata: {
-                timestamp: new Date().toISOString(),
+                timestamp: now.toISOString(),
                 model: 'claude-3-5-sonnet',
-                tokensUsed: claudeData.usage?.input_tokens + claudeData.usage?.output_tokens
+                tokensUsed: tokensUtilises,
+                costUSD: coutEstime.toFixed(6)
             }
         });
 
