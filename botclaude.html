@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Julien - Expert FAP Re-Fap | Diagnostic Gratuit</title>
+    <meta name="description" content="Diagnostic gratuit FAP/EGR/AdBlue avec Julien, expert depuis 20 ans. Analysez vos voyants moteur, obtenez solutions et devis Re-Fap.">
+    <meta name="keywords" content="diagnostic FAP, expert Re-Fap, voyant moteur, nettoyage FAP, EGR, AdBlue">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Julien - Expert FAP Re-Fap | Diagnostic Gratuit">
+    <meta property="og:description" content="Diagnostic gratuit de vos problèmes FAP/EGR/AdBlue avec notre expert Julien. Photo de voyant analysée, solutions personnalisées.">
+    <meta property="og:image" content="https://re-fap.fr/assets/images/julien-expert-fap.jpg">
+    
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'GA_MEASUREMENT_ID');
+    </script>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const JulienProduction = () => {
+            const [messages, setMessages] = useState([
+                {
+                    type: 'bot',
+                    content: "Salut ! 👋 Moi c'est Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Je vais diagnostiquer ton problème GRATUITEMENT ! Décris-moi ton souci ou envoie une photo de ton voyant 📸",
+                    timestamp: new Date()
+                }
+            ]);
+            const [inputMessage, setInputMessage] = useState('');
+            const [isTyping, setIsTyping] = useState(false);
+            const [conversationHistory, setConversationHistory] = useState([]);
+            const [leadData, setLeadData] = useState({
+                sessionId: Math.random().toString(36).substr(2, 9),
+                startTime: new Date(),
+                symptoms: [],
+                vehicle: {},
+                contactRequested: false
+            });
+
+            // Configuration Claude API (à configurer côté serveur)
+            const CLAUDE_API_KEY = ''; // À configurer via variables d'environnement
+
+            useEffect(() => {
+                // Track session start
+                trackEvent('session_start', { sessionId: leadData.sessionId });
+            }, []);
+
+            const trackEvent = (event, data = {}) => {
+                // Google Analytics
+                if (typeof gtag !== 'undefined') {
+                    gtag('event', event, {
+                        custom_parameter_1: data.sessionId,
+                        custom_parameter_2: data.symptom || '',
+                        custom_parameter_3: data.vehicle || ''
+                    });
+                }
+                
+                // Log pour debug
+                console.log('📊 Event tracked:', event, data);
+                
+                // Envoi vers votre CRM (à implémenter)
+                // fetch('/api/track-lead', { method: 'POST', body: JSON.stringify({event, data}) });
+            };
+
+            const addMessage = (content, type = 'bot', source = 'auto') => {
+                setMessages(prev => [...prev, {
+                    type,
+                    content,
+                    timestamp: new Date(),
+                    source
+                }]);
+            };
+
+            // Analyse photo avec Claude Vision
+            const analyzeImageWithClaude = async (imageBase64, fileName) => {
+                try {
+                    const response = await fetch('/api/analyze-image', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            image: imageBase64,
+                            prompt: `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Analyse cette photo de tableau de bord automobile.
+
+ANALYSE PRÉCISE :
+1. Quels voyants sont allumés (couleur, forme, position) ?
+2. Y a-t-il des messages d'erreur affichés ?
+3. Peux-tu identifier la marque/modèle du véhicule ?
+4. Si voyant FAP/moteur/antipollution : diagnostic expert ?
+
+RÉPONDS COMME JULIEN :
+- Direct, précis, professionnel mais humain
+- Propose solution Re-Fap si dépollution
+- Sinon redirige vers partenaires
+- Termine par une question pour continuer le diagnostic
+
+OBJECTIF : Générer un lead qualifié pour Re-Fap`
+                        })
+                    });
+
+                    if (!response.ok) throw new Error('Erreur analyse');
+                    
+                    const data = await response.json();
+                    trackEvent('photo_analyzed', { analysis: 'success', fileName });
+                    return `📸 **ANALYSE PHOTO EXPERT** 🧠\n\n${data.analysis}`;
+
+                } catch (error) {
+                    console.error('Erreur analyse photo:', error);
+                    trackEvent('photo_analyzed', { analysis: 'error', error: error.message });
+                    return `📸 **Photo reçue !** Analyse en cours...\n\nEn attendant l'analyse automatique, dis-moi :\n🟡 **Quels voyants** sont allumés ?\n📱 **Messages** affichés ?\n🚗 **Marque/modèle** de ta voiture ?\n\n💡 *L'analyse photo complète arrive bientôt !*`;
+                }
+            };
+
+            // Réponses autonomes optimisées
+            const getAutonomousResponse = (userMsg) => {
+                const lowerMsg = userMsg.toLowerCase();
+
+                // Détection véhicule + symptômes
+                const vehicleMatch = lowerMsg.match(/\b(audi|bmw|peugeot|citroën|citroen|renault|volkswagen|vw|mercedes|ford|opel|seat|skoda|volvo|nissan|toyota|hyundai|kia|mazda|subaru|mitsubishi|honda|fiat|alfa romeo|mini|land rover|jaguar|porsche|bentley|aston martin|ferrari|lamborghini|maserati|lexus|acura|infiniti)\b/i);
+                
+                if (vehicleMatch) {
+                    setLeadData(prev => ({...prev, vehicle: {brand: vehicleMatch[0]}}));
+                }
+
+                // PROBLÈMES FAP/EGR/ADBLUE (ma spécialité)
+                if (lowerMsg.includes('voyant') && lowerMsg.includes('fap')) {
+                    trackEvent('symptom_detected', { symptom: 'voyant_fap', vehicle: vehicleMatch?.[0] });
+                    return `Voyant FAP allumé ! 🟡 C'est exactement ma spécialité Re-Fap !
+
+**Questions express :**
+🔧 **FAP monté** sur la voiture ou déjà démonté ?
+🛣️ **Régénération tentée** (20 km autoroute à 90 km/h) ?
+💨 **Fumée** à l'échappement ? Quelle couleur ?
+📱 **Code défaut** affiché ou photo du message ?
+
+${vehicleMatch ? `**${vehicleMatch[0]}** bien noté ! 👍` : ''}
+
+**Objectif :** Te donner la solution la + économique ! 💰`;
+                }
+
+                if (lowerMsg.includes('p2002') || lowerMsg.includes('p2463') || lowerMsg.includes('p0401')) {
+                    const code = lowerMsg.match(/p\d{4}/i)?.[0].toUpperCase();
+                    trackEvent('dtc_code_detected', { code, vehicle: vehicleMatch?.[0] });
+                    
+                    const codeInfo = {
+                        'P2002': 'Efficacité FAP en dessous du seuil - FAP encrassé probable',
+                        'P2463': 'Accumulation de suies FAP - Régénérations ratées',
+                        'P0401': 'Débit EGR insuffisant - Vanne EGR encrassée'
+                    };
+
+                    return `Code **${code}** détecté ! 🎯 Ma spécialité absolue !
+
+**Diagnostic :** ${codeInfo[code] || 'Code dépollution détecté'}
+
+**Questions urgentes :**
+🏭 **Conduite** plutôt urbaine ou mixte ?
+🔧 **Dernière régénération** réussie quand ?
+💨 **Fumée** récente ? Couleur ?
+⚙️ **Entretien** à jour (vidange, filtres) ?
+
+${vehicleMatch ? `**${vehicleMatch[0]}** - j'ai déjà traité des centaines de cas ! 💪` : ''}
+
+**Solutions Re-Fap** selon diagnostic ! 🛠️`;
+                }
+
+                if (lowerMsg.includes('fumée') || lowerMsg.includes('fume')) {
+                    trackEvent('symptom_detected', { symptom: 'fumee', vehicle: vehicleMatch?.[0] });
+                    
+                    if (lowerMsg.includes('noir')) {
+                        return `Fumée noire ! 💨 Injecteurs qui sur-dosent = spécialité Re-Fap !
+
+**Questions diagnostic :**
+⚙️ **Fumée permanente** ou seulement en accélération ?
+🔧 **Perte de puissance** associée ?
+⛽ **Surconsommation** récente ?
+🟡 **Voyant moteur** allumé aussi ?
+
+${vehicleMatch ? `**${vehicleMatch[0]}** - problème fréquent que je connais bien ! ` : ''}
+
+**Lien direct :** Injecteurs défaillants → FAP qui s'encrasse → Nos solutions ! 🎯`;
+                    }
+                    
+                    if (lowerMsg.includes('blanc')) {
+                        return `Fumée blanche ! 💨 Vanne EGR suspecte - ma spécialité !
+
+**Questions EGR :**
+🌡️ **Seulement au démarrage** à froid ?
+🔧 **Ralenti instable** ?
+💧 **Consommation liquide** refroidissement ?
+📅 **Récent** ou progressif ?
+
+${vehicleMatch ? `**${vehicleMatch[0]}** - EGR problématique connue ! ` : ''}
+
+**Solutions Re-Fap** pour EGR + FAP ! 🛠️`;
+                    }
+                }
+
+                // PROBLÈMES HORS SPÉCIALITÉ (redirection)
+                if (lowerMsg.includes('vibration') || lowerMsg.includes('frein') || lowerMsg.includes('boîte') || 
+                    lowerMsg.includes('embrayage') || lowerMsg.includes('direction') || lowerMsg.includes('suspension')) {
+                    
+                    const probleme = lowerMsg.includes('vibration') ? 'vibrations' :
+                                   lowerMsg.includes('frein') ? 'freinage' :
+                                   lowerMsg.includes('boîte') ? 'boîte de vitesses' :
+                                   lowerMsg.includes('embrayage') ? 'embrayage' :
+                                   lowerMsg.includes('direction') ? 'direction' : 'suspension';
+                    
+                    trackEvent('out_of_scope', { problem: probleme, vehicle: vehicleMatch?.[0] });
+                    
+                    return `Problème de **${probleme}** détecté ! 🔧
+
+**Pas ma spécialité** - Je suis expert dépollution FAP/EGR/AdBlue uniquement.
+
+**Redirection partenaire :**
+➡️ **Diagnostic mécanique complet :** https://www.idgarages.com/fr-fr/prestations/diagnostic-electronique?utm_source=re-fap&utm_medium=chatbot&utm_campaign=julien
+
+Ils ont les outils pour ce type de panne ! 👍
+
+**Pour du FAP/EGR,** reviens me voir ! 😉`;
+                }
+
+                // CAS GÉNÉRAL - ORIENTATION
+                trackEvent('general_inquiry', { vehicle: vehicleMatch?.[0] });
+                return `Pour un diagnostic FAP/EGR/AdBlue précis, j'ai besoin de :
+
+🎯 **Symptôme exact :** voyant allumé, fumée, message erreur...
+⏰ **Quand ça arrive :** démarrage, conduite, permanent...
+🚗 **Véhicule :** marque/modèle/année
+📸 **Photo voyant** = diagnostic ultra-précis !
+
+${vehicleMatch ? `**${vehicleMatch[0]}** noté ! Maintenant dis-moi les symptômes ! 👍` : ''}
+
+**Ma spécialité = Dépollution uniquement !** 🔧`;
+            };
+
+            const handleSendMessage = async (e) => {
+                e.preventDefault();
+                if (!inputMessage.trim()) return;
+                
+                const userMsg = inputMessage.trim();
+                addMessage(userMsg, 'user');
+                setInputMessage('');
+                setIsTyping(true);
+
+                // Track message
+                trackEvent('message_sent', { message: userMsg.substring(0, 50) });
+
+                setTimeout(() => {
+                    const response = getAutonomousResponse(userMsg);
+                    addMessage(response, 'bot', 'auto');
+                    setIsTyping(false);
+                }, 1200);
+            };
+
+            const handleImageUpload = async (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    if (!file.type.startsWith('image/')) {
+                        alert('📸 Merci d\'envoyer une image (JPG, PNG...)');
+                        return;
+                    }
+                    
+                    if (file.size > 5 * 1024 * 1024) {
+                        alert('📸 Image trop lourde, max 5MB s\'il te plaît !');
+                        return;
+                    }
+                    
+                    addMessage(`📸 Photo envoyée : ${file.name}`, 'user');
+                    setIsTyping(true);
+                    trackEvent('photo_uploaded', { fileName: file.name });
+                    
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        try {
+                            const analysis = await analyzeImageWithClaude(e.target.result, file.name);
+                            addMessage(analysis, 'bot', 'claude');
+                        } catch (error) {
+                            addMessage(`❌ Erreur analyse : ${error.message}`, 'bot');
+                        }
+                        setIsTyping(false);
+                    };
+                    reader.readAsDataURL(file);
+                    
+                    event.target.value = '';
+                }
+            };
+
+            const handleContactRequest = () => {
+                trackEvent('contact_requested', { sessionId: leadData.sessionId });
+                setLeadData(prev => ({...prev, contactRequested: true}));
+                window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank');
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-orange-50">
+                    {/* Header */}
+                    <header className="bg-white shadow-sm border-b">
+                        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+                            <div className="flex items-center">
+                                <img src="https://re-fap.fr/wp-content/uploads/2020/07/logo-re-fap.png" alt="Re-Fap" className="h-8 mr-3" />
+                                <div>
+                                    <h1 className="text-lg font-bold text-gray-800">Julien - Expert FAP</h1>
+                                    <p className="text-xs text-gray-600">Diagnostic gratuit • 20 ans d'expérience</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={handleContactRequest}
+                                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                            >
+                                📞 Devis gratuit
+                            </button>
+                        </div>
+                    </header>
+
+                    {/* Chat principal */}
+                    <div className="max-w-4xl mx-auto p-4">
+                        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                            {/* Header chat */}
+                            <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white p-4">
+                                <div className="flex items-center">
+                                    <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-3">
+                                        <span className="text-2xl">👨‍🔧</span>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold">Julien, ton expert FAP</h2>
+                                        <p className="text-orange-100 text-sm">Diagnostic GRATUIT • Spécialiste Re-Fap depuis 20 ans</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Messages */}
+                            <div className="h-96 overflow-y-auto p-4 bg-gray-50">
+                                {messages.map((message, index) => (
+                                    <div key={index} className={`mb-4 ${message.type === 'user' ? 'text-right' : ''}`}>
+                                        <div className={`inline-block p-3 rounded-lg max-w-md ${
+                                            message.type === 'user' 
+                                                ? 'bg-blue-500 text-white' 
+                                                : message.source === 'claude'
+                                                    ? 'bg-purple-100 text-gray-800 border-l-4 border-purple-500'
+                                                    : 'bg-white text-gray-800 border border-gray-200'
+                                        }`}>
+                                            {typeof message.content === 'string' ? 
+                                                message.content.split('\n').map((line, i) => (
+                                                    <div key={i} className={line.startsWith('**') ? 'font-bold' : ''}>{line}</div>
+                                                )) : 
+                                                <div>Message non supporté</div>
+                                            }
+                                            
+                                            {message.type === 'bot' && (
+                                                <div className="text-xs text-gray-400 mt-2">
+                                                    {message.source === 'claude' ? '🧠 IA' : '⚡ Expert'} • {new Date(message.timestamp).toLocaleTimeString()}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                                
+                                {isTyping && (
+                                    <div className="mb-4">
+                                        <div className="inline-block bg-white p-3 rounded-lg border border-gray-200">
+                                            <div className="flex items-center space-x-2">
+                                                <div className="flex space-x-1">
+                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                                                </div>
+                                                <span className="text-sm text-gray-600">Julien analyse...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Input */}
+                            <div className="p-4 border-t bg-white">
+                                <form onSubmit={handleSendMessage} className="flex gap-2 mb-3">
+                                    <input
+                                        type="text"
+                                        value={inputMessage}
+                                        onChange={(e) => setInputMessage(e.target.value)}
+                                        placeholder="💬 Décris ton problème FAP/EGR... (ex: 'Voyant moteur allumé + fumée noire')"
+                                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                                        disabled={isTyping}
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={isTyping || !inputMessage.trim()}
+                                        className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                                    >
+                                        Envoyer
+                                    </button>
+                                </form>
+
+                                {/* Upload photo */}
+                                <div className="mb-3 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-dashed border-blue-300">
+                                    <div className="text-center">
+                                        <input
+                                            type="file"
+                                            id="imageUpload"
+                                            accept="image/*"
+                                            onChange={handleImageUpload}
+                                            className="hidden"
+                                            disabled={isTyping}
+                                        />
+                                        <label 
+                                            htmlFor="imageUpload" 
+                                            className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg inline-flex items-center gap-2 font-medium transition-colors"
+                                        >
+                                            📸 Photo de mon voyant
+                                        </label>
+                                        <p className="text-xs text-gray-600 mt-2">
+                                            JPG/PNG max 5MB • Julien analysera automatiquement ! 🧠
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Quick options */}
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[
+                                        { text: "🟡 Voyant FAP", msg: "Voyant FAP allumé" },
+                                        { text: "💨 Fumée noire", msg: "Fumée noire à l'échappement" },
+                                        { text: "📱 Code erreur", msg: "J'ai un code erreur affiché" }
+                                    ].map((option, index) => (
+                                        <button
+                                            key={index}
+                                            onClick={() => {
+                                                addMessage(option.msg, 'user');
+                                                setIsTyping(true);
+                                                setTimeout(() => {
+                                                    const response = getAutonomousResponse(option.msg);
+                                                    addMessage(response, 'bot', 'auto');
+                                                    setIsTyping(false);
+                                                }, 1000);
+                                            }}
+                                            disabled={isTyping}
+                                            className="bg-gray-100 hover:bg-gray-200 p-2 rounded text-sm disabled:opacity-50 transition-colors"
+                                        >
+                                            {option.text}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Footer */}
+                    <footer className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-gray-600">
+                        <div className="flex items-center justify-center space-x-6 mb-3">
+                            <span className="flex items-center"><span className="text-green-500 mr-1">✅</span> Diagnostic gratuit</span>
+                            <span className="flex items-center"><span className="text-blue-500 mr-1">🧠</span> IA + 20 ans expérience</span>
+                            <span className="flex items-center"><span className="text-orange-500 mr-1">💰</span> Solutions économiques</span>
+                        </div>
+                        <p className="text-xs">
+                            Powered by <a href="https://re-fap.fr" className="text-orange-600 hover:underline">Re-Fap</a> • 
+                            Expert nettoyage FAP depuis 2015 • 
+                            Session: {leadData.sessionId}
+                        </p>
+                    </footer>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<JulienProduction />, document.getElementById('root'));
+    </script>
+</body>
+</html>
