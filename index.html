@@ -153,91 +153,124 @@ OBJECTIF : Générer un lead qualifié pour Re-Fap`
                 }
             };
 
-            // Réponses autonomes optimisées
+            // Réponses autonomes optimisées pour conversion
             const getAutonomousResponse = (userMsg) => {
                 const lowerMsg = userMsg.toLowerCase();
 
-                // Détection véhicule + symptômes
+                // Détection véhicule + symptômes pour tracking
                 const vehicleMatch = lowerMsg.match(/\b(audi|bmw|peugeot|citroën|citroen|renault|volkswagen|vw|mercedes|ford|opel|seat|skoda|volvo|nissan|toyota|hyundai|kia|mazda|subaru|mitsubishi|honda|fiat|alfa romeo|mini|land rover|jaguar|porsche|bentley|aston martin|ferrari|lamborghini|maserati|lexus|acura|infiniti)\b/i);
                 
                 if (vehicleMatch) {
                     setLeadData(prev => ({...prev, vehicle: {brand: vehicleMatch[0]}}));
                 }
 
-                // PROBLÈMES FAP/EGR/ADBLUE (ma spécialité)
-                if (lowerMsg.includes('voyant') && lowerMsg.includes('fap')) {
+                // PROBLÈMES FAP - QUALIFICATION RAPIDE
+                if (lowerMsg.includes('voyant') && (lowerMsg.includes('fap') || lowerMsg.includes('filtre'))) {
                     trackEvent('symptom_detected', { symptom: 'voyant_fap', vehicle: vehicleMatch?.[0] });
-                    return `Voyant FAP allumé ! 🟡 C'est exactement ma spécialité Re-Fap !
+                    return `🎯 **Voyant FAP allumé !** C'est exactement ma spécialité !
 
-**Questions express :**
-🔧 **FAP monté** sur la voiture ou déjà démonté ?
-🛣️ **Régénération tentée** (20 km autoroute à 90 km/h) ?
-💨 **Fumée** à l'échappement ? Quelle couleur ?
-📱 **Code défaut** affiché ou photo du message ?
+**Questions flash pour diagnostic :**
+🔧 **Où en es-tu ?** FAP encore monté ou déjà démonté ?
+🛣️ **Régénération tentée ?** (20 km autoroute à 90 km/h)
+💨 **Fumée récente ?** Couleur ?
 
-${vehicleMatch ? `**${vehicleMatch[0]}** bien noté ! 👍` : ''}
+${vehicleMatch ? `**${vehicleMatch[0]}** noté ! 👍` : ''}
 
-**Objectif :** Te donner la solution la + économique ! 💰`;
+**Je te donne la solution la + économique selon ta situation !** 💰`;
                 }
 
+                // CODES DÉFAUTS FAP - DIAGNOSTIC AVANCÉ
                 if (lowerMsg.includes('p2002') || lowerMsg.includes('p2463') || lowerMsg.includes('p0401')) {
                     const code = lowerMsg.match(/p\d{4}/i)?.[0].toUpperCase();
                     trackEvent('dtc_code_detected', { code, vehicle: vehicleMatch?.[0] });
                     
                     const codeInfo = {
-                        'P2002': 'Efficacité FAP en dessous du seuil - FAP encrassé probable',
-                        'P2463': 'Accumulation de suies FAP - Régénérations ratées',
-                        'P0401': 'Débit EGR insuffisant - Vanne EGR encrassée'
+                        'P2002': 'FAP saturé - Efficacité en dessous du seuil',
+                        'P2463': 'Accumulation critique de suies FAP',
+                        'P0401': 'Vanne EGR défaillante - Débit insuffisant'
                     };
 
-                    return `Code **${code}** détecté ! 🎯 Ma spécialité absolue !
+                    return `🎯 **Code ${code} = ${codeInfo[code] || 'Défaut dépollution'}**
 
-**Diagnostic :** ${codeInfo[code] || 'Code dépollution détecté'}
+**Diagnostic express :**
+🚗 **Conduite** majoritairement urbaine ou mixte ?
+⚙️ **Symptômes** : perte puissance, surconsommation ?
+🔧 **Bricoleur** ou tu préfères confier à un pro ?
 
-**Questions urgentes :**
-🏭 **Conduite** plutôt urbaine ou mixte ?
-🔧 **Dernière régénération** réussie quand ?
-💨 **Fumée** récente ? Couleur ?
-⚙️ **Entretien** à jour (vidange, filtres) ?
+${vehicleMatch ? `**${vehicleMatch[0]} ${code}** - j'ai traité 100+ cas identiques ! 💪` : ''}
 
-${vehicleMatch ? `**${vehicleMatch[0]}** - j'ai déjà traité des centaines de cas ! 💪` : ''}
-
-**Solutions Re-Fap** selon diagnostic ! 🛠️`;
+**Solution personnalisée selon ton profil !** 🛠️`;
                 }
 
+                // FUMÉE - QUALIFICATION IMMÉDIATE
                 if (lowerMsg.includes('fumée') || lowerMsg.includes('fume')) {
                     trackEvent('symptom_detected', { symptom: 'fumee', vehicle: vehicleMatch?.[0] });
                     
                     if (lowerMsg.includes('noir')) {
-                        return `Fumée noire ! 💨 Injecteurs qui sur-dosent = spécialité Re-Fap !
+                        return `💨 **Fumée noire = FAP saturé !** Ma spécialité absolue !
 
-**Questions diagnostic :**
-⚙️ **Fumée permanente** ou seulement en accélération ?
-🔧 **Perte de puissance** associée ?
-⛽ **Surconsommation** récente ?
+**Questions ciblées :**
+🔧 **Permanent** ou seulement en accélération ?
 🟡 **Voyant moteur** allumé aussi ?
+💪 **Ton profil** : bricoleur ou tu confies à un garage ?
 
-${vehicleMatch ? `**${vehicleMatch[0]}** - problème fréquent que je connais bien ! ` : ''}
+${vehicleMatch ? `**${vehicleMatch[0]}** - problème classique ! ` : ''}
 
-**Lien direct :** Injecteurs défaillants → FAP qui s'encrasse → Nos solutions ! 🎯`;
+**→ Je te guide vers la solution la + rentable !** 💰`;
                     }
                     
                     if (lowerMsg.includes('blanc')) {
-                        return `Fumée blanche ! 💨 Vanne EGR suspecte - ma spécialité !
+                        return `💨 **Fumée blanche = EGR suspecte !**
 
-**Questions EGR :**
-🌡️ **Seulement au démarrage** à froid ?
+**Questions rapides :**
+🌡️ **Seulement à froid** au démarrage ?
 🔧 **Ralenti instable** ?
-💧 **Consommation liquide** refroidissement ?
-📅 **Récent** ou progressif ?
+💪 **Tu démontés toi-même** ou tu préfères un garage ?
 
 ${vehicleMatch ? `**${vehicleMatch[0]}** - EGR problématique connue ! ` : ''}
 
-**Solutions Re-Fap** pour EGR + FAP ! 🛠️`;
+**Solutions Re-Fap selon ton profil !** 🛠️`;
                     }
                 }
 
-                // PROBLÈMES HORS SPÉCIALITÉ (redirection)
+                // RÉPONSES DE QUALIFICATION CLIENT
+                if (lowerMsg.includes('bricoleur') || lowerMsg.includes('démonter') || lowerMsg.includes('moi-même') || lowerMsg.includes('moi même')) {
+                    setLeadData(prev => ({...prev, profile: 'bricoleur'}));
+                    return generateBricoleurResponse(lowerMsg, vehicleMatch?.[0]);
+                }
+
+                if (lowerMsg.includes('garage') || lowerMsg.includes('professionnel') || lowerMsg.includes('confier')) {
+                    setLeadData(prev => ({...prev, profile: 'garage'}));
+                    return generateGarageResponse(lowerMsg, vehicleMatch?.[0]);
+                }
+
+                // DÉTECTION PROBLÈME RÉSOLU OU HÉSITATION
+                if (lowerMsg.includes('déjà') && (lowerMsg.includes('démonté') || lowerMsg.includes('enlevé'))) {
+                    return `🔧 **FAP déjà démonté ?** Parfait !
+
+**Options Re-Fap :**
+📍 **Point de collecte** proche de toi
+📦 **Envoi postal** sécurisé
+⚡ **Nettoyage 24-48h** garanti
+
+**Dis-moi ta région** pour t'orienter ! 🗺️`;
+                }
+
+                if (lowerMsg.includes('prix') || lowerMsg.includes('coût') || lowerMsg.includes('tarif')) {
+                    return `💰 **Coûts Re-Fap vs Concurrence :**
+
+**Nettoyage Re-Fap :** 150-350€ selon modèle
+**FAP neuf :** 1500-3500€ 😱
+**Économie :** 80% en moyenne !
+
+🔧 **Ton profil ?**
+- **Bricoleur** → Dépôt direct + économie max
+- **Garage** → Diagnostic + installation pro
+
+**Quelle option t'intéresse ?** 🎯`;
+                }
+
+                // PROBLÈMES HORS SPÉCIALITÉ (redirection partenaire)
                 if (lowerMsg.includes('vibration') || lowerMsg.includes('frein') || lowerMsg.includes('boîte') || 
                     lowerMsg.includes('embrayage') || lowerMsg.includes('direction') || lowerMsg.includes('suspension')) {
                     
@@ -249,30 +282,65 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** - EGR problématique connue ! ` : ''}
                     
                     trackEvent('out_of_scope', { problem: probleme, vehicle: vehicleMatch?.[0] });
                     
-                    return `Problème de **${probleme}** détecté ! 🔧
+                    return `🔧 **Problème ${probleme} détecté**
 
-**Pas ma spécialité** - Je suis expert dépollution FAP/EGR/AdBlue uniquement.
+**Pas ma spécialité** - Expert dépollution FAP/EGR/AdBlue uniquement.
 
-**Redirection partenaire :**
-➡️ **Diagnostic mécanique complet :** https://www.idgarages.com/fr-fr/prestations/diagnostic-electronique?utm_source=re-fap&utm_medium=chatbot&utm_campaign=julien
-
-Ils ont les outils pour ce type de panne ! 👍
-
-**Pour du FAP/EGR,** reviens me voir ! 😉`;
+**Redirection partenaire :**`;
                 }
 
-                // CAS GÉNÉRAL - ORIENTATION
+                // CAS GÉNÉRAL - ORIENTATION RAPIDE
                 trackEvent('general_inquiry', { vehicle: vehicleMatch?.[0] });
-                return `Pour un diagnostic FAP/EGR/AdBlue précis, j'ai besoin de :
+                return `🎯 **Diagnostic FAP/EGR/AdBlue express :**
 
-🎯 **Symptôme exact :** voyant allumé, fumée, message erreur...
-⏰ **Quand ça arrive :** démarrage, conduite, permanent...
-🚗 **Véhicule :** marque/modèle/année
-📸 **Photo voyant** = diagnostic ultra-précis !
+**Dis-moi en 2 mots :**
+🟡 **Symptôme** : voyant allumé, fumée, message erreur...
+🚗 **Véhicule** : marque/modèle
+💪 **Ton profil** : bricoleur ou garage ?
 
-${vehicleMatch ? `**${vehicleMatch[0]}** noté ! Maintenant dis-moi les symptômes ! 👍` : ''}
+${vehicleMatch ? `**${vehicleMatch[0]}** noté ! 👍` : ''}
 
-**Ma spécialité = Dépollution uniquement !** 🔧`;
+📸 **Photo de voyant = diagnostic ultra-précis !**`;
+            };
+
+            // Réponse pour profil bricoleur
+            const generateBricoleurResponse = (msg, vehicle) => {
+                return `🔧 **Profil bricoleur détecté !** Parfait pour Re-Fap !
+
+**Avantages pour toi :**
+💰 **Économie max** : pas de main d'œuvre garage
+⚡ **Direct producteur** : tarifs préférentiels  
+🗺️ **500+ points** de collecte en France
+📦 **Envoi postal** possible si éloigné
+
+**Prochaine étape :**
+Tu démontés ton FAP et on s'occupe du reste !
+
+**Veux-tu qu'on te rappelle** pour t'expliquer la procédure exacte ?`;
+            };
+
+            // Réponse pour profil garage
+            const generateGarageResponse = (msg, vehicle) => {
+                return `🏪 **Tu préfères un garage ?** Excellent choix !
+
+**Avantages garage partenaire :**
+🔍 **Diagnostic confirmé** avant démontage
+🔧 **Installation pro** + garantie
+📋 **Prise en charge complète** sans stress
+🤝 **Réseau Re-Fap** : 200+ garages de confiance
+
+**Je te recommande vivement** un diagnostic pro pour confirmer !`;
+            };
+
+            // Fonction pour générer les boutons CTA selon le profil
+            const generateCTAButtons = (profile, symptom) => {
+                if (profile === 'bricoleur') {
+                    return `**Rappel gratuit** pour procédure exacte`;
+                } else if (profile === 'garage') {
+                    return `**Garage de confiance** près de chez toi`;
+                } else {
+                    return `**Diagnostic pro** pour confirmer`;
+                }
             };
 
             const handleSendMessage = async (e) => {
@@ -369,10 +437,63 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** noté ! Maintenant dis-moi les symptôm
                 }
             };
 
-            const handleContactRequest = () => {
-                trackEvent('contact_requested', { sessionId: leadData.sessionId });
-                setLeadData(prev => ({...prev, contactRequested: true}));
-                window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank');
+            // Génération de message CTA selon contexte
+            const generateCTAMessage = (context) => {
+                const lowerContext = context.toLowerCase();
+                
+                if (lowerContext.includes('voyant fap') || lowerContext.includes('code')) {
+                    return `🎯 **Prochaine étape recommandée :**
+
+Pour **confirmer le diagnostic** et éviter une erreur coûteuse, je recommande vivement :
+
+🔍 **Diagnostic professionnel** chez un garage partenaire Re-Fap
+✅ **Confirmation** avant démontage  
+💰 **Évite** les frais inutiles
+🤝 **Réseau de confiance** vérifié
+
+**Ou** si tu es bricoleur confirmé : 
+
+📞 **Rappel gratuit** pour procédure exacte de démontage`;
+                }
+                
+                if (lowerContext.includes('bricoleur') || lowerContext.includes('démonte')) {
+                    return `🔧 **Parfait pour un profil bricoleur !**
+
+**Options Re-Fap pour toi :**
+📍 **500+ points de collecte** en France  
+📦 **Envoi postal** sécurisé possible
+⚡ **Nettoyage 24-48h** garanti
+💰 **Tarif préférentiel** sans main d'œuvre
+
+**Veux-tu qu'on t'explique** la procédure exacte ?`;
+                }
+                
+                return `🎯 **Je te recommande :**
+
+🏪 **Garage de confiance** → Diagnostic + installation pro
+📞 **Rappel gratuit** → Conseil personnalisé`;
+            };
+
+            // Formulaire de callback
+            const generateCallbackForm = () => {
+                return `📞 **Rappel gratuit Re-Fap**
+
+**Un expert va t'appeler** dans les 2h ouvrées !
+
+🎯 **Au programme :**
+✅ Confirmation diagnostic  
+✅ Solution la + économique
+✅ Procédure détaillée
+✅ Devis précis
+
+**Formulaire** : https://re-fap.fr/contact/
+
+**Ou SMS direct** au **06.XX.XX.XX.XX** avec :
+- Nom/Prénom
+- Téléphone  
+- Marque véhicule + symptôme
+
+**Rappel garanti sous 2h !** ⏱️`;
             };
 
             return (
@@ -498,12 +619,13 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** noté ! Maintenant dis-moi les symptôm
                                     </div>
                                 </div>
 
-                                {/* Quick options */}
-                                <div className="grid grid-cols-3 gap-2">
+                                {/* Quick options avec CTA optimisés */}
+                                <div className="grid grid-cols-2 gap-2">
                                     {[
-                                        { text: "🟡 Voyant FAP", msg: "Voyant FAP allumé" },
-                                        { text: "💨 Fumée noire", msg: "Fumée noire à l'échappement" },
-                                        { text: "📱 Code erreur", msg: "J'ai un code erreur affiché" }
+                                        { text: "🟡 Voyant FAP", msg: "Voyant FAP allumé", cta: true },
+                                        { text: "💨 Fumée noire", msg: "Fumée noire à l'échappement", cta: true },
+                                        { text: "📱 Code erreur", msg: "J'ai un code erreur affiché", cta: false },
+                                        { text: "🔧 Je suis bricoleur", msg: "Je démonte moi-même", cta: true }
                                     ].map((option, index) => (
                                         <button
                                             key={index}
@@ -513,6 +635,13 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** noté ! Maintenant dis-moi les symptôm
                                                 setTimeout(() => {
                                                     const response = getAutonomousResponse(option.msg);
                                                     addMessage(response, 'bot', 'auto');
+                                                    
+                                                    // Ajouter CTA si nécessaire
+                                                    if (option.cta) {
+                                                        setTimeout(() => {
+                                                            addMessage(generateCTAMessage(option.msg), 'bot', 'cta');
+                                                        }, 2000);
+                                                    }
                                                     setIsTyping(false);
                                                 }, 1000);
                                             }}
@@ -522,6 +651,31 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** noté ! Maintenant dis-moi les symptôm
                                             {option.text}
                                         </button>
                                     ))}
+                                </div>
+
+                                {/* CTA Section - Toujours visible */}
+                                <div className="mt-4 p-3 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
+                                    <h4 className="font-bold text-orange-800 text-sm mb-2">🎯 Besoin d'aide ?</h4>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        <button
+                                            onClick={() => window.open('https://www.idgarages.com/fr-fr/prestations/diagnostic-electronique?utm_source=re-fap&utm_medium=partenariat&utm_campaign=diagnostic-electronique&ept-publisher=re-fap&ept-name=re-fap-diagnostic-electronique', '_blank')}
+                                            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                                        >
+                                            🏪 Trouver un garage de confiance
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                trackEvent('callback_requested', { sessionId: leadData.sessionId });
+                                                addMessage("Je souhaite être rappelé gratuitement", 'user');
+                                                setTimeout(() => {
+                                                    addMessage(generateCallbackForm(), 'bot', 'form');
+                                                }, 1000);
+                                            }}
+                                            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                                        >
+                                            📞 Être rappelé gratuitement
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
