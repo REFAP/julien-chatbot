@@ -293,9 +293,41 @@ Erreur temporaire : ${error.message}`;
                 }
 
                 try {
-                    console.log('📧 Tentative email automatique...');
+                    console.log('📧 Envoi email automatique...');
                     
-                    // SOLUTION 1: Essayer EmailJS
+                    // 1. ENREGISTRER LE LEAD DANS AIRTABLE
+                    try {
+                        const leadResponse = await fetch('/api/airtable-integration', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'CREATE_LEAD',
+                                data: {
+                                    nom: callbackData.nom,
+                                    telephone: callbackData.telephone,
+                                    email: callbackData.email,
+                                    sessionId: leadData.sessionId,
+                                    probleme: callbackData.probleme,
+                                    vehicule: callbackData.vehicule,
+                                    source: 'Formulaire'
+                                }
+                            })
+                        });
+
+                        const leadResult = await leadResponse.json();
+                        if (leadResult.success) {
+                            console.log('🗄️ Lead enregistré dans Airtable:', leadResult.leadId);
+                            trackEvent('airtable_lead_created', { 
+                                sessionId: leadData.sessionId,
+                                leadId: leadResult.leadId
+                            });
+                        }
+                    } catch (airtableError) {
+                        console.warn('⚠️ Airtable lead failed:', airtableError.message);
+                        // Continue même si Airtable échoue
+                    }
+
+                    // 2. ENVOI EMAIL (code existant)
                     try {
                         // Charger EmailJS de manière sécurisée
                         if (typeof emailjs === 'undefined') {
@@ -344,6 +376,7 @@ Erreur temporaire : ${error.message}`;
                         addMessage(`✅ **Email automatique envoyé !**
 
 📧 **Email envoyé automatiquement à mgaume@re-fap.fr**
+🗄️ **Lead enregistré dans Airtable**
 
 📋 **Récapitulatif :**
 • Nom : ${callbackData.nom}
@@ -390,6 +423,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                     window.open(mailtoLink, '_blank');
 
                     addMessage(`📧 **Email client ouvert !**
+🗄️ **Lead enregistré dans Airtable**
 
 📋 **Tes informations :**
 • Nom : ${callbackData.nom}
