@@ -17,7 +17,7 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const JulienProduction = () => {
+        const JulienProductionEnriched = () => {
             const [messages, setMessages] = useState([
                 {
                     type: 'bot',
@@ -44,7 +44,26 @@
                 contactRequested: false
             });
 
+            // NOUVEAU: États pour Airtable
+            const [knowledgeBase, setKnowledgeBase] = useState([]);
+            const [knowledgeLoaded, setKnowledgeLoaded] = useState(false);
+            const [interactionCount, setInteractionCount] = useState(0);
+
+            // NOUVEAU: Charger Knowledge Base au démarrage
             useEffect(() => {
+                const initKnowledge = async () => {
+                    console.log('🚀 Chargement Knowledge Base Airtable...');
+                    const knowledge = await loadKnowledgeBase();
+                    setKnowledgeBase(knowledge);
+                    setKnowledgeLoaded(true);
+                    
+                    if (knowledge.length > 0) {
+                        console.log('📚 Knowledge Base prête:', knowledge.length, 'expertises');
+                        trackEvent('knowledge_loaded', { count: knowledge.length });
+                    }
+                };
+                
+                initKnowledge();
                 trackEvent('session_start', { sessionId: leadData.sessionId });
             }, []);
 
@@ -61,37 +80,198 @@
                 }]);
             };
 
-            // CLAUDE FAIT TOUT LE DIALOGUE !
-            const getClaudeResponse = async (userMsg, conversationHistory) => {
+            // NOUVEAU: Fonction pour charger la Knowledge Base
+            const loadKnowledgeBase = async () => {
                 try {
-                    console.log('🧠 Claude prend le relais complet...');
+                    console.log('📚 Chargement Knowledge Base...');
                     
-                    // Construire l'historique pour Claude
-                    const claudeHistory = conversationHistory.slice(-6).map(msg => ({
-                        role: msg.type === 'user' ? 'user' : 'assistant',
-                        content: typeof msg.content === 'string' ? msg.content : 'Message système'
-                    }));
-                    
-                    // Ajouter le nouveau message
-                    claudeHistory.push({
-                        role: 'user',
-                        content: userMsg
+                    const response = await fetch('/api/airtable-integration', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'GET_KNOWLEDGE'
+                        })
                     });
 
-                    const response = await fetch('/api/analyze-image', {
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        console.log('✅ Knowledge Base chargée:', data.knowledge.length, 'entrées');
+                        return data.knowledge;
+                    }
+                    
+                    return [];
+                } catch (error) {
+                    console.warn('⚠️ Erreur chargement Knowledge:', error.message);
+                    return [];
+                }
+            };
+
+            // NOUVEAU: Fonction pour logger les interactions
+            const logInteractionToAirtable = async (sessionId, userMessage, botResponse, metadata = {}) => {
+                try {
+                    await fetch('/api/airtable-integration', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            conversation: claudeHistory,
-                            prompt: `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. 
+                            action: 'CREATE_DIAGNOSTIC',
+                            data: {
+                                symptomes: userMessage,
+                                marque: metadata.vehicleBrand || '',
+                                annee: metadata.vehicleYear || null,
+                                codes: metadata.errorCodes || '',
+                                diagnostic: botResponse.substring(0, 500), // Limiter la taille
+                                solution: metadata.solution || '',
+                                resultat: metadata.outcome || 'En cours',
+                                photoUrl: metadata.photoUrl || ''
+                            }
+                        })
+                    });
+                    
+                    console.log('🗄️ Interaction loggée dans Airtable');
+                    
+                    // Incrémenter compteur knowledge si utilisée
+                    if (metadata.knowledgeUsed) {
+                        await fetch('/api/airtable-integration', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'UPDATE_KNOWLEDGE_USAGE',
+                                data: { knowledgeId: metadata.knowledgeUsed }
+                            })
+                        });
+                    }
+                    
+                } catch (error) {
+                    console.warn('⚠️ Failed to log interaction:', error.message);
+                }
+            };
+
+            // NOUVEAU: Enrichir Claude avec Knowledge Base
+            const enrichClaudeWithKnowledge = (userMessage, knowledgeBase) => {
+                try {
+                    const keywords = extractKeywords(userMessage);
+                    
+                    // Trouver les entrées pertinentes
+                    const relevantKnowledge = knowledgeBase.filter(entry => {
+                        const entryKeywords = (entry.symptomes || '').toLowerCase();
+                        return keywords.some(keyword => entryKeywords.includes(keyword));
+                    });
+                    
+                    if (relevantKnowledge.length === 0) {
+                        return { context: '', knowledgeUsed: null };
+                    }
+                    
+                    // Trier par utilisation (popularité)
+                    relevantKnowledge.sort((a, b) => (b.utilisation || 0) - (a.utilisation || 0));
+                    
+                    // Prendre les 2 meilleures entrées
+                    const topEntries = relevantKnowledge.slice(0, 2);
+                    
+                    const knowledgeContext = topEntries.map(entry => 
+                        `📚 EXPERTISE AIRTABLE - ${entry.categorie} :
+Symptômes clés: ${entry.symptomes}
+Marques concernées: ${entry.marques}
+Réponse type: ${entry.reponse}
+Arguments commerciaux: ${entry.arguments}
+CTA recommandé: ${entry.cta || 'Commander nettoyage Re-Fap'}`
+                    ).join('\n\n');
+                    
+                    return {
+                        context: knowledgeContext,
+                        knowledgeUsed: topEntries[0]?.id || null
+                    };
+                    
+                } catch (error) {
+                    console.warn('⚠️ Erreur enrichissement knowledge:', error.message);
+                    return { context: '', knowledgeUsed: null };
+                }
+            };
+
+            // NOUVEAU: Extraction de mots-clés améliorée
+            const extractKeywords = (message) => {
+                const keywords = [];
+                const lowerMessage = message.toLowerCase();
+                
+                // Symptômes FAP/EGR
+                if (lowerMessage.includes('fume') || lowerMessage.includes('fumée')) keywords.push('fumee');
+                if (lowerMessage.includes('voyant')) keywords.push('voyant');
+                if (lowerMessage.includes('fap')) keywords.push('fap');
+                if (lowerMessage.includes('egr')) keywords.push('egr');
+                if (lowerMessage.includes('adblue')) keywords.push('adblue');
+                if (lowerMessage.includes('puissance')) keywords.push('puissance');
+                if (lowerMessage.includes('consommation') || lowerMessage.includes('consomme')) keywords.push('consommation');
+                if (lowerMessage.includes('régénération') || lowerMessage.includes('regeneration')) keywords.push('regeneration');
+                if (lowerMessage.includes('encrassé') || lowerMessage.includes('encrasse')) keywords.push('encrassement');
+                if (lowerMessage.includes('moteur')) keywords.push('moteur');
+                if (lowerMessage.includes('bruit')) keywords.push('bruit');
+                if (lowerMessage.includes('fuite')) keywords.push('fuite');
+                
+                // Marques sensibles
+                if (lowerMessage.includes('peugeot')) keywords.push('peugeot');
+                if (lowerMessage.includes('citroën') || lowerMessage.includes('citroen')) keywords.push('citroen');
+                if (lowerMessage.includes('renault')) keywords.push('renault');
+                if (lowerMessage.includes('bmw')) keywords.push('bmw');
+                if (lowerMessage.includes('mercedes')) keywords.push('mercedes');
+                if (lowerMessage.includes('audi')) keywords.push('audi');
+                if (lowerMessage.includes('volkswagen') || lowerMessage.includes('vw')) keywords.push('volkswagen');
+                
+                // Codes erreur
+                if (lowerMessage.includes('p2002')) keywords.push('code_p2002');
+                if (lowerMessage.includes('p2463')) keywords.push('code_p2463');
+                if (lowerMessage.includes('p0401')) keywords.push('code_egr');
+                
+                return keywords;
+            };
+
+            // NOUVEAU: Détecter infos véhicule
+            const extractVehicleInfo = (message) => {
+                const lowerMessage = message.toLowerCase();
+                let vehicleBrand = '';
+                let vehicleYear = null;
+                
+                // Détecter marque
+                const brands = ['peugeot', 'citroën', 'citroen', 'renault', 'bmw', 'mercedes', 'audi', 'volkswagen', 'vw'];
+                for (const brand of brands) {
+                    if (lowerMessage.includes(brand)) {
+                        vehicleBrand = brand === 'citroen' ? 'citroën' : brand;
+                        break;
+                    }
+                }
+                
+                // Détecter année (regex pour 4 chiffres entre 2000 et 2025)
+                const yearMatch = message.match(/\b(20[0-2][0-9])\b/);
+                if (yearMatch) {
+                    vehicleYear = parseInt(yearMatch[1]);
+                }
+                
+                return { vehicleBrand, vehicleYear };
+            };
+
+            // MODIFIÉ: getClaudeResponse ENRICHI avec Airtable
+            const getClaudeResponse = async (userMsg, conversationHistory) => {
+                try {
+                    console.log('🧠 Claude + Airtable Knowledge activé...');
+                    
+                    // 1. Extraire infos du message
+                    const { vehicleBrand, vehicleYear } = extractVehicleInfo(userMsg);
+                    const keywords = extractKeywords(userMsg);
+                    
+                    // 2. Enrichir avec Knowledge Base
+                    const { context: knowledgeContext, knowledgeUsed } = enrichClaudeWithKnowledge(userMsg, knowledgeBase);
+                    
+                    // 3. Construire prompt enrichi
+                    const enrichedPrompt = `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap.
+
+${knowledgeContext ? `${knowledgeContext}
+
+🎯 UTILISE CES DONNÉES AIRTABLE pour donner une réponse ULTRA-PRÉCISE basée sur tes vraies expertises !` : ''}
 
 MISSION BUSINESS CRITIQUE:
 Tu as 2 CHEMINS distincts selon ton diagnostic :
 
 🟢 CHEMIN A - PROBLÈME FAP/EGR/AdBlue :
-1. DIAGNOSTIC : "C'est ton FAP qui déconne !"
+1. DIAGNOSTIC : "Ah ! Je vois direct ton problème ! C'est ton FAP qui déconne !"
 2. SOLUTION : NETTOYAGE RE-FAP (économique et efficace)
 3. ARGUMENTS vs remplacement :
    - "Un nettoyage Re-Fap coûte 10x moins cher qu'un FAP neuf"
@@ -101,8 +281,8 @@ Tu as 2 CHEMINS distincts selon ton diagnostic :
 4. CTA : Commander le nettoyage Re-Fap
 
 🔴 CHEMIN B - AUTRE PROBLÈME :
-1. DIAGNOSTIC : "C'est pas le FAP, c'est autre chose"
-2. REDIRECTION : "Va chez un garage partenaire Re-Fap"
+1. DIAGNOSTIC : "Alors ça, c'est pas le FAP ! C'est [problème X]"
+2. REDIRECTION : "Moi je suis spécialisé FAP, pour ce truc-là va voir un garage partenaire Re-Fap"
 3. ARGUMENT : "Nos partenaires sont formés et de confiance"
 4. CTA : Trouver garage partenaire
 
@@ -112,11 +292,6 @@ INDICATEURS PROBLÈME FAP/EGR :
 - Codes : P2002, P2463, P0401, P0400
 - Marques sensibles : Peugeot, Citroën, Renault, BMW (post 2011)
 
-INDICATEURS AUTRE PROBLÈME :
-- Voyants : ABS, direction, freins, climatisation
-- Symptômes : bruits mécaniques, fuites, problèmes électriques purs
-- Problèmes antérieurs à 2011 (pas de FAP)
-
 STYLE JULIEN NATUREL :
 - "Ah !", "Je vois direct que...", "Écoute-moi bien..."
 - "Ton FAP", "ta bagnole", "ton problème" (tutoiement)
@@ -124,45 +299,81 @@ STYLE JULIEN NATUREL :
 - "C'est parti !", "Allez hop !", "Tu vois le truc ?"
 - "À ton avis, lequel est plus malin ?"
 
-EXEMPLES CONCRETS :
+TERMINES TOUJOURS PAR DES QUESTIONS !`;
 
-Client: "Ça fume noir en ville"
-Julien: "Ah ! Je vois direct ton problème ! Fumée noire en ville = FAP encrassé à 100% ! Tu as 2 choix : nettoyage Re-Fap 200€ ou FAP neuf 2000€. À ton avis, lequel est plus malin ? 😉 Tu es bricoleur ou tu préfères que ce soit fait chez un pro ?"
+                    // 4. Construire historique Claude
+                    const claudeHistory = conversationHistory.slice(-6).map(msg => ({
+                        role: msg.type === 'user' ? 'user' : 'assistant',
+                        content: typeof msg.content === 'string' ? msg.content : 'Message système'
+                    }));
+                    
+                    claudeHistory.push({
+                        role: 'user',
+                        content: userMsg
+                    });
 
-Client: "Bruit bizarre au freinage"  
-Julien: "Alors ça, c'est pas le FAP ! Moi je suis spécialisé FAP/EGR/AdBlue. Pour ton problème de freins, va voir un garage partenaire Re-Fap, ils sont de confiance. Tu veux que je te trouve un garage près de chez toi ?"
-
-OBJECTIF: Qualifier rapidement et orienter vers la BONNE solution business !
-
-TERMINES TOUJOURS PAR DES QUESTIONS !`
+                    // 5. Appel Claude
+                    const response = await fetch('/api/analyze-image', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            conversation: claudeHistory,
+                            prompt: enrichedPrompt
                         })
                     });
 
-                    if (!response.ok) {
-                        console.error('❌ Erreur Claude API:', response.status);
-                        throw new Error(`Claude API Error: ${response.status}`);
-                    }
-
                     const data = await response.json();
-                    console.log('✅ Réponse Claude:', data);
+                    let botResponse = '';
+                    let success = false;
                     
                     if (data.success && data.analysis) {
-                        trackEvent('claude_dialogue', { success: true, length: data.analysis.length });
-                        return data.analysis;
-                    } else if (data.fallback) {
-                        return data.fallback;
+                        botResponse = data.analysis;
+                        success = true;
+                        trackEvent('claude_enriched_success', { knowledgeUsed: !!knowledgeUsed });
                     } else {
-                        throw new Error('Réponse Claude invalide');
+                        botResponse = data.fallback || "Salut ! Décris-moi ton problème auto, je vais t'aider à diagnostiquer ça ! 🔧";
+                        trackEvent('claude_fallback', { error: data.error });
                     }
-
+                    
+                    // 6. Logger dans Airtable
+                    await logInteractionToAirtable(
+                        leadData.sessionId,
+                        userMsg,
+                        botResponse,
+                        {
+                            vehicleBrand,
+                            vehicleYear,
+                            errorCodes: keywords.filter(k => k.startsWith('code_')).join(', '),
+                            solution: success ? 'Claude enrichi Airtable' : 'Fallback',
+                            outcome: success ? 'Succès' : 'Échec',
+                            knowledgeUsed
+                        }
+                    );
+                    
+                    // 7. Incrémenter compteur interactions
+                    setInteractionCount(prev => prev + 1);
+                    
+                    console.log('✅ Claude enrichi + Airtable logged');
+                    return botResponse;
+                    
                 } catch (error) {
-                    console.error('💥 Erreur Claude dialogue:', error);
-                    trackEvent('claude_dialogue', { success: false, error: error.message });
+                    console.error('💥 Erreur Claude enrichi:', error);
                     
-                    // Fallback minimal
-                    return `Salut ! Décris-moi ton problème auto, je vais t'aider à diagnostiquer ça ! 
+                    // Log erreur dans Airtable
+                    await logInteractionToAirtable(
+                        leadData.sessionId,
+                        userMsg,
+                        'Erreur technique',
+                        {
+                            solution: 'Erreur',
+                            outcome: 'Échec technique',
+                            errorDetails: error.message
+                        }
+                    );
                     
-Spécialité : FAP/EGR/AdBlue 🔧
+                    trackEvent('claude_error', { error: error.message });
+                    
+                    return `Salut ! Décris-moi ton problème auto, je vais t'aider ! 
 
 Erreur temporaire : ${error.message}`;
                 }
@@ -177,11 +388,14 @@ Erreur temporaire : ${error.message}`;
                 setInputMessage('');
                 setIsTyping(true);
 
-                trackEvent('message_sent', { message: userMsg.substring(0, 50) });
+                trackEvent('message_sent', { 
+                    message: userMsg.substring(0, 50),
+                    knowledgeAvailable: knowledgeLoaded
+                });
 
-                // CLAUDE FAIT TOUT !
+                // APPEL VERSION ENRICHIE
                 const response = await getClaudeResponse(userMsg, messages);
-                addMessage(response, 'bot', 'claude');
+                addMessage(response, 'bot', 'claude_enriched');
                 setIsTyping(false);
             };
 
@@ -195,7 +409,11 @@ Erreur temporaire : ${error.message}`;
                     
                     addMessage(`📸 Photo envoyée : ${file.name}`, 'user');
                     setIsTyping(true);
-                    trackEvent('photo_uploaded', { fileName: file.name, fileSize: file.size });
+                    trackEvent('photo_uploaded', { 
+                        fileName: file.name, 
+                        fileSize: file.size,
+                        knowledgeAvailable: knowledgeLoaded
+                    });
                     
                     // Compression d'image
                     const compressImage = (file, maxWidth = 800, quality = 0.8) => {
@@ -241,16 +459,19 @@ Erreur temporaire : ${error.message}`;
                                 reader.readAsDataURL(file);
                             });
                         }
+
+                        // Enrichir prompt photo avec Knowledge Base
+                        const photoKeywords = ['voyant', 'tableau_bord', 'photo'];
+                        const { context: knowledgeContext, knowledgeUsed } = enrichClaudeWithKnowledge(
+                            'Photo voyant tableau de bord', 
+                            knowledgeBase
+                        );
                         
-                        // Analyse photo avec Claude
-                        const response = await fetch('/api/analyze-image', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                image: imageData,
-                                prompt: `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. 
+                        const enrichedPhotoPrompt = `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap.
+
+${knowledgeContext ? `${knowledgeContext}
+
+🎯 UTILISE CETTE EXPERTISE AIRTABLE pour analyser la photo !` : ''}
 
 ANALYSE CETTE PHOTO et réponds avec la LOGIQUE BUSINESS BI-CÉPHAL :
 
@@ -274,14 +495,38 @@ STYLE JULIEN NATUREL :
 - Commercial mais pote, pas commercial télé
 - "C'est parti !", "Allez hop !", "Tu vois le truc ?"
 
-SOIS COMMERCIAL MAIS NATUREL !`
+SOIS COMMERCIAL MAIS NATUREL !`;
+                        
+                        // Analyse photo avec Claude
+                        const response = await fetch('/api/analyze-image', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                image: imageData,
+                                prompt: enrichedPhotoPrompt
                             })
                         });
 
                         const data = await response.json();
                         
                         if (data.success && data.analysis) {
-                            addMessage(`📸 **ANALYSE PHOTO EXPERT** 🧠\n\n${data.analysis}`, 'bot', 'claude');
+                            addMessage(`📸 **ANALYSE PHOTO EXPERT + AIRTABLE** 🧠\n\n${data.analysis}`, 'bot', 'claude_photo_enriched');
+                            
+                            // Logger analyse photo
+                            await logInteractionToAirtable(
+                                leadData.sessionId,
+                                `Photo: ${file.name}`,
+                                data.analysis,
+                                {
+                                    vehicleBrand: '',
+                                    photoUrl: 'uploaded',
+                                    solution: 'Analyse photo enrichie',
+                                    outcome: 'Photo analysée',
+                                    knowledgeUsed
+                                }
+                            );
                         } else {
                             addMessage(`📸 Photo reçue ! Dis-moi ce que tu vois : voyants allumés, messages affichés, marque du véhicule ?`, 'bot', 'auto');
                         }
@@ -289,6 +534,18 @@ SOIS COMMERCIAL MAIS NATUREL !`
                     } catch (error) {
                         console.error('❌ Erreur upload:', error);
                         addMessage(`❌ Erreur analyse : ${error.message}`, 'bot');
+                        
+                        // Logger erreur
+                        await logInteractionToAirtable(
+                            leadData.sessionId,
+                            `Photo: ${file.name}`,
+                            'Erreur analyse photo',
+                            {
+                                solution: 'Erreur photo',
+                                outcome: 'Échec upload',
+                                errorDetails: error.message
+                            }
+                        );
                     }
                     
                     setIsTyping(false);
@@ -335,22 +592,22 @@ SOIS COMMERCIAL MAIS NATUREL !`
                                     sessionId: leadData.sessionId,
                                     probleme: callbackData.probleme,
                                     vehicule: callbackData.vehicule,
-                                    source: 'Formulaire'
+                                    source: 'Formulaire Enrichi'
                                 }
                             })
                         });
 
                         const leadResult = await leadResponse.json();
                         if (leadResult.success) {
-                            console.log('🗄️ Lead enregistré dans Airtable:', leadResult.leadId);
+                            console.log('🗄️ Lead enrichi enregistré dans Airtable:', leadResult.leadId);
                             trackEvent('airtable_lead_created', { 
                                 sessionId: leadData.sessionId,
-                                leadId: leadResult.leadId
+                                leadId: leadResult.leadId,
+                                interactions: interactionCount
                             });
                         }
                     } catch (airtableError) {
                         console.warn('⚠️ Airtable lead failed:', airtableError.message);
-                        // Continue même si Airtable échoue
                     }
 
                     // 2. ENVOI EMAIL (code existant)
@@ -377,8 +634,8 @@ SOIS COMMERCIAL MAIS NATUREL !`
                             'template_trg4q0n',
                             {
                                 name: callbackData.nom,
-                                subject: `🔥 NOUVEAU RAPPEL RE-FAP - ${callbackData.nom}`,
-                                message: `NOUVEAU RAPPEL RE-FAP - ${callbackData.nom}
+                                subject: `🔥 NOUVEAU RAPPEL RE-FAP ENRICHI - ${callbackData.nom}`,
+                                message: `NOUVEAU RAPPEL RE-FAP ENRICHI - ${callbackData.nom}
 
 📋 INFORMATIONS CLIENT :
 • Nom/Prénom : ${callbackData.nom}
@@ -389,20 +646,25 @@ SOIS COMMERCIAL MAIS NATUREL !`
 • Véhicule : ${callbackData.vehicule || 'Non précisé'}
 • Problème : ${callbackData.probleme || 'Non précisé'}
 
-🧠 DONNÉES CHATBOT :
+🧠 DONNÉES CHATBOT ENRICHI :
 • Session ID : ${leadData.sessionId}
+• Interactions : ${interactionCount}
+• Knowledge Base : ${knowledgeBase.length} expertises
 • Horodatage : ${new Date().toLocaleString('fr-FR')}
 
-⚡ ACTION REQUISE : Rappeler ${callbackData.nom} au ${callbackData.telephone} sous 2h !`
+⚡ ACTION REQUISE : Rappeler ${callbackData.nom} au ${callbackData.telephone} sous 2h !
+
+🎯 LEAD QUALIFIÉ PAR IA + AIRTABLE`
                             }
                         );
 
                         console.log('✅ EmailJS succès:', response);
 
-                        addMessage(`✅ **Email automatique envoyé !**
+                        addMessage(`✅ **Email automatique enrichi envoyé !**
 
 📧 **Email envoyé automatiquement à mgaume@re-fap.fr**
-🗄️ **Lead enregistré dans Airtable**
+🗄️ **Lead enregistré dans Airtable avec ${interactionCount} interactions**
+🧠 **Analysé avec ${knowledgeBase.length} expertises**
 
 📋 **Récapitulatif :**
 • Nom : ${callbackData.nom}
@@ -411,11 +673,12 @@ SOIS COMMERCIAL MAIS NATUREL !`
 
 📞 **Un expert Re-Fap va t'appeler sous 2h !**
 
-En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success');
+En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_enriched');
 
                         trackEvent('callback_emailjs_success', { 
                             sessionId: leadData.sessionId,
-                            phone: callbackData.telephone.substring(0, 4) + 'xxxx'
+                            phone: callbackData.telephone.substring(0, 4) + 'xxxx',
+                            interactions: interactionCount
                         });
 
                     } catch (emailjsError) {
@@ -427,7 +690,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                     console.log('📧 Fallback mailto activé');
                     
                     // FALLBACK GARANTI: mailto
-                    const emailBody = `NOUVEAU RAPPEL RE-FAP - ${callbackData.nom}
+                    const emailBody = `NOUVEAU RAPPEL RE-FAP ENRICHI - ${callbackData.nom}
 
 📋 INFORMATIONS CLIENT :
 • Nom/Prénom : ${callbackData.nom}
@@ -438,13 +701,17 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
 • Véhicule : ${callbackData.vehicule || 'Non précisé'}
 • Problème : ${callbackData.probleme || 'Non précisé'}
 
-🧠 DONNÉES CHATBOT :
+🧠 DONNÉES CHATBOT ENRICHI :
 • Session ID : ${leadData.sessionId}
+• Interactions : ${interactionCount}
+• Knowledge Base : ${knowledgeBase.length} expertises
 • Horodatage : ${new Date().toLocaleString('fr-FR')}
 
-⚡ ACTION REQUISE : Rappeler sous 2h !`;
+⚡ ACTION REQUISE : Rappeler sous 2h !
 
-                    const mailtoLink = `mailto:mgaume@re-fap.fr,contact@re-fap.fr?subject=${encodeURIComponent('🔥 NOUVEAU RAPPEL RE-FAP - ' + callbackData.nom)}&body=${encodeURIComponent(emailBody)}`;
+🎯 LEAD QUALIFIÉ PAR IA + AIRTABLE`;
+
+                    const mailtoLink = `mailto:mgaume@re-fap.fr,contact@re-fap.fr?subject=${encodeURIComponent('🔥 NOUVEAU RAPPEL RE-FAP ENRICHI - ' + callbackData.nom)}&body=${encodeURIComponent(emailBody)}`;
                     
                     window.open(mailtoLink, '_blank');
 
@@ -472,9 +739,34 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                 setCallbackData({ nom: '', telephone: '', email: '', probleme: '', vehicule: '' });
             };
 
+            // NOUVEAU: Affichage status Knowledge Base
+            const renderKnowledgeStatus = () => {
+                if (!knowledgeLoaded) {
+                    return (
+                        <div className="text-xs text-gray-500 mb-2 text-center">
+                            📚 Chargement base de connaissances...
+                        </div>
+                    );
+                }
+                
+                if (knowledgeBase.length > 0) {
+                    return (
+                        <div className="text-xs text-green-600 mb-2 text-center">
+                            ✅ IA enrichie: {knowledgeBase.length} expertises Airtable • {interactionCount} interactions
+                        </div>
+                    );
+                }
+                
+                return (
+                    <div className="text-xs text-orange-500 mb-2 text-center">
+                        ⚠️ Base de connaissances vide
+                    </div>
+                );
+            };
+
             return (
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-orange-50">
-                    {/* Header */}
+                    {/* Header avec status knowledge */}
                     <header className="bg-white shadow-sm border-b">
                         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
                             <div className="flex items-center">
@@ -483,7 +775,9 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                                 </div>
                                 <div>
                                     <h1 className="text-lg font-bold text-gray-800">Julien - Expert FAP</h1>
-                                    <p className="text-xs text-gray-600">Diagnostic gratuit • 20 ans d'expérience</p>
+                                    <p className="text-xs text-gray-600">
+                                        Diagnostic gratuit • IA + Airtable • {knowledgeBase.length} expertises
+                                    </p>
                                 </div>
                             </div>
                             <button 
@@ -493,6 +787,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                                 📞 Devis gratuit
                             </button>
                         </div>
+                        {renderKnowledgeStatus()}
                     </header>
 
                     {/* Chat principal avec CTA responsive */}
@@ -508,7 +803,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                                         </div>
                                         <div>
                                             <h2 className="text-xl font-bold">Julien, ton expert FAP</h2>
-                                            <p className="text-orange-100 text-sm">Diagnostic GRATUIT • Spécialiste Re-Fap depuis 20 ans</p>
+                                            <p className="text-orange-100 text-sm">Diagnostic GRATUIT • IA enrichie • {knowledgeBase.length} expertises</p>
                                         </div>
                                     </div>
                                 </div>
@@ -520,7 +815,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                                             <div className={`inline-block p-3 rounded-lg max-w-md ${
                                                 message.type === 'user' 
                                                     ? 'bg-blue-500 text-white' 
-                                                    : message.source === 'claude'
+                                                    : message.source === 'claude_enriched' || message.source === 'claude_photo_enriched'
                                                         ? 'bg-purple-100 text-gray-800 border-l-4 border-purple-500'
                                                         : 'bg-white text-gray-800 border border-gray-200'
                                             }`}>
@@ -535,7 +830,9 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                                                 
                                                 {message.type === 'bot' && (
                                                     <div className="text-xs text-gray-400 mt-2">
-                                                        {message.source === 'claude' ? '🧠 IA' : '⚡ Expert'} • {new Date(message.timestamp).toLocaleTimeString()}
+                                                        {message.source === 'claude_enriched' ? '🧠 IA+Airtable' : 
+                                                         message.source === 'claude_photo_enriched' ? '📸 Photo+IA' : 
+                                                         '⚡ Expert'} • {new Date(message.timestamp).toLocaleTimeString()}
                                                     </div>
                                                 )}
                                             </div>
@@ -551,7 +848,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                                                         <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
                                                         <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                                                     </div>
-                                                    <span className="text-sm text-gray-600">Julien analyse...</span>
+                                                    <span className="text-sm text-gray-600">Julien analyse avec IA + Airtable...</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -596,7 +893,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                                                 📸 Photo de mon voyant
                                             </label>
                                             <p className="text-xs text-gray-600 mt-2">
-                                                JPG/PNG max 5MB • Julien analysera automatiquement ! 🧠
+                                                JPG/PNG max 5MB • Analyse enrichie IA + Airtable ! 🧠
                                             </p>
                                         </div>
                                     </div>
@@ -615,7 +912,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                                                     addMessage(option.msg, 'user');
                                                     setIsTyping(true);
                                                     const response = await getClaudeResponse(option.msg, messages);
-                                                    addMessage(response, 'bot', 'claude');
+                                                    addMessage(response, 'bot', 'claude_enriched');
                                                     setIsTyping(false);
                                                 }}
                                                 disabled={isTyping}
@@ -685,8 +982,9 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
                                     <div className="text-xs text-gray-600">
                                         <div className="font-semibold text-green-600 mb-1">✅ Diagnostic gratuit</div>
-                                        <div>🧠 IA + 20 ans expérience</div>
+                                        <div>🧠 IA + {knowledgeBase.length} expertises</div>
                                         <div>💰 Solutions économiques</div>
+                                        <div>📊 {interactionCount} interactions</div>
                                     </div>
                                 </div>
                             </div>
@@ -701,7 +999,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <h3 className="text-lg font-bold">📞 Rappel gratuit Re-Fap</h3>
-                                                <p className="text-sm opacity-90">Expert sous 2h ouvrées</p>
+                                                <p className="text-sm opacity-90">Expert sous 2h • Lead enrichi IA</p>
                                             </div>
                                             <button 
                                                 onClick={() => setShowCallbackForm(false)}
@@ -784,6 +1082,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                                         {/* Info RGPD */}
                                         <div className="bg-gray-50 p-3 rounded-lg text-xs text-gray-600">
                                             ✅ Vos données sont utilisées uniquement pour le rappel. Aucun spam.
+                                            <br />🧠 Lead qualifié par IA + {knowledgeBase.length} expertises Airtable
                                         </div>
 
                                         {/* Boutons */}
@@ -812,12 +1111,13 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
                     <footer className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-gray-600">
                         <div className="flex items-center justify-center space-x-6 mb-3">
                             <span className="flex items-center"><span className="text-green-500 mr-1">✅</span> Diagnostic gratuit</span>
-                            <span className="flex items-center"><span className="text-blue-500 mr-1">🧠</span> IA + 20 ans expérience</span>
+                            <span className="flex items-center"><span className="text-blue-500 mr-1">🧠</span> IA + {knowledgeBase.length} expertises</span>
                             <span className="flex items-center"><span className="text-orange-500 mr-1">💰</span> Solutions économiques</span>
+                            <span className="flex items-center"><span className="text-purple-500 mr-1">📊</span> {interactionCount} interactions</span>
                         </div>
                         <p className="text-xs">
                             Powered by <a href="https://re-fap.fr" className="text-orange-600 hover:underline">Re-Fap</a> • 
-                            Expert nettoyage FAP depuis 2015 • 
+                            Expert nettoyage FAP depuis 2015 • IA enrichie Airtable •
                             Session: {leadData.sessionId}
                         </p>
                     </footer>
@@ -825,7 +1125,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success')
             );
         };
 
-        ReactDOM.render(<JulienProduction />, document.getElementById('root'));
+        ReactDOM.render(<JulienProductionEnriched />, document.getElementById('root'));
     </script>
 </body>
 </html>
