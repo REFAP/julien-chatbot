@@ -27,6 +27,14 @@
             ]);
             const [inputMessage, setInputMessage] = useState('');
             const [isTyping, setIsTyping] = useState(false);
+            const [showCallbackForm, setShowCallbackForm] = useState(false);
+            const [callbackData, setCallbackData] = useState({
+                nom: '',
+                telephone: '',
+                email: '',
+                probleme: '',
+                vehicule: ''
+            });
             const [leadData, setLeadData] = useState({
                 sessionId: Math.random().toString(36).substr(2, 9),
                 startTime: new Date(),
@@ -254,23 +262,52 @@ Erreur temporaire : ${error.message}`;
 
             const handleCallbackClick = () => {
                 trackEvent('callback_requested', { sessionId: leadData.sessionId });
+                setShowCallbackForm(true);
                 addMessage("Je souhaite être rappelé gratuitement", 'user');
                 setTimeout(() => {
-                    const callbackMsg = `📞 **Rappel gratuit Re-Fap**
+                    addMessage("📞 **Formulaire de rappel activé !**\n\nRemplis le formulaire qui s'affiche et un expert Re-Fap va t'appeler dans les 2h ! 🎯", 'bot', 'form');
+                }, 500);
+            };
 
-**Un expert va t'appeler** dans les 2h ouvrées !
+            const handleCallbackSubmit = async (e) => {
+                e.preventDefault();
+                
+                if (!callbackData.nom || !callbackData.telephone) {
+                    alert('Nom et téléphone obligatoires !');
+                    return;
+                }
 
-🎯 **Au programme :**
-✅ Confirmation diagnostic  
-✅ Solution la + économique
-✅ Procédure détaillée
-✅ Devis précis
+                try {
+                    // Simulation envoi (remplace par ton API)
+                    console.log('📞 Demande de rappel:', {
+                        ...callbackData,
+                        sessionId: leadData.sessionId,
+                        timestamp: new Date().toISOString()
+                    });
 
-**Formulaire** : https://re-fap.fr/contact/
+                    trackEvent('callback_form_submitted', { 
+                        sessionId: leadData.sessionId,
+                        phone: callbackData.telephone.substring(0, 4) + 'xxxx'
+                    });
 
-**Rappel garanti sous 2h !** ⏱️`;
-                    addMessage(callbackMsg, 'bot', 'form');
-                }, 1000);
+                    addMessage(`✅ **Demande de rappel envoyée !**
+
+📋 **Récapitulatif :**
+• Nom : ${callbackData.nom}
+• Téléphone : ${callbackData.telephone}
+• Problème : ${callbackData.probleme || 'Non précisé'}
+
+📞 **Un expert Re-Fap va t'appeler sous 2h !**
+
+En attendant, continue à me poser des questions ! 🔧`, 'bot', 'confirmation');
+
+                    setShowCallbackForm(false);
+                    setCallbackData({ nom: '', telephone: '', email: '', probleme: '', vehicule: '' });
+                    
+                } catch (error) {
+                    console.error('Erreur envoi callback:', error);
+                    alert('Erreur envoi. Réessaie ou appelle directement Re-Fap !');
+                }
             };
 
             return (
@@ -492,6 +529,121 @@ Erreur temporaire : ${error.message}`;
                                 </div>
                             </div>
                         </div>
+
+                        {/* FORMULAIRE DE RAPPEL - Modal */}
+                        {showCallbackForm && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                                <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-screen overflow-y-auto">
+                                    {/* Header formulaire */}
+                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-t-xl">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className="text-lg font-bold">📞 Rappel gratuit Re-Fap</h3>
+                                                <p className="text-sm opacity-90">Expert sous 2h ouvrées</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => setShowCallbackForm(false)}
+                                                className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Formulaire */}
+                                    <form onSubmit={handleCallbackSubmit} className="p-6 space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Nom / Prénom *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={callbackData.nom}
+                                                onChange={(e) => setCallbackData({...callbackData, nom: e.target.value})}
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                                placeholder="Votre nom complet"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Téléphone *
+                                            </label>
+                                            <input
+                                                type="tel"
+                                                required
+                                                value={callbackData.telephone}
+                                                onChange={(e) => setCallbackData({...callbackData, telephone: e.target.value})}
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                                placeholder="06 12 34 56 78"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Email
+                                            </label>
+                                            <input
+                                                type="email"
+                                                value={callbackData.email}
+                                                onChange={(e) => setCallbackData({...callbackData, email: e.target.value})}
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                                placeholder="votre@email.com"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Résumé du problème
+                                            </label>
+                                            <textarea
+                                                value={callbackData.probleme}
+                                                onChange={(e) => setCallbackData({...callbackData, probleme: e.target.value})}
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                                placeholder="Voyants allumés, fumées, perte puissance..."
+                                                rows="3"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Véhicule
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={callbackData.vehicule}
+                                                onChange={(e) => setCallbackData({...callbackData, vehicule: e.target.value})}
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                                placeholder="Marque, modèle, année (ex: Peugeot 308 2018)"
+                                            />
+                                        </div>
+
+                                        {/* Info RGPD */}
+                                        <div className="bg-gray-50 p-3 rounded-lg text-xs text-gray-600">
+                                            ✅ Vos données sont utilisées uniquement pour le rappel. Aucun spam.
+                                        </div>
+
+                                        {/* Boutons */}
+                                        <div className="flex gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCallbackForm(false)}
+                                                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 px-4 rounded-lg font-medium transition-colors"
+                                            >
+                                                Annuler
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-lg font-medium transition-colors"
+                                            >
+                                                📞 Demander le rappel
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Footer */}
