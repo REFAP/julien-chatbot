@@ -25,33 +25,6 @@
                     timestamp: new Date()
                 }
             ]);
-            con<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Julien - Expert FAP Re-Fap | Diagnostic Gratuit</title>
-    <meta name="description" content="Diagnostic gratuit FAP/EGR/AdBlue avec Julien, expert depuis 20 ans. Analysez vos voyants moteur, obtenez solutions et devis Re-Fap.">
-    
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-50">
-    <div id="root"></div>
-
-    <script type="text/babel">
-        const { useState, useEffect } = React;
-
-        const JulienProduction = () => {
-            const [messages, setMessages] = useState([
-                {
-                    type: 'bot',
-                    content: "Salut ! 👋 Moi c'est Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Je vais diagnostiquer ton problème GRATUITEMENT ! Décris-moi ton souci ou envoie une photo de ton voyant 📸",
-                    timestamp: new Date()
-                }
-            ]);
             const [inputMessage, setInputMessage] = useState('');
             const [isTyping, setIsTyping] = useState(false);
             const [leadData, setLeadData] = useState({
@@ -306,21 +279,8 @@ Erreur temporaire : ${error.message}`;
                     <header className="bg-white shadow-sm border-b">
                         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
                             <div className="flex items-center">
-                                <div className="mr-3">
-                                    {/* Logo Re-Fap SVG agrandi */}
-                                    <svg width="80" height="48" viewBox="0 0 120 72" xmlns="http://www.w3.org/2000/svg">
-                                        {/* Partie verte du logo */}
-                                        <defs>
-                                            <linearGradient id="greenGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                                <stop offset="0%" stopColor="#9ACD32" />
-                                                <stop offset="100%" stopColor="#7CB342" />
-                                            </linearGradient>
-                                        </defs>
-                                        <path d="M8 16 L32 8 L40 24 L24 32 L8 24 Z" fill="url(#greenGradient)" transform="rotate(-15 24 20)" />
-                                        <path d="M20 12 L44 4 L52 20 L36 28 L20 20 Z" fill="url(#greenGradient)" transform="rotate(-15 36 16)" opacity="0.8" />
-                                        {/* Texte re-fap plus gros */}
-                                        <text x="64" y="32" fontFamily="Arial, sans-serif" fontSize="24" fontWeight="bold" fill="#2E4A47">re-fap</text>
-                                    </svg>
+                                <div className="mr-3 bg-green-500 px-3 py-1 rounded text-white font-bold text-lg">
+                                    re-fap
                                 </div>
                                 <div>
                                     <h1 className="text-lg font-bold text-gray-800">Julien - Expert FAP</h1>
