@@ -1,5 +1,5 @@
 // api/airtable-integration.js
-// Intégration Airtable pour Julien Chatbot
+// Intégration Airtable pour Julien Chatbot - VERSION CORRIGÉE
 
 export default async function handler(request, response) {
     // Autoriser CORS
@@ -110,7 +110,9 @@ export default async function handler(request, response) {
                 });
 
             case 'GET_KNOWLEDGE':
-                // Récupérer la base de connaissances
+                // 🔧 CORRIGÉ : Récupérer la base de connaissances avec bon format
+                console.log('📚 Récupération Knowledge Base...');
+                
                 const knowledgeResponse = await fetch(
                     `https://api.airtable.com/v0/${BASE_ID}/${TABLES.KNOWLEDGE_BASE}?maxRecords=100`,
                     { headers: airtableHeaders }
@@ -123,20 +125,31 @@ export default async function handler(request, response) {
                 }
 
                 const knowledgeResult = await knowledgeResponse.json();
-                console.log('📚 Knowledge récupérée:', knowledgeResult.records.length, 'entrées');
+                console.log('📚 Knowledge brute récupérée:', knowledgeResult.records.length, 'entrées');
+
+                // 🔧 FORMAT CORRIGÉ pour correspondre au frontend
+                const formattedKnowledge = knowledgeResult.records.map(record => {
+                    console.log('🔍 Record brut:', record.fields);
+                    
+                    return {
+                        id: record.id,
+                        categorie: record.fields.Categorie || 'Autre',
+                        symptomes: record.fields.Symptomes_Cles || '',
+                        marques: Array.isArray(record.fields.Marques_Concernees) 
+                            ? record.fields.Marques_Concernees.join(', ') 
+                            : (record.fields.Marques_Concernees || ''),
+                        reponse: record.fields.Reponse_Type || '',
+                        arguments: record.fields.Arguments_Commercial || '',
+                        cta: record.fields.CTA_Recommande || 'Commander nettoyage Re-Fap',
+                        utilisation: record.fields.Utilisation_Count || 0
+                    };
+                });
+
+                console.log('✅ Knowledge formatée:', formattedKnowledge);
 
                 return response.status(200).json({
                     success: true,
-                    knowledge: knowledgeResult.records.map(record => ({
-                        id: record.id,
-                        categorie: record.fields.Categorie,
-                        symptomes: record.fields.Symptomes_Cles,
-                        marques: record.fields.Marques_Concernees,
-                        reponse: record.fields.Reponse_Type,
-                        arguments: record.fields.Arguments_Commercial,
-                        cta: record.fields.CTA_Recommande,
-                        utilisation: record.fields.Utilisation_Count || 0
-                    }))
+                    knowledge: formattedKnowledge
                 });
 
             case 'GET_VEHICULE_INFO':
@@ -210,6 +223,39 @@ export default async function handler(request, response) {
                 }
 
                 return response.status(200).json({ success: true });
+
+            case 'GET_ANALYTICS':
+                // 🆕 NOUVEAU : Récupérer analytics
+                try {
+                    const [leadsResponse, diagnosticsResponse] = await Promise.all([
+                        fetch(`https://api.airtable.com/v0/${BASE_ID}/${TABLES.LEADS}?maxRecords=100`, { headers: airtableHeaders }),
+                        fetch(`https://api.airtable.com/v0/${BASE_ID}/${TABLES.DIAGNOSTICS}?maxRecords=100`, { headers: airtableHeaders })
+                    ]);
+
+                    if (leadsResponse.ok && diagnosticsResponse.ok) {
+                        const leadsData = await leadsResponse.json();
+                        const diagnosticsData = await diagnosticsResponse.json();
+
+                        const analytics = {
+                            totalLeads: leadsData.records.length,
+                            totalDiagnostics: diagnosticsData.records.length,
+                            knowledgeEntries: formattedKnowledge ? formattedKnowledge.length : 0,
+                            lastUpdate: new Date().toISOString()
+                        };
+
+                        return response.status(200).json({
+                            success: true,
+                            analytics
+                        });
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Erreur analytics:', error.message);
+                }
+
+                return response.status(200).json({
+                    success: true,
+                    analytics: { error: 'Données non disponibles' }
+                });
 
             default:
                 return response.status(400).json({
