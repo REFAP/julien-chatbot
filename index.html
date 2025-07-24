@@ -1,216 +1,472 @@
-// api/analyze-image.js
-// Vercel Function pour analyser les photos avec Claude Vision
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Julien - Expert FAP Re-Fap | Diagnostic Gratuit</title>
+    <meta name="description" content="Diagnostic gratuit FAP/EGR/AdBlue avec Julien, expert depuis 20 ans. Analysez vos voyants moteur, obtenez solutions et devis Re-Fap.">
+    
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
 
-export default async function handler(request, response) {
-    // Autoriser CORS
-    response.setHeader('Access-Control-Allow-Origin', '*');
-    response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-    // Gérer les requêtes OPTIONS (preflight)
-    if (request.method === 'OPTIONS') {
-        return response.status(200).end();
-    }
-
-    // Seules les requêtes POST sont autorisées
-    if (request.method !== 'POST') {
-        return response.status(405).json({ 
-            error: 'Méthode non autorisée. Utilisez POST.' 
-        });
-    }
-
-    try {
-        // Récupérer les données de la requête
-        const { image, conversation, prompt } = request.body;
-
-        // Récupérer la clé API depuis les variables d'environnement
-        const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
-        
-        if (!CLAUDE_API_KEY) {
-            console.error('❌ Clé API Claude manquante');
-            return response.status(500).json({ 
-                error: 'Configuration API manquante',
-                fallback: generateFallbackAnalysis()
-            });
-        }
-
-        let messageContent = [];
-        
-        // Si c'est une conversation (pas d'image)
-        if (conversation && Array.isArray(conversation)) {
-            // Mode dialogue pur - Claude fait tout
-            const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'x-api-key': CLAUDE_API_KEY,
-                    'Content-Type': 'application/json',
-                    'anthropic-version': '2023-06-01'
-                },
-                body: JSON.stringify({
-                    model: "claude-3-5-sonnet-20241022",
-                    max_tokens: 300,
-                    system: prompt,
-                    messages: conversation
-                })
+        const JulienProduction = () => {
+            const [messages, setMessages] = useState([
+                {
+                    type: 'bot',
+                    content: "Salut ! 👋 Moi c'est Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Je vais diagnostiquer ton problème GRATUITEMENT ! Décris-moi ton souci ou envoie une photo de ton voyant 📸",
+                    timestamp: new Date()
+                }
+            ]);
+            const [inputMessage, setInputMessage] = useState('');
+            const [isTyping, setIsTyping] = useState(false);
+            const [leadData, setLeadData] = useState({
+                sessionId: Math.random().toString(36).substr(2, 9),
+                startTime: new Date(),
+                symptoms: [],
+                vehicle: {},
+                profile: '',
+                contactRequested: false
             });
 
-            if (!claudeResponse.ok) {
-                const errorData = await claudeResponse.text();
-                console.error('❌ Erreur Claude Conversation:', claudeResponse.status, errorData);
+            useEffect(() => {
+                trackEvent('session_start', { sessionId: leadData.sessionId });
+            }, []);
+
+            const trackEvent = (event, data = {}) => {
+                console.log('📊 Event tracked:', event, data);
+            };
+
+            const addMessage = (content, type = 'bot', source = 'auto') => {
+                setMessages(prev => [...prev, {
+                    type,
+                    content,
+                    timestamp: new Date(),
+                    source
+                }]);
+            };
+
+            // CLAUDE FAIT TOUT LE DIALOGUE !
+            const getClaudeResponse = async (userMsg, conversationHistory) => {
+                try {
+                    console.log('🧠 Claude prend le relais complet...');
+                    
+                    // Construire l'historique pour Claude
+                    const claudeHistory = conversationHistory.slice(-6).map(msg => ({
+                        role: msg.type === 'user' ? 'user' : 'assistant',
+                        content: typeof msg.content === 'string' ? msg.content : 'Message système'
+                    }));
+                    
+                    // Ajouter le nouveau message
+                    claudeHistory.push({
+                        role: 'user',
+                        content: userMsg
+                    });
+
+                    const response = await fetch('/api/analyze-image', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            conversation: claudeHistory,
+                            prompt: `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. 
+
+PERSONNALITÉ JULIEN:
+- Expert automobile spécialisé dépollution (FAP/EGR/AdBlue uniquement)
+- 20 ans d'expérience Re-Fap
+- Parle comme un vrai mécano : direct, précis, humain
+- Analyse les symptômes, pose les bonnes questions
+- Guide vers solutions Re-Fap (nettoyage, garage partenaire)
+
+DIALOGUE NATUREL:
+- REBONDIS sur ce que dit le client (ne l'ignore JAMAIS)
+- ANALYSE ses symptômes avec ton expertise
+- POSE des questions précises pour affiner le diagnostic
+- RESTE conversationnel et engageant
+- CONCLUS rapidement vers une solution concrète
+
+SPÉCIALITÉ:
+- FAP encrassé/saturé → Nettoyage Re-Fap
+- EGR défaillante → Solutions Re-Fap
+- Codes P2002, P2463, P0401
+- Fumées, perte puissance, surconsommation
+
+BUSINESS:
+- Profil bricoleur → Dépôt direct Re-Fap (économique)
+- Profil garage → Réseau partenaires (diagnostic + installation)
+- Hors spécialité → Redirection
+
+EXEMPLE DIALOGUE:
+Client: "Ça pue et ça fume"
+Julien: "Ah ! Fumées + odeur ! C'est typique d'un FAP saturé. Quelle couleur la fumée ? Et ça arrive quand : démarrage, accélération ?"
+
+Client: "Noire surtout en ville"
+Julien: "Fumée noire en ville = FAP complètement encrassé ! Tu as des voyants allumés ? Et la puissance, tu sens une perte ?"
+
+OBJECTIF: Diagnostic rapide → Solution Re-Fap → Lead qualifié
+
+Réponds maintenant comme Julien !`
+                        })
+                    });
+
+                    if (!response.ok) {
+                        console.error('❌ Erreur Claude API:', response.status);
+                        throw new Error(`Claude API Error: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    console.log('✅ Réponse Claude:', data);
+                    
+                    if (data.success && data.analysis) {
+                        trackEvent('claude_dialogue', { success: true, length: data.analysis.length });
+                        return data.analysis;
+                    } else if (data.fallback) {
+                        return data.fallback;
+                    } else {
+                        throw new Error('Réponse Claude invalide');
+                    }
+
+                } catch (error) {
+                    console.error('💥 Erreur Claude dialogue:', error);
+                    trackEvent('claude_dialogue', { success: false, error: error.message });
+                    
+                    // Fallback minimal
+                    return `Salut ! Décris-moi ton problème auto, je vais t'aider à diagnostiquer ça ! 
+                    
+Spécialité : FAP/EGR/AdBlue 🔧
+
+Erreur temporaire : ${error.message}`;
+                }
+            };
+
+            const handleSendMessage = async (e) => {
+                e.preventDefault();
+                if (!inputMessage.trim()) return;
                 
-                return response.status(500).json({
-                    error: `Erreur Claude Conversation: ${claudeResponse.status}`,
-                    fallback: generateFallbackAnalysis()
-                });
-            }
+                const userMsg = inputMessage.trim();
+                addMessage(userMsg, 'user');
+                setInputMessage('');
+                setIsTyping(true);
 
-            const claudeData = await claudeResponse.json();
-            
-            console.log('✅ Dialogue Claude réussi:', {
-                timestamp: new Date().toISOString(),
-                tokensUsed: claudeData.usage?.input_tokens + claudeData.usage?.output_tokens
-            });
+                trackEvent('message_sent', { message: userMsg.substring(0, 50) });
 
-            return response.status(200).json({
-                success: true,
-                analysis: claudeData.content[0].text,
-                metadata: {
-                    timestamp: new Date().toISOString(),
-                    model: 'claude-3-5-sonnet',
-                    type: 'conversation',
-                    tokensUsed: claudeData.usage?.input_tokens + claudeData.usage?.output_tokens
+                // CLAUDE FAIT TOUT !
+                const response = await getClaudeResponse(userMsg, messages);
+                addMessage(response, 'bot', 'claude');
+                setIsTyping(false);
+            };
+
+            const handleImageUpload = async (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    if (!file.type.startsWith('image/')) {
+                        alert('📸 Merci d\'envoyer une image (JPG, PNG...)');
+                        return;
+                    }
+                    
+                    addMessage(`📸 Photo envoyée : ${file.name}`, 'user');
+                    setIsTyping(true);
+                    trackEvent('photo_uploaded', { fileName: file.name, fileSize: file.size });
+                    
+                    // Compression d'image
+                    const compressImage = (file, maxWidth = 800, quality = 0.8) => {
+                        return new Promise((resolve) => {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            const img = new Image();
+                            
+                            img.onload = () => {
+                                let { width, height } = img;
+                                if (width > maxWidth) {
+                                    height = (height * maxWidth) / width;
+                                    width = maxWidth;
+                                }
+                                
+                                canvas.width = width;
+                                canvas.height = height;
+                                ctx.drawImage(img, 0, 0, width, height);
+                                
+                                const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                                resolve(compressedDataUrl);
+                            };
+                            
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                img.src = e.target.result;
+                            };
+                            reader.readAsDataURL(file);
+                        });
+                    };
+                    
+                    try {
+                        let imageData;
+                        
+                        if (file.size > 1024 * 1024) {
+                            console.log('🗜️ Compression image en cours...');
+                            imageData = await compressImage(file, 800, 0.8);
+                            console.log('✅ Image compressée');
+                        } else {
+                            const reader = new FileReader();
+                            imageData = await new Promise((resolve) => {
+                                reader.onload = (e) => resolve(e.target.result);
+                                reader.readAsDataURL(file);
+                            });
+                        }
+                        
+                        // Analyse photo avec Claude
+                        const response = await fetch('/api/analyze-image', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                image: imageData,
+                                prompt: `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Analyse cette photo de tableau de bord automobile et réponds COMME JULIEN avec ton expertise !`
+                            })
+                        });
+
+                        const data = await response.json();
+                        
+                        if (data.success && data.analysis) {
+                            addMessage(`📸 **ANALYSE PHOTO EXPERT** 🧠\n\n${data.analysis}`, 'bot', 'claude');
+                        } else {
+                            addMessage(`📸 Photo reçue ! Dis-moi ce que tu vois : voyants allumés, messages affichés, marque du véhicule ?`, 'bot', 'auto');
+                        }
+                        
+                    } catch (error) {
+                        console.error('❌ Erreur upload:', error);
+                        addMessage(`❌ Erreur analyse : ${error.message}`, 'bot');
+                    }
+                    
+                    setIsTyping(false);
+                    event.target.value = '';
                 }
-            });
-        }
-        
-        // Mode analyse d'image (code existant)
-        if (!image) {
-            return response.status(400).json({ 
-                error: 'Image ou conversation manquante' 
-            });
-        }
+            };
 
-        // Préparer l'image (retirer le préfixe data:image)
-        let imageData;
-        let mediaType = 'image/jpeg';
-        
-        if (image.startsWith('data:image/')) {
-            const [header, base64Data] = image.split(',');
-            imageData = base64Data;
-            
-            // Détecter le type d'image
-            if (header.includes('png')) mediaType = 'image/png';
-            else if (header.includes('jpeg') || header.includes('jpg')) mediaType = 'image/jpeg';
-        } else {
-            imageData = image;
-        }
+            const handleGarageClick = () => {
+                trackEvent('garage_redirect', { sessionId: leadData.sessionId });
+                window.open('https://www.idgarages.com/fr-fr/prestations/diagnostic-electronique?utm_source=re-fap&utm_medium=partenariat&utm_campaign=diagnostic-electronique&ept-publisher=re-fap&ept-name=re-fap-diagnostic-electronique', '_blank');
+            };
 
-        messageContent = [
-            {
-                type: "text",
-                text: prompt || `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Analyse cette photo de tableau de bord automobile et réponds COMME JULIEN :
+            const handleCallbackClick = () => {
+                trackEvent('callback_requested', { sessionId: leadData.sessionId });
+                addMessage("Je souhaite être rappelé gratuitement", 'user');
+                setTimeout(() => {
+                    const callbackMsg = `📞 **Rappel gratuit Re-Fap**
 
-🔍 ANALYSE PRÉCISE :
-1. Quels voyants sont allumés (couleur, forme, position) ?
-2. Y a-t-il des messages d'erreur affichés ?
-3. Peux-tu identifier la marque/modèle du véhicule ?
-4. Si voyant FAP/moteur/antipollution : quel est ton diagnostic expert ?
+**Un expert va t'appeler** dans les 2h ouvrées !
 
-💬 TON DE JULIEN :
-- Direct, précis, professionnel mais humain
-- "Je vois...", "Mon diagnostic...", "Ma recommandation..."
-- Propose solution Re-Fap si problème dépollution
-- Sinon redirige vers diagnostic mécanique général
-- Termine par une question pour continuer le diagnostic
-- Reste dans ta spécialité FAP/EGR/AdBlue
+🎯 **Au programme :**
+✅ Confirmation diagnostic  
+✅ Solution la + économique
+✅ Procédure détaillée
+✅ Devis précis
 
-🎯 OBJECTIF : Générer un lead qualifié pour Re-Fap`
-            },
-            {
-                type: "image",
-                source: {
-                    type: "base64",
-                    media_type: mediaType,
-                    data: imageData
-                }
-            }
-        ];
+**Formulaire** : https://re-fap.fr/contact/
 
-        // Appel à Claude Vision API
-        const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'x-api-key': CLAUDE_API_KEY,
-                'Content-Type': 'application/json',
-                'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-                model: "claude-3-5-sonnet-20241022",
-                max_tokens: 500,
-                messages: [{
-                    role: "user",
-                    content: messageContent
-                }]
-            })
-        });
+**Rappel garanti sous 2h !** ⏱️`;
+                    addMessage(callbackMsg, 'bot', 'form');
+                }, 1000);
+            };
 
-        if (!claudeResponse.ok) {
-            const errorData = await claudeResponse.text();
-            console.error('❌ Erreur Claude API:', claudeResponse.status, errorData);
-            
-            return response.status(500).json({
-                error: `Erreur Claude API: ${claudeResponse.status}`,
-                fallback: generateFallbackAnalysis(image),
-                debug: process.env.NODE_ENV === 'development' ? errorData : undefined
-            });
-        }
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-orange-50">
+                    {/* Header */}
+                    <header className="bg-white shadow-sm border-b">
+                        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+                            <div className="flex items-center">
+                                <img src="https://re-fap.fr/wp-content/uploads/2020/07/logo-re-fap.png" alt="Re-Fap" className="h-8 mr-3" />
+                                <div>
+                                    <h1 className="text-lg font-bold text-gray-800">Julien - Expert FAP</h1>
+                                    <p className="text-xs text-gray-600">Diagnostic gratuit • 20 ans d'expérience</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => window.open('https://re-fap.fr/contact/', '_blank')}
+                                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                            >
+                                📞 Devis gratuit
+                            </button>
+                        </div>
+                    </header>
 
-        const claudeData = await claudeResponse.json();
-        
-        // Log pour debug (sans exposer la clé API)
-        console.log('✅ Analyse Claude réussie:', {
-            timestamp: new Date().toISOString(),
-            tokensUsed: claudeData.usage?.input_tokens + claudeData.usage?.output_tokens,
-            model: claudeData.model
-        });
+                    {/* Chat principal */}
+                    <div className="max-w-4xl mx-auto p-4">
+                        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                            {/* Header chat */}
+                            <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white p-4">
+                                <div className="flex items-center">
+                                    <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-3">
+                                        <span className="text-2xl">👨‍🔧</span>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold">Julien, ton expert FAP</h2>
+                                        <p className="text-orange-100 text-sm">Diagnostic GRATUIT • Spécialiste Re-Fap depuis 20 ans</p>
+                                    </div>
+                                </div>
+                            </div>
 
-        // Retourner l'analyse
-        return response.status(200).json({
-            success: true,
-            analysis: claudeData.content[0].text,
-            metadata: {
-                timestamp: new Date().toISOString(),
-                model: 'claude-3-5-sonnet',
-                tokensUsed: claudeData.usage?.input_tokens + claudeData.usage?.output_tokens
-            }
-        });
+                            {/* Messages */}
+                            <div className="h-96 overflow-y-auto p-4 bg-gray-50">
+                                {messages.map((message, index) => (
+                                    <div key={index} className={`mb-4 ${message.type === 'user' ? 'text-right' : ''}`}>
+                                        <div className={`inline-block p-3 rounded-lg max-w-md ${
+                                            message.type === 'user' 
+                                                ? 'bg-blue-500 text-white' 
+                                                : message.source === 'claude'
+                                                    ? 'bg-purple-100 text-gray-800 border-l-4 border-purple-500'
+                                                    : 'bg-white text-gray-800 border border-gray-200'
+                                        }`}>
+                                            {typeof message.content === 'string' ? 
+                                                message.content.split('\n').map((line, i) => (
+                                                    <div key={i} className={line.startsWith('**') && line.endsWith('**') ? 'font-bold' : ''}>
+                                                        {line.replace(/\*\*/g, '')}
+                                                    </div>
+                                                )) : 
+                                                <div>Erreur affichage message</div>
+                                            }
+                                            
+                                            {message.type === 'bot' && (
+                                                <div className="text-xs text-gray-400 mt-2">
+                                                    {message.source === 'claude' ? '🧠 IA' : '⚡ Expert'} • {new Date(message.timestamp).toLocaleTimeString()}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                                
+                                {isTyping && (
+                                    <div className="mb-4">
+                                        <div className="inline-block bg-white p-3 rounded-lg border border-gray-200">
+                                            <div className="flex items-center space-x-2">
+                                                <div className="flex space-x-1">
+                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                                                </div>
+                                                <span className="text-sm text-gray-600">Julien analyse...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
-    } catch (error) {
-        console.error('💥 Erreur serveur:', error);
-        
-        return response.status(500).json({
-            error: 'Erreur interne du serveur',
-            fallback: generateFallbackAnalysis(),
-            debug: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
-}
+                            {/* Input */}
+                            <div className="p-4 border-t bg-white">
+                                <form onSubmit={handleSendMessage} className="flex gap-2 mb-3">
+                                    <input
+                                        type="text"
+                                        value={inputMessage}
+                                        onChange={(e) => setInputMessage(e.target.value)}
+                                        placeholder="💬 Décris ton problème... (ex: 'Ça pue et ça fume en ville')"
+                                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                                        disabled={isTyping}
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={isTyping || !inputMessage.trim()}
+                                        className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                                    >
+                                        Envoyer
+                                    </button>
+                                </form>
 
-// Fonction de fallback intelligente
-function generateFallbackAnalysis() {
-    const responses = [
-        `Salut ! Julien ici, expert FAP/EGR depuis 20 ans ! 
+                                {/* Upload photo */}
+                                <div className="mb-3 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-dashed border-blue-300">
+                                    <div className="text-center">
+                                        <input
+                                            type="file"
+                                            id="imageUpload"
+                                            accept="image/*"
+                                            onChange={handleImageUpload}
+                                            className="hidden"
+                                            disabled={isTyping}
+                                        />
+                                        <label 
+                                            htmlFor="imageUpload" 
+                                            className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg inline-flex items-center gap-2 font-medium transition-colors"
+                                        >
+                                            📸 Photo de mon voyant
+                                        </label>
+                                        <p className="text-xs text-gray-600 mt-2">
+                                            JPG/PNG max 5MB • Julien analysera automatiquement ! 🧠
+                                        </p>
+                                    </div>
+                                </div>
 
-Décris-moi ton problème auto : voyants allumés, fumées, codes erreur... 
+                                {/* Quick options */}
+                                <div className="grid grid-cols-2 gap-2 mb-4">
+                                    {[
+                                        { text: "🟡 Voyant FAP", msg: "Voyant FAP allumé" },
+                                        { text: "💨 Ça fume", msg: "Ça pue et ça fume" },
+                                        { text: "⚡ Perte puissance", msg: "Plus de puissance en ville" },
+                                        { text: "🔧 Je suis bricoleur", msg: "Je démonte moi-même" }
+                                    ].map((option, index) => (
+                                        <button
+                                            key={index}
+                                            onClick={async () => {
+                                                addMessage(option.msg, 'user');
+                                                setIsTyping(true);
+                                                const response = await getClaudeResponse(option.msg, messages);
+                                                addMessage(response, 'bot', 'claude');
+                                                setIsTyping(false);
+                                            }}
+                                            disabled={isTyping}
+                                            className="bg-gray-100 hover:bg-gray-200 p-2 rounded text-sm disabled:opacity-50 transition-colors"
+                                        >
+                                            {option.text}
+                                        </button>
+                                    ))}
+                                </div>
 
-Je vais te donner un diagnostic précis ! 🔧`,
+                                {/* CTA Section */}
+                                <div className="p-3 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
+                                    <h4 className="font-bold text-orange-800 text-sm mb-2">🎯 Besoin d'aide ?</h4>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        <button
+                                            onClick={handleGarageClick}
+                                            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                                        >
+                                            🏪 Trouver un garage de confiance
+                                        </button>
+                                        <button
+                                            onClick={handleCallbackClick}
+                                            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                                        >
+                                            📞 Être rappelé gratuitement
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-        `Hello ! C'est Julien, spécialiste dépollution Re-Fap !
+                    {/* Footer */}
+                    <footer className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-gray-600">
+                        <div className="flex items-center justify-center space-x-6 mb-3">
+                            <span className="flex items-center"><span className="text-green-500 mr-1">✅</span> Diagnostic gratuit</span>
+                            <span className="flex items-center"><span className="text-blue-500 mr-1">🧠</span> IA + 20 ans expérience</span>
+                            <span className="flex items-center"><span className="text-orange-500 mr-1">💰</span> Solutions économiques</span>
+                        </div>
+                        <p className="text-xs">
+                            Powered by <a href="https://re-fap.fr" className="text-orange-600 hover:underline">Re-Fap</a> • 
+                            Expert nettoyage FAP depuis 2015 • 
+                            Session: {leadData.sessionId}
+                        </p>
+                    </footer>
+                </div>
+            );
+        };
 
-Explique-moi tes symptômes : perte puissance, surconsommation, fumées...
-
-Mon expertise à ton service ! 🎯`
-    ];
-
-    return responses[Math.floor(Math.random() * responses.length)];
-}
+        ReactDOM.render(<JulienProduction />, document.getElementById('root'));
+    </script>
+</body>
+</html>
