@@ -199,7 +199,8 @@ OBJECTIVE: Conversation naturelle d'expert qui ENGAGE le client !`
                     setLeadData(prev => ({...prev, vehicle: {brand: vehicleMatch[0]}}));
                 }
 
-                // ESSAYER D'ABORD L'ANALYSE INTELLIGENTE
+                // ESSAYER D'ABORD L'ANALYSE INTELLIGENTE (temporairement désactivé)
+                /* 
                 try {
                     const intelligentResponse = await analyzeMessageWithClaude(userMsg, messages);
                     if (intelligentResponse) {
@@ -209,9 +210,34 @@ OBJECTIVE: Conversation naturelle d'expert qui ENGAGE le client !`
                 } catch (error) {
                     console.log('🔄 Fallback vers réponses préprogrammées...');
                 }
+                */
 
-                // FALLBACK : Réponses rapides mais intelligentes
-                
+                // RÉPONSES INTELLIGENTES AMÉLIORÉES
+
+                // CAS PRÉCIS : "puissance bloquée + fumée + odeur"
+                if ((lowerMsg.includes('puissance') && lowerMsg.includes('bloquée')) || 
+                    (lowerMsg.includes('puissance') && lowerMsg.includes('fume') && lowerMsg.includes('odeur'))) {
+                    
+                    trackEvent('critical_fap_symptoms', { symptoms: 'power_smoke_odor', vehicle: vehicleMatch?.[0] });
+                    
+                    return `🚨 **SITUATION CRITIQUE !** Puissance bloquée + fumées odorantes !
+
+**Mon diagnostic immédiat :**
+💥 **FAP complètement saturé** - saturation maximale atteinte
+🔥 **Mode dégradé** probable ou imminent
+💨 **Combustion incomplète** des suies (d'où l'odeur)
+⚡ **Moteur bridé** pour se protéger
+
+**URGENCE :** Plus de conduite ! Risque casse moteur !
+
+**Solutions Re-Fap :**
+🔧 **Démontage immédiat** + nettoyage professionnel
+⏱️ **24-48h** de traitement
+💰 **280-350€** vs 2000€+ si casse moteur
+
+**Tu démontés toi-même ou garage d'urgence ?** 🚨`;
+                }
+
                 // PERTE DE PUISSANCE (symptôme clé détecté)
                 if (lowerMsg.includes('perte') && lowerMsg.includes('puissance')) {
                     trackEvent('power_loss_detected', { vehicle: vehicleMatch?.[0] });
@@ -328,8 +354,8 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** noté ! 👍` : ''}
 
                 trackEvent('message_sent', { message: userMsg.substring(0, 50) });
 
-                setTimeout(() => {
-                    const response = getAutonomousResponse(userMsg);
+                setTimeout(async () => {
+                    const response = await getAutonomousResponse(userMsg);
                     addMessage(response, 'bot', 'auto');
                     setIsTyping(false);
                 }, 1200);
@@ -481,9 +507,11 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** noté ! 👍` : ''}
                                         }`}>
                                             {typeof message.content === 'string' ? 
                                                 message.content.split('\n').map((line, i) => (
-                                                    <div key={i} className={line.startsWith('**') ? 'font-bold' : ''}>{line}</div>
+                                                    <div key={i} className={line.startsWith('**') && line.endsWith('**') ? 'font-bold' : ''}>
+                                                        {line.replace(/\*\*/g, '')}
+                                                    </div>
                                                 )) : 
-                                                <div>Message non supporté</div>
+                                                <div>Erreur affichage message</div>
                                             }
                                             
                                             {message.type === 'bot' && (
