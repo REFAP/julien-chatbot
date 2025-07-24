@@ -135,8 +135,61 @@ OBJECTIF : Générer un lead qualifié pour Re-Fap`
                 }
             };
 
-            // Réponses autonomes optimisées pour conversion
-            const getAutonomousResponse = (userMsg) => {
+            // Analyse intelligente du message avec Claude API
+            const analyzeMessageWithClaude = async (userMsg, conversationHistory) => {
+                try {
+                    console.log('🧠 Analyse intelligente du message...');
+                    
+                    const response = await fetch('/api/analyze-message', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            message: userMsg,
+                            history: conversationHistory.slice(-3), // 3 derniers messages pour contexte
+                            prompt: `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. 
+
+ANALYSE CE MESSAGE CLIENT et génère une réponse conversationnelle intelligente.
+
+MESSAGE CLIENT: "${userMsg}"
+
+CONSIGNES JULIEN:
+1. REBONDIS sur ce qu'il dit exactement (ne l'ignore JAMAIS)
+2. ANALYSE ses symptômes avec ton expertise
+3. POSE des questions précises pour creuser
+4. RESTE conversationnel et humain
+5. GUIDE vers une solution Re-Fap si FAP/EGR
+6. CONCLU rapidement sans conjoncture interminable
+
+EXEMPLES:
+- "Cours trajet + perte puissance" → "Ah ! Perte de puissance sur courts trajets ? C'est typique d'un FAP qui s'encrasse ! Tu as quoi comme voyants allumés ?"
+- "Fumée noire au démarrage" → "Fumée noire au démarrage ! Je vois exactement le problème. C'est permanent ou juste à froid ? Et niveau surconsommation ?"
+
+OBJECTIVE: Conversation naturelle d'expert qui ENGAGE le client !`
+                        })
+                    });
+
+                    if (!response.ok) {
+                        console.error('❌ Erreur API conversation:', response.status);
+                        return null;
+                    }
+
+                    const data = await response.json();
+                    if (data.success && data.response) {
+                        return data.response;
+                    }
+                    
+                    return null;
+
+                } catch (error) {
+                    console.error('💥 Erreur analyse conversation:', error);
+                    return null;
+                }
+            };
+
+            // Réponses autonomes avec intelligence conversationnelle
+            const getAutonomousResponse = async (userMsg) => {
                 const lowerMsg = userMsg.toLowerCase();
 
                 // Détection véhicule
@@ -144,6 +197,76 @@ OBJECTIF : Générer un lead qualifié pour Re-Fap`
                 
                 if (vehicleMatch) {
                     setLeadData(prev => ({...prev, vehicle: {brand: vehicleMatch[0]}}));
+                }
+
+                // ESSAYER D'ABORD L'ANALYSE INTELLIGENTE
+                try {
+                    const intelligentResponse = await analyzeMessageWithClaude(userMsg, messages);
+                    if (intelligentResponse) {
+                        trackEvent('intelligent_response', { success: true, vehicle: vehicleMatch?.[0] });
+                        return intelligentResponse;
+                    }
+                } catch (error) {
+                    console.log('🔄 Fallback vers réponses préprogrammées...');
+                }
+
+                // FALLBACK : Réponses rapides mais intelligentes
+                
+                // PERTE DE PUISSANCE (symptôme clé détecté)
+                if (lowerMsg.includes('perte') && lowerMsg.includes('puissance')) {
+                    trackEvent('power_loss_detected', { vehicle: vehicleMatch?.[0] });
+                    
+                    if (lowerMsg.includes('court') || lowerMsg.includes('ville')) {
+                        return `💥 **Perte de puissance sur courts trajets !** 
+
+Je vois exactement le problème ! C'est **typique d'un FAP encrassé** qui bride le moteur.
+
+**Questions express :**
+🟡 **Voyants allumés** ? (FAP, moteur, préchauffage...)
+💨 **Fumée** récente à l'échappement ?
+🛣️ **Dernière autoroute** : quand ?
+
+${vehicleMatch ? `**${vehicleMatch[0]}** - j'ai résolu des centaines de cas identiques ! ` : ''}
+
+**C'est du classique, on va régler ça !** 🔧`;
+                    }
+                    
+                    return `⚡ **Perte de puissance détectée !**
+
+**Questions ciblées :**
+📍 **Quand** ça arrive ? (démarrage, accélération, autoroute...)
+🟡 **Voyants** allumés récemment ?
+💨 **Fumée** associée ?
+
+${vehicleMatch ? `**${vehicleMatch[0]}** noté ! ` : ''}
+
+**Mon diagnostic selon tes réponses !** 🎯`;
+                }
+
+                // DIAGNOSTIC COMPLEXE - MULTI-SYMPTÔMES FAP
+                if ((lowerMsg.includes('surconsommation') && lowerMsg.includes('fumée')) || 
+                    (lowerMsg.includes('odeur') && lowerMsg.includes('fumée')) ||
+                    (lowerMsg.includes('régénération') && (lowerMsg.includes('bloquée') || lowerMsg.includes('impossible')))) {
+                    
+                    trackEvent('complex_fap_symptoms', { symptoms: 'multi', vehicle: vehicleMatch?.[0] });
+                    
+                    return `🎯 **DIAGNOSTIC EXPERT** - Symptômes multiples détectés !
+
+**Ton cas :** Surconsommation + fumées odorantes + régénération bloquée
+**Mon diagnostic :** FAP complètement saturé ! 💥
+
+**Situation critique :**
+🔥 **FAP** en saturation maximale
+⛽ **Surconsommation** = moteur force pour compenser
+💨 **Odeurs** = combustion incomplète des suies
+🚫 **Régénération impossible** = cycle cassé
+
+${vehicleMatch ? `**${vehicleMatch[0]}** - cas classique que je connais parfaitement ! ` : ''}
+
+**Solution urgente :** Nettoyage Re-Fap OBLIGATOIRE !
+**Délai :** Plus tu attends, plus ça empire (risque casse moteur)
+
+🔧 **Tu démontés toi-même ou garage ?**`;
                 }
 
                 // PROBLÈMES FAP - QUALIFICATION RAPIDE
@@ -161,123 +284,37 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** noté ! 👍` : ''}
 **Je te donne la solution la + économique selon ta situation !** 💰`;
                 }
 
-                // CODES DÉFAUTS FAP
-                if (lowerMsg.includes('p2002') || lowerMsg.includes('p2463') || lowerMsg.includes('p0401')) {
-                    const code = lowerMsg.match(/p\d{4}/i)?.[0].toUpperCase();
-                    trackEvent('dtc_code_detected', { code, vehicle: vehicleMatch?.[0] });
-                    
-                    const codeInfo = {
-                        'P2002': 'FAP saturé - Efficacité en dessous du seuil',
-                        'P2463': 'Accumulation critique de suies FAP',
-                        'P0401': 'Vanne EGR défaillante - Débit insuffisant'
-                    };
-
-                    return `🎯 **Code ${code} = ${codeInfo[code] || 'Défaut dépollution'}**
-
-**Diagnostic express :**
-🚗 **Conduite** majoritairement urbaine ou mixte ?
-⚙️ **Symptômes** : perte puissance, surconsommation ?
-🔧 **Bricoleur** ou tu préfères confier à un pro ?
-
-${vehicleMatch ? `**${vehicleMatch[0]} ${code}** - j'ai traité 100+ cas identiques ! 💪` : ''}
-
-**Solution personnalisée selon ton profil !** 🛠️`;
-                }
-
-                // PROFIL BRICOLEUR
-                if (lowerMsg.includes('bricoleur') || lowerMsg.includes('démonter') || lowerMsg.includes('moi-même')) {
-                    setLeadData(prev => ({...prev, profile: 'bricoleur'}));
-                    return `🔧 **Profil bricoleur détecté !** Parfait pour Re-Fap !
-
-**Avantages pour toi :**
-💰 **Économie max** : pas de main d'œuvre garage
-⚡ **Direct producteur** : tarifs préférentiels  
-🗺️ **500+ points** de collecte en France
-📦 **Envoi postal** possible si éloigné
-
-**Prochaine étape :**
-Tu démontés ton FAP et on s'occupe du reste !
-
-**Veux-tu qu'on te rappelle** pour t'expliquer la procédure exacte ?`;
-                }
-
-                // PROFIL GARAGE
-                if (lowerMsg.includes('garage') || lowerMsg.includes('professionnel') || lowerMsg.includes('confier')) {
-                    setLeadData(prev => ({...prev, profile: 'garage'}));
-                    return `🏪 **Tu préfères un garage ?** Excellent choix !
-
-**Avantages garage partenaire :**
-🔍 **Diagnostic confirmé** avant démontage
-🔧 **Installation pro** + garantie
-📋 **Prise en charge complète** sans stress
-🤝 **Réseau Re-Fap** : 200+ garages de confiance
-
-**Je te recommande vivement** un diagnostic pro pour confirmer !`;
-                }
-
-                // FUMÉE
-                if (lowerMsg.includes('fumée') || lowerMsg.includes('fume')) {
-                    trackEvent('symptom_detected', { symptom: 'fumee', vehicle: vehicleMatch?.[0] });
-                    
-                    if (lowerMsg.includes('noir')) {
-                        return `💨 **Fumée noire = FAP saturé !** Ma spécialité absolue !
-
-**Questions ciblées :**
-🔧 **Permanent** ou seulement en accélération ?
-🟡 **Voyant moteur** allumé aussi ?
-💪 **Ton profil** : bricoleur ou tu confies à un garage ?
-
-${vehicleMatch ? `**${vehicleMatch[0]}** - problème classique ! ` : ''}
-
-**→ Je te guide vers la solution la + rentable !** 💰`;
-                    }
-                }
-
-                // HORS SPÉCIALITÉ
-                if (lowerMsg.includes('vibration') || lowerMsg.includes('frein') || lowerMsg.includes('boîte') || 
-                    lowerMsg.includes('embrayage') || lowerMsg.includes('direction') || lowerMsg.includes('suspension')) {
-                    
-                    const probleme = lowerMsg.includes('vibration') ? 'vibrations' :
-                                   lowerMsg.includes('frein') ? 'freinage' :
-                                   lowerMsg.includes('boîte') ? 'boîte de vitesses' :
-                                   'mécanique générale';
-                    
-                    trackEvent('out_of_scope', { problem: probleme, vehicle: vehicleMatch?.[0] });
-                    
-                    return `🔧 **Problème ${probleme} détecté**
-
-**Pas ma spécialité** - Expert dépollution FAP/EGR/AdBlue uniquement.
-
-**Je te redirige vers nos partenaires** pour ce type de diagnostic !`;
-                }
-
-                // PRIX/TARIFS
-                if (lowerMsg.includes('prix') || lowerMsg.includes('coût') || lowerMsg.includes('tarif')) {
-                    return `💰 **Coûts Re-Fap vs Concurrence :**
-
-**Nettoyage Re-Fap :** 150-350€ selon modèle
-**FAP neuf :** 1500-3500€ 😱
-**Économie :** 80% en moyenne !
-
-🔧 **Ton profil ?**
-- **Bricoleur** → Dépôt direct + économie max
-- **Garage** → Diagnostic + installation pro
-
-**Quelle option t'intéresse ?** 🎯`;
-                }
-
-                // CAS GÉNÉRAL
+                // CAS GÉNÉRAL INTELLIGENT
                 trackEvent('general_inquiry', { vehicle: vehicleMatch?.[0] });
-                return `🎯 **Diagnostic FAP/EGR/AdBlue express :**
+                
+                // Essayer de détecter le symptôme principal
+                if (lowerMsg.includes('fumée') || lowerMsg.includes('fume')) {
+                    return `💨 **Fumée détectée !** Dis-moi :
 
-**Dis-moi en 2 mots :**
-🟡 **Symptôme** : voyant allumé, fumée, message erreur...
-🚗 **Véhicule** : marque/modèle
-💪 **Ton profil** : bricoleur ou garage ?
+🎨 **Couleur** : noire, blanche, bleue ?
+⏰ **Quand** : démarrage, accélération, permanent ?
+👃 **Odeur** particulière ?
+
+${vehicleMatch ? `**${vehicleMatch[0]}** - ` : ''}Je vais te donner un diagnostic précis ! 🎯`;
+                }
+                
+                if (lowerMsg.includes('voyant') || lowerMsg.includes('témoin')) {
+                    return `🟡 **Voyant allumé !** 
+
+📱 **Lequel exactement ?** (couleur, forme, message affiché)
+📸 **Photo** = diagnostic ultra-précis !
+⏰ **Depuis quand** allumé ?
+
+${vehicleMatch ? `**${vehicleMatch[0]}** - ` : ''}On va identifier ça rapidement ! 🔍`;
+                }
+
+                return `👋 **Salut !** Décris-moi ton problème, je vais t'aider !
+
+**Exemple :** *"Voyant moteur orange + fumée noire au démarrage"*
 
 ${vehicleMatch ? `**${vehicleMatch[0]}** noté ! 👍` : ''}
 
-📸 **Photo de voyant = diagnostic ultra-précis !**`;
+📸 **Photo voyant** = diagnostic ultra-précis ! 🎯`;
             };
 
             const handleSendMessage = async (e) => {
