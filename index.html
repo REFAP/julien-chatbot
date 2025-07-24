@@ -86,12 +86,16 @@
                 }]);
             };
 
-            // Analyse photo avec Claude Vision
+            // Analyse photo avec Claude Vision via Vercel Function
             const analyzeImageWithClaude = async (imageBase64, fileName) => {
                 try {
+                    console.log('🔧 Appel API Vercel Function...');
+                    
                     const response = await fetch('/api/analyze-image', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
                         body: JSON.stringify({
                             image: imageBase64,
                             prompt: `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Analyse cette photo de tableau de bord automobile.
@@ -112,16 +116,40 @@ OBJECTIF : Générer un lead qualifié pour Re-Fap`
                         })
                     });
 
-                    if (!response.ok) throw new Error('Erreur analyse');
-                    
+                    console.log('📡 Statut réponse:', response.status);
+
+                    if (!response.ok) {
+                        const errorData = await response.text();
+                        console.error('❌ Erreur API:', errorData);
+                        throw new Error(`API Error: ${response.status}`);
+                    }
+
                     const data = await response.json();
-                    trackEvent('photo_analyzed', { analysis: 'success', fileName });
-                    return `📸 **ANALYSE PHOTO EXPERT** 🧠\n\n${data.analysis}`;
+                    console.log('✅ Analyse reçue:', data);
+                    
+                    if (data.success && data.analysis) {
+                        trackEvent('photo_analyzed', { success: true, model: 'claude-vision' });
+                        return `📸 **ANALYSE PHOTO EXPERT** 🧠\n\n${data.analysis}`;
+                    } else if (data.fallback) {
+                        trackEvent('photo_analyzed', { success: false, fallback: true });
+                        return data.fallback;
+                    } else {
+                        throw new Error('Réponse API invalide');
+                    }
 
                 } catch (error) {
-                    console.error('Erreur analyse photo:', error);
-                    trackEvent('photo_analyzed', { analysis: 'error', error: error.message });
-                    return `📸 **Photo reçue !** Analyse en cours...\n\nEn attendant l'analyse automatique, dis-moi :\n🟡 **Quels voyants** sont allumés ?\n📱 **Messages** affichés ?\n🚗 **Marque/modèle** de ta voiture ?\n\n💡 *L'analyse photo complète arrive bientôt !*`;
+                    console.error('💥 Erreur analyse photo:', error);
+                    trackEvent('photo_analyzed', { success: false, error: error.message });
+                    
+                    // Fallback intelligent
+                    return `📸 **Photo reçue !** Analyse en cours...
+
+🔍 **Dis-moi ce que tu vois :**
+🟡 **Quels voyants** sont allumés (couleur, forme) ?
+📱 **Messages affichés** ? ("Antipollution défaillante"...)
+🚗 **Marque/modèle** de ta voiture ?
+
+💡 *L'analyse automatique est temporairement indisponible, mais je peux t'aider avec ces infos !*`;
                 }
             };
 
