@@ -279,7 +279,22 @@ Erreur temporaire : ${error.message}`;
                     <header className="bg-white shadow-sm border-b">
                         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
                             <div className="flex items-center">
-                                <img src="https://re-fap.fr/wp-content/uploads/2020/07/logo-re-fap.png" alt="Re-Fap" className="h-8 mr-3" />
+                                <div className="mr-3">
+                                    {/* Logo Re-Fap SVG */}
+                                    <svg width="40" height="24" viewBox="0 0 120 72" xmlns="http://www.w3.org/2000/svg">
+                                        {/* Partie verte du logo */}
+                                        <defs>
+                                            <linearGradient id="greenGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                <stop offset="0%" stopColor="#9ACD32" />
+                                                <stop offset="100%" stopColor="#7CB342" />
+                                            </linearGradient>
+                                        </defs>
+                                        <path d="M8 16 L32 8 L40 24 L24 32 L8 24 Z" fill="url(#greenGradient)" transform="rotate(-15 24 20)" />
+                                        <path d="M20 12 L44 4 L52 20 L36 28 L20 20 Z" fill="url(#greenGradient)" transform="rotate(-15 36 16)" opacity="0.8" />
+                                        {/* Texte re-fap */}
+                                        <text x="64" y="28" fontFamily="Arial, sans-serif" fontSize="20" fontWeight="bold" fill="#2E4A47">re-fap</text>
+                                    </svg>
+                                </div>
                                 <div>
                                     <h1 className="text-lg font-bold text-gray-800">Julien - Expert FAP</h1>
                                     <p className="text-xs text-gray-600">Diagnostic gratuit • 20 ans d'expérience</p>
