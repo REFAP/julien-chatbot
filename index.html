@@ -302,27 +302,69 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** noté ! Maintenant dis-moi les symptôm
                         return;
                     }
                     
-                    if (file.size > 5 * 1024 * 1024) {
-                        alert('📸 Image trop lourde, max 5MB s\'il te plaît !');
-                        return;
-                    }
-                    
                     addMessage(`📸 Photo envoyée : ${file.name}`, 'user');
                     setIsTyping(true);
-                    trackEvent('photo_uploaded', { fileName: file.name });
+                    trackEvent('photo_uploaded', { fileName: file.name, fileSize: file.size });
                     
-                    const reader = new FileReader();
-                    reader.onload = async (e) => {
-                        try {
-                            const analysis = await analyzeImageWithClaude(e.target.result, file.name);
-                            addMessage(analysis, 'bot', 'claude');
-                        } catch (error) {
-                            addMessage(`❌ Erreur analyse : ${error.message}`, 'bot');
-                        }
-                        setIsTyping(false);
+                    // Compression d'image pour éviter l'erreur 413
+                    const compressImage = (file, maxWidth = 800, quality = 0.8) => {
+                        return new Promise((resolve) => {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            const img = new Image();
+                            
+                            img.onload = () => {
+                                // Calculer nouvelles dimensions
+                                let { width, height } = img;
+                                if (width > maxWidth) {
+                                    height = (height * maxWidth) / width;
+                                    width = maxWidth;
+                                }
+                                
+                                canvas.width = width;
+                                canvas.height = height;
+                                
+                                // Dessiner l'image redimensionnée
+                                ctx.drawImage(img, 0, 0, width, height);
+                                
+                                // Convertir en base64 avec compression
+                                const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                                resolve(compressedDataUrl);
+                            };
+                            
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                img.src = e.target.result;
+                            };
+                            reader.readAsDataURL(file);
+                        });
                     };
-                    reader.readAsDataURL(file);
                     
+                    try {
+                        let imageData;
+                        
+                        // Si l'image est trop grosse, on la compresse
+                        if (file.size > 1024 * 1024) { // > 1MB
+                            console.log('🗜️ Compression image en cours...');
+                            imageData = await compressImage(file, 800, 0.8);
+                            console.log('✅ Image compressée');
+                        } else {
+                            const reader = new FileReader();
+                            imageData = await new Promise((resolve) => {
+                                reader.onload = (e) => resolve(e.target.result);
+                                reader.readAsDataURL(file);
+                            });
+                        }
+                        
+                        const analysis = await analyzeImageWithClaude(imageData, file.name);
+                        addMessage(analysis, 'bot', 'claude');
+                        
+                    } catch (error) {
+                        console.error('❌ Erreur upload:', error);
+                        addMessage(`❌ Erreur analyse : ${error.message}`, 'bot');
+                    }
+                    
+                    setIsTyping(false);
                     event.target.value = '';
                 }
             };
@@ -502,10 +544,6 @@ ${vehicleMatch ? `**${vehicleMatch[0]}** noté ! Maintenant dis-moi les symptôm
             );
         };
 
-        ReactDOM.render(<JulienProduction />, document.getElementById('root'));
-    </script>
-</body>
-</html>
         ReactDOM.render(<JulienProduction />, document.getElementById('root'));
     </script>
 </body>
