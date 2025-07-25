@@ -1,314 +1,192 @@
 // api/reward-system.js
-// API pour gérer le système de récompense progressif
-
-import { ProgressiveRewardSystem } from '../lib/utils/rewardSystem.js';
-import { getEnvConfig } from '../lib/utils/env.js';
-
-// Initialisation simple sans imports complexes pour tester
-const rewardSystem = new ProgressiveRewardSystem();
+// Version minimale du système de récompense - Sans imports complexes
 
 export default async function handler(req, res) {
-  // Simple rate limiting
-  const userAgent = req.headers['user-agent'] || '';
-  if (userAgent.includes('bot') || userAgent.includes('crawler')) {
-    return res.status(429).json({ error: 'Bots not allowed' });
-  }
-
-  if (req.method === 'POST') {
-    return handleRewardInteraction(req, res);
-  } else if (req.method === 'GET') {
-    return handleGetUserStatus(req, res);
-  } else {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-}
-
-// Gère une interaction avec le système de récompense
-async function handleRewardInteraction(req, res) {
   try {
-    const { 
-      message, 
-      userData = {}, 
-      action, // 'analyze', 'collect_data', 'upgrade_request'
-      sessionId 
-    } = req.body;
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
 
-    // Validation des données
+    const { message, userData = {}, action = 'analyze', sessionId } = req.body;
+
+    // Validation
     if (!message && action !== 'collect_data') {
-      return res.status(400).json({ 
-        error: 'Message requis pour l\'analyse' 
-      });
+      return res.status(400).json({ error: 'Message requis' });
     }
 
-    const enrichedUserData = {
-      ...userData,
-      sessionId,
-      timestamp: new Date().toISOString()
-    };
+    // Détection du niveau utilisateur
+    const userLevel = getUserLevel(userData);
+    
+    // Détection du type de question
+    const questionType = detectQuestionType(message || '');
+    
+    // Génération de la stratégie selon le niveau
+    const strategy = getConversionStrategy(userLevel, questionType);
+    
+    // Calcul de la valeur du lead
+    const leadValue = calculateLeadValue(userData, questionType);
+    
+    // Génération de la réponse selon le niveau
+    const response = generateResponseByLevel(message, userLevel, questionType);
 
-    switch (action) {
-      case 'analyze':
-        return await handleAnalyzeWithRewards(message, enrichedUserData, res);
+    return res.status(200).json({
+      success: true,
+      response,
+      userLevel,
+      levelName: getLevelName(userLevel),
       
-      case 'collect_data':
-        return await handleDataCollection(enrichedUserData, res);
+      // Stratégie de conversion
+      conversionStrategy: strategy,
+      uiConfig: strategy ? generateUIConfig(userLevel, strategy) : null,
       
-      case 'upgrade_request':
-        return await handleUpgradeRequest(enrichedUserData, res);
+      // Informations business
+      businessMetrics: {
+        leadValue,
+        partner: getOptimalPartner(questionType, leadValue),
+        upgradeAvailable: !!strategy
+      },
       
-      default:
-        return await handleAnalyzeWithRewards(message, enrichedUserData, res);
-    }
+      // Analytics
+      analytics: {
+        questionType,
+        timestamp: new Date().toISOString(),
+        sessionId
+      }
+    });
 
   } catch (error) {
     console.error('Erreur reward system:', error);
     return res.status(500).json({
-      error: 'Erreur interne du serveur',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: 'Erreur serveur',
+      details: error.message
     });
   }
 }
 
-// Analyse avec système de récompense intégré
-async function handleAnalyzeWithRewards(message, userData, res) {
-  // Détection du type de question automobile
-  const questionType = detectQuestionType(message);
+// Fonctions utilitaires intégrées
+function getUserLevel(userData) {
+  const { email, phone, vehicleModel, location } = userData || {};
   
-  // Génération de la stratégie selon le niveau utilisateur
-  const rewardResponse = rewardSystem.generateLeveledResponse(
-    message, 
-    userData, 
-    questionType
-  );
-
-  // Appel à l'IA selon le niveau de détail autorisé - SIMULATION
-  const aiResponse = {
-    response: generateSimulatedResponse(message, rewardResponse.level),
-    processingTime: 250
-  };
-
-  // Génération du lead si données suffisantes - SIMULATION
-  let leadInfo = null;
-  if (rewardResponse.level > 0) {
-    leadInfo = {
-      id: `lead_${Date.now()}`,
-      value: rewardResponse.leadValue,
-      partner: rewardResponse.optimalPartner,
-      status: 'generated'
-    };
-  }
-
-  // Tracking analytics
-  rewardSystem.trackConversionEvent(
-    'analysis_provided',
-    userData,
-    true
-  );
-
-  return res.status(200).json({
-    success: true,
-    response: aiResponse.response,
-    userLevel: rewardResponse.level,
-    levelName: rewardSystem.rewardThresholds[rewardResponse.level].name,
-    
-    // Stratégie de conversion (si applicable)
-    conversionStrategy: rewardResponse.conversionStrategy,
-    uiConfig: rewardResponse.uiConfig,
-    
-    // Informations business
-    leadInfo: leadInfo,
-    businessMetrics: {
-      leadValue: rewardResponse.leadValue,
-      partner: rewardResponse.optimalPartner,
-      upgradeAvailable: !!rewardResponse.conversionStrategy
-    },
-    
-    // Analytics pour le frontend
-    analytics: {
-      questionType,
-      aiMode: rewardResponse.aiMode,
-      processingTime: aiResponse.processingTime,
-      timestamp: new Date().toISOString()
-    }
-  });
+  if (phone && vehicleModel && location) return 3; // Full profile
+  if (phone && email) return 2; // Phone verified
+  if (email) return 1; // Email verified
+  return 0; // Anonymous
 }
 
-// Gère la collecte progressive de données
-async function handleDataCollection(userData, res) {
-  const currentLevel = rewardSystem.getUserLevel(userData);
-  const newLevel = rewardSystem.getUserLevel(userData);
-  
-  // Validation que l'utilisateur a fourni les bonnes données
-  const strategy = rewardSystem.getConversionStrategy(currentLevel, 'general');
-  if (strategy) {
-    const missingFields = strategy.required.filter(field => !userData[field]);
-    if (missingFields.length > 0) {
-      return res.status(400).json({
-        error: 'Données manquantes',
-        missingFields,
-        required: strategy.required
-      });
-    }
-  }
-
-  // Calcul de la valeur du lead
-  const leadValue = rewardSystem.calculateLeadValue(userData, 'general');
-  
-  // Génération et envoi du lead aux partenaires
-  const leadResult = await leadSystem.processLead({
-    userData,
-    leadValue,
-    source: 'progressive_reward',
-    level: newLevel
-  });
-
-  // Tracking de la conversion
-  rewardSystem.trackConversionEvent(
-    `data_collected_level_${newLevel}`,
-    userData,
-    true
-  );
-
-  return res.status(200).json({
-    success: true,
-    message: 'Données collectées avec succès',
-    newLevel,
-    levelName: rewardSystem.rewardThresholds[newLevel]?.name,
-    leadValue,
-    leadResult,
-    unlockedFeatures: getUnlockedFeatures(newLevel)
-  });
-}
-
-// Gère les demandes d'upgrade
-async function handleUpgradeRequest(userData, res) {
-  const currentLevel = rewardSystem.getUserLevel(userData);
-  const strategy = rewardSystem.getConversionStrategy(currentLevel, 'general');
-  
-  if (!strategy) {
-    return res.status(400).json({
-      error: 'Aucun upgrade disponible pour ce niveau',
-      currentLevel,
-      maxLevel: Object.keys(rewardSystem.rewardThresholds).length - 1
-    });
-  }
-
-  // Tracking de la demande d'upgrade
-  rewardSystem.trackConversionEvent(
-    'upgrade_requested',
-    userData,
-    false
-  );
-
-  return res.status(200).json({
-    success: true,
-    conversionStrategy: strategy,
-    uiConfig: rewardSystem.generateDataCollectionUI(currentLevel, strategy),
-    currentLevel,
-    targetLevel: currentLevel + 1,
-    benefits: getUpgradeBenefits(currentLevel + 1)
-  });
-}
-
-// Récupère le statut utilisateur
-async function handleGetUserStatus(req, res) {
-  const { sessionId, ...userData } = req.query;
-  
-  const userLevel = rewardSystem.getUserLevel(userData);
-  const nextStrategy = rewardSystem.getConversionStrategy(userLevel, 'general');
-  
-  return res.status(200).json({
-    success: true,
-    userLevel,
-    levelName: rewardSystem.rewardThresholds[userLevel].name,
-    unlockedFeatures: getUnlockedFeatures(userLevel),
-    nextUpgrade: nextStrategy ? {
-      strategy: nextStrategy,
-      ui: rewardSystem.generateDataCollectionUI(userLevel, nextStrategy)
-    } : null,
-    analytics: {
-      dataCompleteness: calculateDataCompleteness(userData),
-      estimatedLeadValue: rewardSystem.calculateLeadValue(userData, 'general')
-    }
-  });
-}
-
-// Fonctions utilitaires
 function detectQuestionType(message) {
-  const keywords = {
-    'engine': ['moteur', 'puissance', 'ralenti', 'fumée', 'voyant moteur', 'egr', 'fap'],
-    'brakes': ['frein', 'freinage', 'bruit frein', 'pédale', 'plaquette'],
-    'transmission': ['boite', 'vitesse', 'embrayage', 'transmission'],
-    'electrical': ['électrique', 'batterie', 'alternateur', 'démarrage'],
-    'general': ['voiture', 'automobile', 'véhicule', 'problème']
-  };
-  
   const messageLower = message.toLowerCase();
   
-  for (const [type, words] of Object.entries(keywords)) {
-    if (words.some(word => messageLower.includes(word))) {
-      return type;
-    }
-  }
+  if (messageLower.includes('frein') || messageLower.includes('freinage')) return 'brakes';
+  if (messageLower.includes('moteur') || messageLower.includes('voyant')) return 'engine';
+  if (messageLower.includes('boite') || messageLower.includes('vitesse')) return 'transmission';
   
   return 'general';
 }
 
-function getUnlockedFeatures(level) {
-  const features = {
-    0: ['Diagnostic de base', 'Réponses générales'],
-    1: ['Diagnostic avancé', 'Estimation coûts', 'Garages recommandés'],
-    2: ['Expertise personnalisée', 'Devis gratuit', 'Rappel expert'],
-    3: ['Service VIP', 'Diagnostic prédictif', 'Suivi personnalisé', 'Alertes maintenance']
+function getConversionStrategy(level, questionType) {
+  const strategies = {
+    0: { // Anonymous → Email
+      trigger: `🔓 **Diagnostic ${questionType === 'brakes' ? 'freinage' : 'moteur'} complet disponible !**\n\nD'après mon analyse, votre problème nécessite un diagnostic approfondi. Mes algorithmes avancés peuvent analyser 47 points de contrôle supplémentaires.\n\n💎 **Valeur : 50€ d'expertise gratuite**\nIl vous suffit de laisser votre email pour débloquer le rapport complet.`,
+      required: ['email', 'firstName', 'location'],
+      reward: 'diagnostic premium avec estimation coûts',
+      value: '50€ d\'expertise gratuite'
+    },
+    
+    1: { // Email → Phone
+      trigger: `📞 **Expertise maximale disponible !**\n\nNos partenaires experts peuvent vous rappeler dans l'heure pour un devis personnalisé précis et un conseil spécialisé.\n\n💎 **Service habituellement facturé 80€ - GRATUIT pour vous**`,
+      required: ['phone', 'vehicleModel', 'urgency'],
+      reward: 'mise en relation directe avec garage partenaire',
+      value: 'Devis personnalisé + Rdv prioritaire'
+    },
+    
+    2: { // Phone → Full Profile
+      trigger: `🏆 **Service VIP - Diagnostic prédictif !**\n\nAvec l'historique complet de votre véhicule, notre IA peut prédire les prochaines pannes et optimiser vos coûts maintenance.\n\n🎁 **Service premium exclusif - Accès VIP à vie**`,
+      required: ['vehicleYear', 'mileage', 'maintenanceHistory'],
+      reward: 'diagnostic prédictif et suivi personnalisé',
+      value: 'Prévention pannes futures'
+    }
   };
   
-  return Object.values(features)
-    .slice(0, level + 1)
-    .flat();
+  return strategies[level] || null;
 }
 
-function getUpgradeBenefits(targetLevel) {
-  const benefits = {
-    1: [
-      'Diagnostic IA avancé (47 points de contrôle)',
-      'Estimation précise des coûts (±10€)',
-      'Garages recommandés dans votre région',
-      'Rapport détaillé téléchargeable'
-    ],
-    2: [
-      'Expert vous rappelle dans l\'heure',
-      'Devis personnalisé gratuit',
-      'Rendez-vous prioritaire',
-      'Support téléphonique dédié'
-    ],
-    3: [
-      'Diagnostic prédictif personnalisé',
-      'Alertes maintenance intelligentes',
-      'Suivi VIP à vie',
-      'Accès prioritaire aux nouveautés'
-    ]
+function calculateLeadValue(userData, questionType) {
+  const baseValues = {
+    'engine': 35,
+    'brakes': 40,
+    'transmission': 45,
+    'general': 25
   };
   
-  return benefits[targetLevel] || [];
-}
-
-function calculateDataCompleteness(userData) {
-  const allFields = ['email', 'firstName', 'location', 'phone', 'vehicleModel', 'urgency', 'vehicleYear', 'mileage'];
-  const providedFields = Object.keys(userData).filter(key => 
-    allFields.includes(key) && userData[key] && userData[key].length > 0
-  );
+  const level = getUserLevel(userData);
+  const multipliers = [0, 1, 1.8, 2.5]; // Par niveau
   
-  return Math.round((providedFields.length / allFields.length) * 100);
+  const baseValue = baseValues[questionType] || 25;
+  return Math.round(baseValue * (multipliers[level] || 1));
 }
 
-// Fonction de simulation pour tester sans les vrais imports
-function generateSimulatedResponse(message, level) {
+function getOptimalPartner(questionType, leadValue) {
+  if (questionType === 'brakes' && leadValue <= 40) return 'MIDAS';
+  if (questionType === 'engine' && leadValue >= 35) return 'IDGARAGES';
+  return 'MIDAS';
+}
+
+function getLevelName(level) {
+  const names = {
+    0: 'Diagnostic de Base',
+    1: 'Diagnostic Avancé', 
+    2: 'Expertise Premium',
+    3: 'Service VIP'
+  };
+  return names[level] || 'Inconnu';
+}
+
+function generateResponseByLevel(message, level, questionType) {
   const responses = {
-    0: `Diagnostic de base : ${message.includes('freinage') ? 'Problème de freinage détecté' : 'Problème automobile détecté'}. Analyse limitée disponible.`,
-    1: `Diagnostic avancé : Analyse approfondie de votre problème. Recommandations détaillées et estimation des coûts.`,
-    2: `Expertise maximale : Diagnostic complet avec mise en relation directe garage partenaire.`,
-    3: `Service VIP : Diagnostic prédictif personnalisé avec suivi à vie.`
+    0: `**Diagnostic de base** pour votre problème de ${questionType === 'brakes' ? 'freinage' : questionType === 'engine' ? 'moteur' : 'véhicule'}.\n\nD'après mon analyse initiale, ${questionType === 'brakes' ? 'les freins nécessitent une vérification' : 'le moteur présente des symptômes à analyser'}. Pour un diagnostic complet...`,
+    
+    1: `**Diagnostic avancé** de votre ${questionType}.\n\nAnalyse approfondie terminée : ${questionType === 'brakes' ? 'système de freinage à contrôler en priorité' : 'problème moteur identifié avec précision'}. Estimation des coûts disponible. Pour une expertise personnalisée...`,
+    
+    2: `**Expertise premium** de votre problème.\n\nDiagnostic complet effectué par nos algorithmes avancés. Expert partenaire contacté pour devis personnalisé. Pour un suivi prédictif...`,
+    
+    3: `**Service VIP activé** - Diagnostic prédictif personnalisé.\n\nAnalyse complète de votre véhicule avec prédictions d'entretien et optimisation des coûts. Suivi automatique activé.`
   };
   
   return responses[level] || responses[0];
+}
+
+function generateUIConfig(level, strategy) {
+  const configs = {
+    0: {
+      title: "🔓 Diagnostic Premium Gratuit",
+      subtitle: strategy.value,
+      fields: [
+        { name: 'email', type: 'email', placeholder: 'votre@email.com', required: true },
+        { name: 'firstName', type: 'text', placeholder: 'Votre prénom', required: true },
+        { name: 'location', type: 'text', placeholder: 'Votre ville', required: true }
+      ],
+      button: 'OBTENIR MON DIAGNOSTIC PREMIUM'
+    },
+    1: {
+      title: "📞 Expertise Personnalisée", 
+      subtitle: "Un expert vous rappelle sous 1h",
+      fields: [
+        { name: 'phone', type: 'tel', placeholder: '06 12 34 56 78', required: true },
+        { name: 'vehicleModel', type: 'text', placeholder: 'Ex: Peugeot 308', required: true },
+        { name: 'urgency', type: 'select', options: ['Immédiat', 'Cette semaine', 'Ce mois'], required: true }
+      ],
+      button: 'ACCÉDER À L\'EXPERTISE MAXIMALE'
+    },
+    2: {
+      title: "🏆 Service VIP",
+      subtitle: "Suivi personnalisé à vie", 
+      fields: [
+        { name: 'vehicleYear', type: 'number', placeholder: '2018', required: true },
+        { name: 'mileage', type: 'number', placeholder: '85000 km', required: true }
+      ],
+      button: 'ACTIVER LE SERVICE VIP'
+    }
+  };
+  
+  return configs[level];
 }
