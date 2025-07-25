@@ -1,5 +1,6 @@
 // api/chat.js
 // DUAL BRAIN SYSTEM - VERSION COMPLÈTE AVEC VRAIES APIs ACTIVÉES
+// CORRIGÉ POUR CLÉ_API_OPENAI
 
 export default async function handler(req, res) {
   // CORS
@@ -238,10 +239,10 @@ Adoptez un ton expert mais accessible.` :
   return data.content[0].text;
 }
 
-// 🤖 APPEL API OPENAI - VERSION RÉELLE
+// 🤖 APPEL API OPENAI - VERSION CORRIGÉE POUR CLÉ_API_OPENAI
 async function callOpenAIAPI(message, context) {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('OpenAI API key manquante');
+  if (!process.env.CLÉ_API_OPENAI) {
+    throw new Error('OpenAI API key manquante (CLÉ_API_OPENAI)');
   }
 
   const prompt = context.premium && context.autoTopic ?
@@ -257,13 +258,13 @@ Votre réponse doit être :
 Adoptez un ton chaleureux d'expert passionné.` :
     `Répondez de manière engageante et utile à cette question : "${message}". Soyez créatif tout en restant précis.`;
 
-  console.log('🟢 Appel OpenAI API...');
+  console.log('🟢 Appel OpenAI API (CLÉ_API_OPENAI)...');
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+      'Authorization': `Bearer ${process.env.CLÉ_API_OPENAI}`
     },
     body: JSON.stringify({
       model: 'gpt-4',
