@@ -11,7 +11,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50 overflow-x-hidden">
     <div id="root"></div>
 
     <script type="text/babel">
@@ -806,31 +806,34 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-orange-50">
                     {/* Header avec status knowledge */}
                     <header className="bg-white shadow-sm border-b">
-                        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-                            <div className="flex items-center">
-                                <div className="mr-3 bg-gradient-to-r from-green-500 to-green-600 px-4 py-2 rounded-lg shadow-sm">
-                                    <span className="text-white font-bold text-lg">re-fap</span>
+                        <div className="max-w-6xl mx-auto px-2 sm:px-4 py-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center min-w-0 flex-1">
+                                    <div className="mr-2 sm:mr-3 bg-gradient-to-r from-green-500 to-green-600 px-2 sm:px-4 py-1 sm:py-2 rounded-lg shadow-sm">
+                                        <span className="text-white font-bold text-sm sm:text-lg">re-fap</span>
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <h1 className="text-sm sm:text-lg font-bold text-gray-800 truncate">Julien - Expert FAP</h1>
+                                        <p className="text-xs text-gray-600 hidden sm:block">
+                                            Diagnostic gratuit • IA intelligente • {knowledgeBase.length} expertises
+                                        </p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h1 className="text-lg font-bold text-gray-800">Julien - Expert FAP</h1>
-                                    <p className="text-xs text-gray-600">
-                                        Diagnostic gratuit • IA intelligente • {knowledgeBase.length} expertises
-                                    </p>
-                                </div>
+                                <button 
+                                    onClick={() => window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank')}
+                                    className="bg-orange-500 hover:bg-orange-600 text-white px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ml-2 whitespace-nowrap"
+                                >
+                                    <span className="hidden sm:inline">📞 Devis gratuit</span>
+                                    <span className="sm:hidden">📞</span>
+                                </button>
                             </div>
-                            <button 
-                                onClick={() => window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank')}
-                                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                            >
-                                📞 Devis gratuit
-                            </button>
                         </div>
                         {renderKnowledgeStatus()}
                     </header>
 
                     {/* Chat principal avec CTA responsive */}
-                    <div className="max-w-6xl mx-auto p-4">
-                        <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="max-w-6xl mx-auto p-2 sm:p-4">
+                        <div className="flex flex-col lg:flex-row gap-2 sm:gap-4">
                             {/* Chat principal */}
                             <div className="flex-1 bg-white rounded-xl shadow-lg overflow-hidden">
                                 {/* Header chat */}
@@ -847,10 +850,10 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                 </div>
 
                                 {/* Messages */}
-                                <div className="h-96 overflow-y-auto p-4 bg-gray-50">
+                                <div className="h-96 overflow-y-auto p-2 sm:p-4 bg-gray-50">
                                     {messages.map((message, index) => (
                                         <div key={index} className={`mb-4 ${message.type === 'user' ? 'text-right' : ''}`}>
-                                            <div className={`inline-block p-3 rounded-lg max-w-md ${
+                                            <div className={`inline-block p-3 rounded-lg max-w-[85%] sm:max-w-md ${
                                                 message.type === 'user' 
                                                     ? 'bg-blue-500 text-white' 
                                                     : message.source === 'claude_intelligent' || message.source === 'claude_photo_intelligent'
@@ -894,27 +897,28 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                 </div>
 
                                 {/* Input */}
-                                <div className="p-4 border-t bg-white">
+                                <div className="p-2 sm:p-4 border-t bg-white">
                                     <form onSubmit={handleSendMessage} className="flex gap-2 mb-3">
                                         <input
                                             type="text"
                                             value={inputMessage}
                                             onChange={(e) => setInputMessage(e.target.value)}
-                                            placeholder="💬 Décris ton problème... (ex: 'Ça pue et ça fume en ville')"
-                                            className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                                            placeholder="💬 Décris ton problème..."
+                                            className="flex-1 p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-sm"
                                             disabled={isTyping}
                                         />
                                         <button
                                             type="submit"
                                             disabled={isTyping || !inputMessage.trim()}
-                                            className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                                            className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-colors text-sm whitespace-nowrap"
                                         >
-                                            Envoyer
+                                            <span className="hidden sm:inline">Envoyer</span>
+                                            <span className="sm:hidden">📤</span>
                                         </button>
                                     </form>
 
                                     {/* Upload photo */}
-                                    <div className="mb-3 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-dashed border-blue-300">
+                                    <div className="mb-3 p-2 sm:p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-dashed border-blue-300">
                                         <div className="text-center">
                                             <input
                                                 type="file"
@@ -926,23 +930,23 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                             />
                                             <label 
                                                 htmlFor="imageUpload" 
-                                                className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg inline-flex items-center gap-2 font-medium transition-colors"
+                                                className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg inline-flex items-center gap-2 font-medium transition-colors text-sm"
                                             >
-                                                📸 Photo de mon voyant
+                                                📸 <span className="hidden sm:inline">Photo de mon voyant</span><span className="sm:hidden">Photo</span>
                                             </label>
-                                            <p className="text-xs text-gray-600 mt-2">
-                                                JPG/PNG max 5MB • Analyse intelligente IA + Airtable ! 🧠
+                                            <p className="text-xs text-gray-600 mt-2 px-2">
+                                                JPG/PNG max 5MB • Analyse IA ! 🧠
                                             </p>
                                         </div>
                                     </div>
 
                                     {/* Quick options */}
-                                    <div className="grid grid-cols-2 gap-2 mb-4 lg:mb-0">
+                                    <div className="grid grid-cols-2 gap-1 sm:gap-2 mb-4 lg:mb-0">
                                         {[
-                                            { text: "🟡 Voyant FAP", msg: "Voyant FAP allumé" },
-                                            { text: "💨 Ça fume", msg: "Ça pue et ça fume" },
-                                            { text: "⚡ Perte puissance", msg: "Plus de puissance en ville" },
-                                            { text: "🔧 Je suis bricoleur", msg: "Je démonte moi-même" }
+                                            { text: "🟡 Voyant FAP", textMobile: "🟡 FAP", msg: "Voyant FAP allumé" },
+                                            { text: "💨 Ça fume", textMobile: "💨 Fume", msg: "Ça pue et ça fume" },
+                                            { text: "⚡ Perte puissance", textMobile: "⚡ Puissance", msg: "Plus de puissance en ville" },
+                                            { text: "🔧 Je suis bricoleur", textMobile: "🔧 Bricoleur", msg: "Je démonte moi-même" }
                                         ].map((option, index) => (
                                             <button
                                                 key={index}
@@ -954,9 +958,10 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                                     setIsTyping(false);
                                                 }}
                                                 disabled={isTyping}
-                                                className="bg-gray-100 hover:bg-gray-200 p-2 rounded text-sm disabled:opacity-50 transition-colors"
+                                                className="bg-gray-100 hover:bg-gray-200 p-2 rounded text-xs sm:text-sm disabled:opacity-50 transition-colors"
                                             >
-                                                {option.text}
+                                                <span className="hidden sm:inline">{option.text}</span>
+                                                <span className="sm:hidden">{option.textMobile}</span>
                                             </button>
                                         ))}
                                     </div>
@@ -1030,18 +1035,18 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
 
                         {/* FORMULAIRE DE RAPPEL - Modal */}
                         {showCallbackForm && (
-                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                                <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-screen overflow-y-auto">
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+                                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto mx-2">
                                     {/* Header formulaire */}
-                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-t-xl">
+                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-3 sm:p-4 rounded-t-xl">
                                         <div className="flex items-center justify-between">
-                                            <div>
-                                                <h3 className="text-lg font-bold">📞 Rappel gratuit Re-Fap</h3>
-                                                <p className="text-sm opacity-90">Expert sous 2h • Lead IA intelligent</p>
+                                            <div className="flex-1">
+                                                <h3 className="text-base sm:text-lg font-bold">📞 Rappel gratuit</h3>
+                                                <p className="text-xs sm:text-sm opacity-90">Expert sous 2h</p>
                                             </div>
                                             <button 
                                                 onClick={() => setShowCallbackForm(false)}
-                                                className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded"
+                                                className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded ml-2"
                                             >
                                                 ✕
                                             </button>
@@ -1049,7 +1054,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                     </div>
 
                                     {/* Formulaire */}
-                                    <form onSubmit={handleCallbackSubmit} className="p-6 space-y-4">
+                                    <form onSubmit={handleCallbackSubmit} className="p-4 sm:p-6 space-y-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                                 Nom / Prénom *
@@ -1059,7 +1064,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                                 required
                                                 value={callbackData.nom}
                                                 onChange={(e) => setCallbackData({...callbackData, nom: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
                                                 placeholder="Votre nom complet"
                                             />
                                         </div>
@@ -1073,7 +1078,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                                 required
                                                 value={callbackData.telephone}
                                                 onChange={(e) => setCallbackData({...callbackData, telephone: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
                                                 placeholder="06 12 34 56 78"
                                             />
                                         </div>
@@ -1086,7 +1091,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                                 type="email"
                                                 value={callbackData.email}
                                                 onChange={(e) => setCallbackData({...callbackData, email: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
                                                 placeholder="votre@email.com"
                                             />
                                         </div>
@@ -1098,8 +1103,8 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                             <textarea
                                                 value={callbackData.probleme}
                                                 onChange={(e) => setCallbackData({...callbackData, probleme: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
-                                                placeholder="Voyants allumés, fumées, perte puissance..."
+                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                                                placeholder="Voyants allumés, fumées..."
                                                 rows="3"
                                             />
                                         </div>
@@ -1112,29 +1117,29 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                                 type="text"
                                                 value={callbackData.vehicule}
                                                 onChange={(e) => setCallbackData({...callbackData, vehicule: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
-                                                placeholder="Marque, modèle, année (ex: Peugeot 308 2018)"
+                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                                                placeholder="Peugeot 308 2018"
                                             />
                                         </div>
 
                                         {/* Info RGPD */}
-                                        <div className="bg-gray-50 p-3 rounded-lg text-xs text-gray-600">
+                                        <div className="bg-gray-50 p-2 sm:p-3 rounded-lg text-xs text-gray-600">
                                             ✅ Vos données sont utilisées uniquement pour le rappel. Aucun spam.
-                                            <br />🧠 Lead qualifié par IA intelligente + {knowledgeBase.length} expertises Airtable
+                                            <br />🧠 Lead qualifié par IA intelligente + {knowledgeBase.length} expertises
                                         </div>
 
                                         {/* Boutons */}
-                                        <div className="flex gap-3">
+                                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                                             <button
                                                 type="button"
                                                 onClick={() => setShowCallbackForm(false)}
-                                                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 px-4 rounded-lg font-medium transition-colors"
+                                                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
                                             >
                                                 Annuler
                                             </button>
                                             <button
                                                 type="submit"
-                                                className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-lg font-medium transition-colors"
+                                                className="w-full bg-green-500 hover:bg-green-600 text-white py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
                                             >
                                                 📞 Demander le rappel
                                             </button>
@@ -1146,17 +1151,18 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                     </div>
 
                     {/* Footer */}
-                    <footer className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-gray-600">
-                        <div className="flex items-center justify-center space-x-6 mb-3">
+                    <footer className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 text-center text-xs sm:text-sm text-gray-600">
+                        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-6 mb-3">
                             <span className="flex items-center"><span className="text-green-500 mr-1">✅</span> Diagnostic gratuit</span>
-                            <span className="flex items-center"><span className="text-blue-500 mr-1">🧠</span> IA intelligente + {knowledgeBase.length} expertises</span>
+                            <span className="flex items-center"><span className="text-blue-500 mr-1">🧠</span> IA + {knowledgeBase.length} expertises</span>
                             <span className="flex items-center"><span className="text-orange-500 mr-1">💰</span> Solutions économiques</span>
                             <span className="flex items-center"><span className="text-purple-500 mr-1">📊</span> {interactionCount} interactions</span>
                         </div>
-                        <p className="text-xs">
+                        <p className="text-xs px-2">
                             Powered by <a href="https://re-fap.fr" className="text-orange-600 hover:underline">Re-Fap</a> • 
-                            Expert nettoyage FAP depuis 2015 • IA intelligente Airtable •
-                            Session: {leadData.sessionId}
+                            Expert nettoyage FAP depuis 2015 •
+                            <span className="hidden sm:inline"> IA intelligente Airtable •</span>
+                            <span className="block sm:inline"> Session: {leadData.sessionId}</span>
                         </p>
                     </footer>
                 </div>
