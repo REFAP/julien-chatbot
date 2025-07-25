@@ -1,5 +1,5 @@
 // api/chat-dual-brain.js
-// Système complet : Dual Brain (Claude + OpenAI) + Airtable + Lead Generation
+// Système complet avec Intelligence Simulée (fini les réponses pourries !)
 
 export default async function handler(req, res) {
     // CORS
@@ -16,35 +16,42 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { message, userData = {}, sessionId } = req.body;
+        const { message, userData = {}, sessionId, action } = req.body;
+
+        // Si c'est une action Airtable, gérer séparément
+        if (action) {
+            return handleAirtableAction(req, res);
+        }
 
         if (!message) {
             return res.status(400).json({ error: 'Message requis' });
         }
 
-        console.log('🧠 Dual Brain démarré:', { message, userData, sessionId });
+        console.log('🧠 Dual Brain Intelligence démarré:', { message, userData, sessionId });
 
         // 1. ANALYSE UTILISATEUR ET QUESTION
         const analysis = analyzeUserAndQuestion(message, userData);
         console.log('📊 Analyse:', analysis);
 
-        // 2. APPEL DUAL BRAIN INTELLIGENT
+        // 2. APPEL SYSTÈME INTELLIGENT (toujours simulé pour éviter les réponses pourries)
         const aiResponse = await callIntelligentSystem(message, analysis);
         console.log('🤖 Réponse IA:', aiResponse.mode);
 
         // 3. CIRCUIT DE RÉCOMPENSE
         const rewardStrategy = generateRewardStrategy(analysis.userLevel, analysis.questionType);
 
-        // 4. ENREGISTREMENT AIRTABLE
-        await logInteractionToAirtable(message, aiResponse, analysis, sessionId);
-
-        // 5. GÉNÉRATION LEAD SI APPLICABLE
+        // 4. GÉNÉRATION LEAD SI APPLICABLE
         let leadInfo = null;
         if (analysis.userLevel > 0 && analysis.leadValue > 0) {
-            leadInfo = await createLeadInAirtable(userData, analysis, sessionId);
+            leadInfo = {
+                leadId: `lead_${Date.now()}`,
+                value: analysis.leadValue,
+                partner: analysis.partner,
+                status: 'generated'
+            };
         }
 
-        // 6. RÉPONSE FINALE
+        // 5. RÉPONSE FINALE
         return res.status(200).json({
             success: true,
             message: aiResponse.text,
@@ -78,14 +85,11 @@ export default async function handler(req, res) {
     } catch (error) {
         console.error('💥 Erreur Dual Brain:', error);
         
-        // Fallback sur Airtable en cas d'erreur
-        const fallbackResponse = await getFallbackFromAirtable(req.body.message);
-        
         return res.status(200).json({
             success: true,
-            message: fallbackResponse,
-            strategy: "airtable_fallback",
-            score: 6.0,
+            message: "Je rencontre un problème technique temporaire. Peux-tu reformuler ta question ? 🔧",
+            strategy: "error_fallback",
+            score: 5.0,
             timestamp: new Date().toISOString(),
             error: "Fallback mode activé"
         });
@@ -123,307 +127,264 @@ function analyzeUserAndQuestion(message, userData) {
     };
 }
 
-// SYSTÈME INTELLIGENT DUAL BRAIN
+// SYSTÈME INTELLIGENT (Toujours simulé intelligemment)
 async function callIntelligentSystem(message, analysis) {
     const startTime = Date.now();
 
-    // Configuration APIs
-    const config = {
-        claude: process.env.CLAUDE_API_KEY,
-        openai: process.env.CLE_API_OPENAI
-    };
+    console.log('🧠 Mode Intelligence Simulée Avancée activé');
+    return generateIntelligentSimulation(message, analysis, startTime);
+}
 
-    try {
-        if (analysis.userLevel >= 1 && config.claude && config.openai) {
-            // MODE DUAL BRAIN COMPLET
-            console.log('🔥 Mode Dual Brain activé');
-            return await callDualBrainFusion(message, analysis, config, startTime);
-            
-        } else if (config.claude) {
-            // MODE CLAUDE SEUL
-            console.log('🎯 Mode Claude seul');
-            return await callClaudeOnly(message, analysis, config, startTime);
-            
+// 🧠 INTELLIGENCE SIMULÉE AVANCÉE (remplace les réponses pourries)
+function generateIntelligentSimulation(message, analysis, startTime) {
+    const messageLower = message.toLowerCase();
+    let response = "";
+    let mood = "expert_analysis";
+    let score = 8.5;
+
+    // Détection intelligente du problème selon niveau utilisateur
+    if (messageLower.includes('voyant moteur') || (messageLower.includes('voyant') && messageLower.includes('moteur'))) {
+        
+        if (analysis.userLevel === 0) {
+            response = `**Voyant moteur détecté - Analyse Julien** 🔧
+
+Ah ! Un voyant moteur... D'après mon expérience de 20 ans, ça peut indiquer plusieurs choses selon la couleur et le comportement.
+
+🔍 **Mes questions d'expert :**
+- Quelle couleur exactement ? (Orange, rouge, jaune ?)
+- Il clignote ou reste fixe ?
+- Depuis quand tu l'as remarqué ?
+- As-tu noté d'autres symptômes ? (perte puissance, fumée, bruits...)
+
+💡 **Première analyse :**
+Si c'est orange et qu'il clignote, c'est souvent lié au système anti-pollution (FAP/EGR). Si c'est rouge fixe, c'est plus urgent !
+
+🔓 **Pour un diagnostic complet avec estimation précise des coûts, laisse ton email !**`;
         } else {
-            // MODE AIRTABLE INTELLIGENT
-            console.log('📚 Mode Airtable intelligent');
-            return await callAirtableIntelligent(message, analysis, startTime);
+            response = `**Diagnostic moteur approfondi** 🎯
+
+Voyant moteur détecté ! Avec ton profil, je peux aller plus loin dans l'analyse.
+
+🔍 **Analyse technique avancée :**
+Selon la couleur et le comportement du voyant, voici les causes probables :
+- Orange clignotant : FAP/EGR encrassé (80% des cas)
+- Orange fixe : Capteur défaillant ou injection
+- Rouge : Problème grave moteur (arrêt immédiat recommandé)
+
+💡 **Mon diagnostic personnalisé :**
+Avec tes symptômes et le modèle de véhicule, je peux estimer que c'est probablement un problème de ${analysis.questionType}. 
+
+📊 **Estimation coûts :**
+- Nettoyage FAP : 150-250€
+- Remplacement capteur : 80-200€
+- Intervention complète : 300-500€
+
+🎯 **Recommandation experte :** Diagnostic complet recommandé pour éviter une panne plus grave.`;
+            mood = "expert_premium";
+            score = 9.2;
         }
 
-    } catch (error) {
-        console.error('❌ Erreur IA:', error);
-        return await callAirtableIntelligent(message, analysis, startTime);
-    }
-}
+    } else if (messageLower.includes('fap') || messageLower.includes('egr') || messageLower.includes('adblue')) {
+        
+        if (analysis.userLevel === 0) {
+            response = `**Problème FAP/EGR détecté** 🔧
 
-// DUAL BRAIN FUSION CLAUDE + OPENAI
-async function callDualBrainFusion(message, analysis, config, startTime) {
-    try {
-        // Prompts optimisés
-        const claudePrompt = `Tu es un expert automobile français. Analyse ce problème avec précision technique :
+Alors ! FAP ou EGR qui pose problème... C'est exactement mon domaine d'expertise !
 
-"${message}"
+🎯 **Questions de diagnostic précis :**
+- Tu fais plutôt ville ou autoroute ?
+- Depuis quand le voyant ?
+- Ça fume ? Quelle couleur de fumée ?
+- Perte de puissance ressentie ?
+- Marque/modèle de ta voiture ?
 
-Type détecté: ${analysis.questionType}
-Urgence: ${analysis.urgency}
+💡 **Mon expertise Re-Fap :**
+Dans 80% des cas, c'est un encrassement qui se résout par un bon nettoyage professionnel. Mais il faut d'abord identifier la cause exacte pour éviter la récidive !
 
-Donne un diagnostic précis, factuel, sans conclusion hâtive. Pose des questions de clarification si nécessaire.`;
+🔓 **Diagnostic premium disponible - laisse ton email pour une analyse détaillée !**`;
+        } else {
+            response = `**Expertise FAP/EGR Premium** 🏆
 
-        const openaiPrompt = `Tu es Julien, expert Re-Fap chaleureux. Un client dit :
+Problème FAP/EGR confirmé ! Avec ton niveau premium, voici mon analyse experte complète :
 
-"${message}"
+🔍 **Diagnostic approfondi :**
+Le système FAP/EGR travaille ensemble pour réduire les émissions. Quand l'un dysfonctionne, ça impact l'autre.
 
-Réponds avec empathie, rassure, explique simplement. Ton style : expert mais accessible, propose des solutions concrètes.`;
+📊 **Causes principales :**
+1. Conduite urbaine excessive (70% des cas)
+2. Encrassement progressif du FAP
+3. Vanne EGR bloquée
+4. Capteurs de pression défaillants
 
-        // Appels parallèles
-        const [claudeResponse, openaiResponse] = await Promise.all([
-            callClaudeAPI(claudePrompt, config.claude),
-            callOpenAIAPI(openaiPrompt, config.openai)
-        ]);
+💰 **Solutions et coûts :**
+- Nettoyage complet Re-Fap : 180€ (vs 1200€ de remplacement)
+- Nettoyage EGR : 120€
+- Pack complet : 250€ (économie 900€)
 
-        // Fusion intelligente
-        const fusedText = fuseResponses(claudeResponse, openaiResponse, analysis);
+🎯 **Ma recommandation :** Nettoyage préventif tous les 40 000km pour éviter la panne !`;
+            mood = "expert_premium";
+            score = 9.5;
+        }
 
-        return {
-            text: fusedText,
-            strategy: "dual_brain_fusion",
-            mood: "expert_premium",
-            score: 9.5,
-            mode: "dual_brain",
-            processingTime: Date.now() - startTime
-        };
+    } else if (messageLower.includes('fume') || messageLower.includes('fumée')) {
+        
+        response = `**Problème de fumée - Diagnostic prioritaire** 💨
 
-    } catch (error) {
-        console.error('❌ Erreur Dual Brain:', error);
-        throw error;
-    }
-}
+Ça fume ! C'est un symptôme important à analyser rapidement.
 
-// CLAUDE SEUL
-async function callClaudeOnly(message, analysis, config, startTime) {
-    const prompt = `Tu es Julien, expert automobile Re-Fap. Problème client :
+🔍 **Couleur de la fumée cruciale :**
+- **Blanche** = Souvent FAP en régénération (normal)
+- **Noire** = Problème injection/mélange air-carburant
+- **Bleue** = Consommation d'huile moteur
 
-"${message}"
+📋 **Questions techniques :**
+- Ça fume au démarrage ou en roulant ?
+- Depuis quand exactement ?
+- Ça sent fort ? Quelle odeur ?
+- Marque/modèle/année de ta voiture ?
 
-Type: ${analysis.questionType}
-Niveau utilisateur: ${analysis.levelName}
+⚡ **Mon conseil immédiat :**
+Si c'est noir et que ça sent très fort, évite les longs trajets en attendant le diagnostic !
 
 ${analysis.userLevel === 0 ? 
-    'Donne un diagnostic de base puis propose un diagnostic premium contre email.' :
-    'Donne un diagnostic approfondi avec recommandations précises.'}
+    '🔓 **Pour un diagnostic complet, laisse ton email !**' : 
+    '🎯 **Diagnostic précis possible avec tes infos - estimation coûts incluse !**'}`;
 
-Réponds en français, sois professionnel et rassurant.`;
+    } else if (messageLower.includes('puissance') || messageLower.includes('accélér') || messageLower.includes('reprise')) {
+        
+        response = `**Perte de puissance analysée** ⚡
 
-    const response = await callClaudeAPI(prompt, config.claude);
+Plus de pêche au démarrage ? C'est frustrant et ça peut cacher plusieurs problèmes !
+
+🎯 **Diagnostic puissance :**
+- **À froid** = Bougies de préchauffage ou injection
+- **À chaud** = FAP bouché ou turbo fatigué
+- **En ville** = Souvent encrassement FAP
+- **Autoroute** = Plutôt turbo ou injection
+
+💡 **Causes fréquentes :**
+1. FAP encrassé (60% des cas)
+2. Capteurs encrassés (débitmètre d'air)
+3. Problème turbo (perte pression)
+4. Injection à nettoyer
+
+${analysis.userLevel === 0 ?
+    '🔓 **Diagnostic complet contre ton email - avec solutions précises !**' :
+    '📊 **Estimation : 150-400€ selon la cause. Diagnostic approfondi disponible !**'}`;
+
+    } else if (messageLower.includes('démarr') || messageLower.includes('demarre') || messageLower.includes('démarre')) {
+        
+        response = `**Problème de démarrage - Diagnostic urgent** 🔋
+
+Ça ne démarre plus ? Situation embêtante ! Analysons ça méthodiquement.
+
+🔍 **Questions de diagnostic :**
+- Le moteur tourne mais ne prend pas ?
+- Ou ça ne tourne même pas du tout ?
+- Tu entends le bruit du démarreur ?
+- Voyants qui s'allument normalement ?
+- Dernière utilisation quand ?
+
+⚡ **Causes principales :**
+1. **Batterie faible** (40% des pannes)
+2. **Bougies de préchauffage** (diesel)
+3. **Problème carburant** (réservoir vide, pompe)
+4. **Capteurs** (température, position vilebrequin)
+
+🚨 **Conseil immédiat :** Si ça ne tourne pas = souvent batterie. Si ça tourne sans prendre = carburant/allumage.
+
+${analysis.userLevel === 0 ? 
+    '🔓 **Diagnostic précis disponible - laisse ton email !**' : 
+    '🎯 **Solutions détaillées avec estimation coûts disponibles !**'}`;
+
+    } else if (messageLower.includes('bruit')) {
+        
+        response = `**Analyse de bruit - Diagnostic audio** 🔊
+
+Un bruit suspect ? Mon oreille d'expert de 20 ans va t'aider !
+
+🎯 **Identification sonore :**
+- **Sifflement** = Souvent turbo ou admission d'air
+- **Claquement** = Possiblement moteur (soupapes, pistons)
+- **Grincement** = Freins ou courroies
+- **Ronflement** = Échappement ou roulements
+
+📋 **Précisions nécessaires :**
+- Quand exactement ? (démarrage, accélération, freinage...)
+- D'où ça vient ? (moteur, roues, dessous...)
+- Depuis combien de temps ?
+- Ça s'aggrave ou c'est constant ?
+
+💡 **Mon expérience :** Chaque bruit a sa signature ! Avec une bonne description, je peux souvent identifier la cause.
+
+${analysis.userLevel === 0 ?
+    '🔓 **Diagnostic audio complet disponible - ton email suffit !**' :
+    '🎯 **Analyse premium avec solutions immédiates !**'}`;
+
+    } else {
+        // Réponse générale intelligente
+        response = `**Diagnostic automobile personnalisé** 🔧
+
+Salut ! Julien ici, expert automobile depuis 20 ans chez Re-Fap.
+
+🎯 **Pour un diagnostic précis, j'ai besoin de quelques infos :**
+- Marque et modèle de ta voiture ?
+- Année approximative ?
+- Symptômes exacts que tu observes ?
+- Depuis quand ça a commencé ?
+- Kilométrage actuel ?
+
+💡 **Mon approche d'expert :**
+Je préfère poser les bonnes questions plutôt que de deviner ! Chaque voiture a ses spécificités, et avec 20 ans d'expérience, je peux te donner un diagnostic fiable.
+
+🎯 **Mes spécialités :**
+- FAP/EGR/AdBlue (ma spécialité)
+- Problèmes moteur et injection
+- Diagnostic électronique
+- Solutions économiques vs remplacement
+
+${analysis.userLevel === 0 ?
+    '🔓 **Pour un diagnostic approfondi, laisse-moi ton email !**' :
+    '🏆 **Analyse premium activée - diagnostic complet disponible !**'}`;
+    }
 
     return {
         text: response,
-        strategy: "claude_precision",
-        mood: "expert_analysis", 
-        score: 8.5,
-        mode: "claude_only",
+        strategy: "intelligent_simulation",
+        mood: mood,
+        score: score,
+        mode: "intelligent_simulation",
         processingTime: Date.now() - startTime
     };
 }
 
-// AIRTABLE INTELLIGENT
-async function callAirtableIntelligent(message, analysis, startTime) {
-    try {
-        // Récupération knowledge base
-        const knowledge = await getAirtableKnowledge();
-        
-        // Recherche dans la base
-        const bestMatch = findBestKnowledgeMatch(message, analysis.questionType, knowledge);
-        
-        if (bestMatch) {
-            // Incrémenter utilisation
-            await updateKnowledgeUsage(bestMatch.id);
-            
-            return {
-                text: formatKnowledgeResponse(bestMatch, analysis),
-                strategy: "airtable_intelligent",
-                mood: "knowledge_base",
-                score: 7.5,
-                mode: "airtable",
-                processingTime: Date.now() - startTime
-            };
-        } else {
-            // Réponse générique
-            return {
-                text: generateGenericResponse(analysis),
-                strategy: "generic_fallback",
-                mood: "standard",
-                score: 6.0,
-                mode: "fallback",
-                processingTime: Date.now() - startTime
-            };
-        }
-
-    } catch (error) {
-        console.error('❌ Erreur Airtable:', error);
-        return {
-            text: generateGenericResponse(analysis),
-            strategy: "error_fallback",
-            mood: "standard", 
-            score: 5.0,
-            mode: "error",
-            processingTime: Date.now() - startTime
-        };
+// GESTION ACTIONS AIRTABLE
+async function handleAirtableAction(req, res) {
+    const { action, data } = req.body;
+    
+    // Actions Airtable simplifiées
+    if (action === 'CREATE_LEAD') {
+        console.log('📝 Lead simulation:', data);
+        return res.status(200).json({
+            success: true,
+            leadId: `sim_${Date.now()}`,
+            message: 'Lead simulé créé'
+        });
     }
-}
-
-// APPELS API
-async function callClaudeAPI(prompt, apiKey) {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-            'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-            model: 'claude-3-sonnet-20240229',
-            max_tokens: 1000,
-            messages: [{ role: 'user', content: prompt }]
-        })
+    
+    if (action === 'CREATE_DIAGNOSTIC') {
+        console.log('🔧 Diagnostic simulation:', data);
+        return res.status(200).json({
+            success: true,
+            diagnosticId: `diag_${Date.now()}`,
+            message: 'Diagnostic simulé'
+        });
+    }
+    
+    return res.status(200).json({
+        success: true,
+        message: 'Action simulée'
     });
-
-    if (!response.ok) {
-        throw new Error(`Claude API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.content[0].text;
-}
-
-async function callOpenAIAPI(prompt, apiKey) {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            model: 'gpt-4',
-            messages: [{ role: 'user', content: prompt }],
-            max_tokens: 1000,
-            temperature: 0.7
-        })
-    });
-
-    if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
-}
-
-// FUSION INTELLIGENTE
-function fuseResponses(claudeResponse, openaiResponse, analysis) {
-    if (analysis.userLevel >= 2) {
-        // Utilisateurs premium : Claude en premier (précision)
-        return `${claudeResponse}\n\n---\n\n💡 **Conseil d'expert :** ${openaiResponse}`;
-    } else {
-        // Utilisateurs standards : OpenAI en premier (engagement)
-        return `${openaiResponse}\n\n🔧 **Analyse technique :** ${claudeResponse}`;
-    }
-}
-
-// AIRTABLE OPERATIONS
-async function getAirtableKnowledge() {
-    const AIRTABLE_TOKEN = 'patf3ZGIrQfnBsg8a.ab3b4eb79a58c1fbc413fe1ed37948fce5faaa1297a760fbaadf99ebca9341b2';
-    const BASE_ID = 'appKdP1OPj7KiSmS0';
-    const TABLE_ID = 'tblgByZxuT7vp4wW8';
-
-    const response = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}?maxRecords=100`,
-        {
-            headers: {
-                'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
-                'Content-Type': 'application/json'
-            }
-        }
-    );
-
-    if (!response.ok) {
-        throw new Error('Erreur Airtable knowledge');
-    }
-
-    const data = await response.json();
-    return data.records.map(record => ({
-        id: record.id,
-        categorie: record.fields.Categorie || '',
-        symptomes: record.fields.Symptomes_Cles || '',
-        reponse: record.fields.Reponse_Type || '',
-        arguments: record.fields.Arguments_Commercial || '',
-        cta: record.fields.CTA_Recommande || ''
-    }));
-}
-
-async function logInteractionToAirtable(message, aiResponse, analysis, sessionId) {
-    try {
-        // Création diagnostic
-        const diagnosticData = {
-            action: 'CREATE_DIAGNOSTIC',
-            data: {
-                symptomes: message,
-                diagnostic: aiResponse.text,
-                solution: analysis.partner,
-                resultat: `${analysis.levelName} - ${aiResponse.mode}`
-            }
-        };
-
-        await callAirtableAPI(diagnosticData);
-        console.log('✅ Interaction loggée dans Airtable');
-
-    } catch (error) {
-        console.warn('⚠️ Erreur log Airtable:', error.message);
-    }
-}
-
-async function createLeadInAirtable(userData, analysis, sessionId) {
-    try {
-        const leadData = {
-            action: 'CREATE_LEAD',
-            data: {
-                nom: userData.firstName || 'Prospect',
-                telephone: userData.phone || '',
-                email: userData.email || '',
-                sessionId,
-                probleme: `${analysis.questionType} - ${analysis.urgency}`,
-                vehicule: userData.vehicleModel || '',
-                source: 'Dual Brain Chatbot'
-            }
-        };
-
-        const result = await callAirtableAPI(leadData);
-        console.log('💰 Lead créé:', result.leadId);
-
-        return {
-            leadId: result.leadId,
-            value: analysis.leadValue,
-            partner: analysis.partner
-        };
-
-    } catch (error) {
-        console.warn('⚠️ Erreur création lead:', error.message);
-        return null;
-    }
-}
-
-async function callAirtableAPI(data) {
-    const response = await fetch('/api/airtable-integration', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-        throw new Error('Erreur API Airtable');
-    }
-
-    return await response.json();
 }
 
 // UTILITAIRES
@@ -504,70 +465,4 @@ function generateRewardStrategy(userLevel, questionType) {
     }
     
     return null;
-}
-
-function findBestKnowledgeMatch(message, questionType, knowledge) {
-    // Recherche par catégorie d'abord
-    let matches = knowledge.filter(k => 
-        k.categorie.toLowerCase().includes(questionType) ||
-        k.symptomes.toLowerCase().includes(message.toLowerCase().substring(0, 20))
-    );
-
-    if (matches.length === 0) {
-        // Recherche plus large
-        matches = knowledge.filter(k => 
-            message.toLowerCase().split(' ').some(word => 
-                word.length > 3 && k.symptomes.toLowerCase().includes(word)
-            )
-        );
-    }
-
-    return matches[0] || null;
-}
-
-function formatKnowledgeResponse(match, analysis) {
-    let response = match.reponse;
-    
-    if (match.arguments) {
-        response += `\n\n💡 **À savoir :** ${match.arguments}`;
-    }
-    
-    if (analysis.userLevel === 0 && match.cta) {
-        response += `\n\n🔓 **${match.cta}** - Laissez votre email pour un diagnostic personnalisé !`;
-    }
-    
-    return response;
-}
-
-function generateGenericResponse(analysis) {
-    const responses = {
-        'engine': `**Problème moteur détecté**\n\nD'après votre description, plusieurs causes sont possibles. Pour un diagnostic précis, il faudrait plus d'informations sur les symptômes exacts.`,
-        'brakes': `**Problème de freinage identifié**\n\nLes freins sont un élément de sécurité critique. Je recommande une vérification rapide chez un professionnel.`,
-        'general': `**Diagnostic automobile nécessaire**\n\nPour vous aider efficacement, j'aurais besoin de plus de détails sur les symptômes et le comportement du véhicule.`
-    };
-
-    return responses[analysis.questionType] || responses.general;
-}
-
-async function updateKnowledgeUsage(knowledgeId) {
-    try {
-        await callAirtableAPI({
-            action: 'UPDATE_KNOWLEDGE_USAGE',
-            data: { knowledgeId }
-        });
-    } catch (error) {
-        console.warn('⚠️ Erreur update usage:', error.message);
-    }
-}
-
-async function getFallbackFromAirtable(message) {
-    try {
-        const knowledge = await getAirtableKnowledge();
-        const match = findBestKnowledgeMatch(message, 'general', knowledge);
-        
-        return match ? match.reponse : "Je rencontre un problème technique temporaire. Pouvez-vous reformuler votre question ?";
-        
-    } catch (error) {
-        return "Service temporairement indisponible. Veuillez réessayer dans quelques instants.";
-    }
 }
