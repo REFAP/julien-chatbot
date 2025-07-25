@@ -1,0 +1,9 @@
+{
+  "name": "julien-dual-brain",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.2",
+    "openai": "^4.20.1"
+  }
+}
