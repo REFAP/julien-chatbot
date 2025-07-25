@@ -1,4 +1,4 @@
-// api/chat-dual-brain.js - Version avec dialogue direct et conversationnel
+// api/chat-dual-brain.js - Version avec CTA email optimisé et capture automatique
 
 export default async function handler(req, res) {
   // Configuration CORS
@@ -15,10 +15,41 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Détecter si l'utilisateur a fourni un email
     const { message, userData = {}, sessionId } = req.body;
     
     if (!message) {
       return res.status(400).json({ error: 'Message requis' });
+    }
+
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+    const userEmail = message.match(emailRegex)?.[0];
+    
+    if (userEmail) {
+      // Email détecté = upgrade automatique vers premium gratuit
+      return res.status(200).json({
+        success: true,
+        message: `🎉 **EMAIL CONFIRMÉ : ${userEmail}** 🎉\n\n` +
+          `✅ **DIAGNOSTIC PREMIUM GRATUIT ACTIVÉ !**\n\n` +
+          `📧 **Votre rapport détaillé sera envoyé dans 2 minutes à :**\n` +
+          `${userEmail}\n\n` +
+          `🚀 **Diagnostic en cours de génération...**\n` +
+          `• Analyse technique approfondie de votre problème de freinage\n` +
+          `• Estimation précise des coûts (plaquettes, disques, main d'œuvre)\n` +
+          `• Guide de réparation avec photos étape par étape\n` +
+          `• Liste de garages recommandés dans votre région\n` +
+          `• Conseils anti-arnaque pour négocier\n\n` +
+          `📱 **Vérifiez votre boîte mail dans 2 minutes !**\n` +
+          `*Pensez à vérifier vos spams si besoin*\n\n` +
+          `🎁 **BONUS :** Vous recevrez aussi nos alertes rappels constructeurs !`,
+        metadata: {
+          mode: "🎁 Email Premium Activé",
+          userLevel: 1,
+          leadValue: 85,
+          email: userEmail,
+          timestamp: new Date().toISOString()
+        }
+      });
     }
 
     // Détection niveau utilisateur
@@ -62,6 +93,20 @@ export default async function handler(req, res) {
     if (!response) {
       response = await simulationIntelligente(message, userLevel);
       mode = "simulation_intelligent";
+    }
+
+    // Ajout du CTA email pour niveau 0
+    if (userLevel === 0) {
+      response += `\n\n🎁 **DIAGNOSTIC PREMIUM GRATUIT** 🎁\n`;
+      response += `**Obtenez IMMÉDIATEMENT votre rapport complet :**\n`;
+      response += `✅ Diagnostic précis spécifique à votre véhicule\n`;
+      response += `✅ Estimation exacte des coûts de réparation\n`;
+      response += `✅ Guide de réparation détaillé\n`;
+      response += `✅ Conseils pour éviter l'arnaque garage\n\n`;
+      response += `📧 **TAPEZ VOTRE EMAIL DANS LE CHAT** ⬇️\n`;
+      response += `*Exemple : votre.email@gmail.com*\n`;
+      response += `⚡ **Rapport envoyé automatiquement en 2 minutes !**\n`;
+      response += `\n💡 **BONUS :** Alertes rappels constructeurs + conseils experts gratuits !`;
     }
 
     // Calcul business
@@ -184,7 +229,7 @@ async function fusionDualBrain(message, claudeResponse, openaiResponse, userLeve
   const needType = detectNeedType(message);
   
   if (userLevel === 0) {
-    return `🔧 **Diagnostic Dual Brain Activé** 🧠\n\n${claudeResponse}\n\n💡 **Expertise Complémentaire:**\n${openaiResponse}\n\n🔓 **Pour un diagnostic encore plus poussé avec estimations précises, laisse ton email et on approfondit !**`;
+    return `🔧 **Diagnostic Dual Brain Activé** 🧠\n\n${claudeResponse}\n\n💡 **Expertise Complémentaire:**\n${openaiResponse}`;
   } else {
     return `🧠 **Analyse Dual Brain Premium** 🔧\n\n**Diagnostic Technique (Claude):**\n${claudeResponse}\n\n**Analyse Complémentaire (OpenAI):**\n${openaiResponse}\n\n✅ **Diagnostic complet terminé !**`;
   }
@@ -192,7 +237,7 @@ async function fusionDualBrain(message, claudeResponse, openaiResponse, userLeve
 
 async function formatClaudeResponse(message, claudeResponse, userLevel) {
   if (userLevel === 0) {
-    return `🔧 **Diagnostic Claude Activé** \n\n${claudeResponse}\n\n🔓 **Pour un diagnostic encore plus complet, laisse ton email !**`;
+    return `🔧 **Diagnostic Claude Activé** \n\n${claudeResponse}`;
   } else {
     return `🧠 **Analyse Claude Premium** 🔧\n\n${claudeResponse}`;
   }
@@ -200,7 +245,7 @@ async function formatClaudeResponse(message, claudeResponse, userLevel) {
 
 async function formatOpenAIResponse(message, openaiResponse, userLevel) {
   if (userLevel === 0) {
-    return `🤖 **Diagnostic OpenAI Activé** \n\n${openaiResponse}\n\n🔓 **Pour une expertise encore plus poussée, laisse ton email !**`;
+    return `🤖 **Diagnostic OpenAI Activé** \n\n${openaiResponse}`;
   } else {
     return `🤖 **Analyse OpenAI Premium** 🔧\n\n${openaiResponse}`;
   }
@@ -216,7 +261,7 @@ async function simulationIntelligente(message, userLevel) {
   // Réponses directes et intelligentes selon le problème
   if (needType === "brakes") {
     if (userLevel === 0) {
-      baseResponse = `🔧 **Diagnostic Freinage** 🚗\n\nD'après ta description "${message}", je détecte un problème de freinage qui nécessite une attention immédiate.\n\n**Questions importantes :**\n• Le bruit apparaît-il au freinage ou en roulant ?\n• Est-ce un grincement, un couinement ou un bruit métallique ?\n• Le frein tire-t-il d'un côté ?\n\n⚠️ **Sécurité prioritaire** : Les freins sont un élément vital, un contrôle rapide est recommandé.\n\n🔓 **Pour un diagnostic complet avec estimation des coûts, laisse ton email et j'approfondis ton cas !**`;
+      baseResponse = `🔧 **Diagnostic Freinage** 🚗\n\nD'après ta description "${message}", je détecte un problème de freinage qui nécessite une attention immédiate.\n\n**Questions importantes :**\n• Le bruit apparaît-il au freinage ou en roulant ?\n• Est-ce un grincement, un couinement ou un bruit métallique ?\n• Le frein tire-t-il d'un côté ?\n\n⚠️ **Sécurité prioritaire** : Les freins sont un élément vital, un contrôle rapide est recommandé.\n\n🎯 **POUR VOTRE DIAGNOSTIC COMPLET GRATUIT :**\n📧 **Tapez simplement votre email dans le chat** ⬇️\n*Exemple : votre.nom@gmail.com*\n\n⚡ **Vous recevrez automatiquement :**\n• Analyse précise de votre problème\n• Estimation exacte des coûts\n• Guide photos étape par étape\n• Garages recommandés près de chez vous`;
     } else {
       baseResponse = `🧠 **Diagnostic Freinage Premium** 🔧\n\nAnalyse de "${message}" :\n\n**Causes probables :**\n• Plaquettes usées (80% des cas) - 120-250€\n• Disques voilés (15% des cas) - 200-400€ \n• Étriers grippés (5% des cas) - 150-300€\n\n**Diagnostic immédiat recommandé** - La sécurité avant tout !\n\n✅ **Estimation moyenne : 150-300€** selon l'intervention nécessaire.`;
     }
@@ -224,13 +269,13 @@ async function simulationIntelligente(message, userLevel) {
   else if (needType === "engine") {
     if (lowerMessage.includes("voyant")) {
       if (userLevel === 0) {
-        baseResponse = `🔧 **Diagnostic Voyant Moteur** ⚠️\n\nVoyant moteur détecté dans "${message}".\n\n**Questions essentielles :**\n• Quelle couleur ? (Orange/Rouge)\n• Il clignote ou reste fixe ?\n• Depuis combien de temps ?\n• Perte de puissance ressentie ?\n\n**Diagnostic nécessaire** - Le voyant indique un dysfonctionnement à identifier.\n\n🔓 **Pour une analyse complète avec diagnostic précis, laisse ton email !**`;
+        baseResponse = `🔧 **Diagnostic Voyant Moteur** ⚠️\n\nVoyant moteur détecté dans "${message}".\n\n**Questions essentielles :**\n• Quelle couleur ? (Orange/Rouge)\n• Il clignote ou reste fixe ?\n• Depuis combien de temps ?\n• Perte de puissance ressentie ?\n\n**Diagnostic nécessaire** - Le voyant indique un dysfonctionnement à identifier.\n\n🎯 **DIAGNOSTIC COMPLET GRATUIT :**\n📧 **Tapez votre email dans le chat** ⬇️\n*Exemple : votre.nom@gmail.com*`;
       } else {
         baseResponse = `🧠 **Analyse Voyant Moteur Premium** ⚠️\n\nAnalyse de "${message}" :\n\n**Si orange fixe :** Pollution/FAP (60%) - 150-400€\n**Si orange clignotant :** Allumage/injection (25%) - 100-250€\n**Si rouge :** Urgence moteur (15%) - 200-800€\n\n**Action immédiate :** Diagnostic OBD obligatoire pour identifier le code défaut exact.\n\n✅ **Diagnostic OBD : 60-80€** + intervention selon code défaut.`;
       }
     } else if (lowerMessage.includes("fap") || lowerMessage.includes("egr")) {
       if (userLevel === 0) {
-        baseResponse = `🔧 **Diagnostic FAP/EGR** 🌪️\n\nProblème FAP/EGR détecté dans "${message}".\n\n**Symptômes à préciser :**\n• Voyant anti-pollution allumé ?\n• Perte de puissance ?\n• Fumée noire à l'échappement ?\n• Type de conduite (ville/route) ?\n\n**Mon expertise** : FAP/EGR sont ma spécialité Re-Fap !\n\n🔓 **Pour un diagnostic sur-mesure FAP/EGR, laisse ton email !**`;
+        baseResponse = `🔧 **Diagnostic FAP/EGR** 🌪️\n\nProblème FAP/EGR détecté dans "${message}".\n\n**Symptômes à préciser :**\n• Voyant anti-pollution allumé ?\n• Perte de puissance ?\n• Fumée noire à l'échappement ?\n• Type de conduite (ville/route) ?\n\n**Mon expertise** : FAP/EGR sont ma spécialité Re-Fap !\n\n🎯 **DIAGNOSTIC FAP/EGR GRATUIT :**\n📧 **Tapez votre email dans le chat** ⬇️\n*Exemple : votre.nom@gmail.com*`;
       } else {
         baseResponse = `🧠 **Expertise FAP/EGR Premium** 🌪️\n\nAnalyse spécialisée de "${message}" :\n\n**Solutions FAP/EGR :**\n• Régénération forcée - 80-120€\n• Nettoyage FAP/EGR - 150-250€\n• Remplacement FAP - 800-1500€\n• Reprogrammation légale - 400-600€\n\n**Ma recommandation** : Diagnostic approfondi pour solution optimale.\n\n✅ **Spécialiste Re-Fap** - Solutions sur-mesure selon ton usage !`;
       }
@@ -238,14 +283,14 @@ async function simulationIntelligente(message, userLevel) {
   }
   else if (needType === "power") {
     if (userLevel === 0) {
-      baseResponse = `🔧 **Diagnostic Perte Puissance** ⚡\n\nPerte de puissance détectée dans "${message}".\n\n**À préciser :**\n• Perte progressive ou brutale ?\n• À chaud ou à froid ?\n• Voyants allumés ?\n• Fumée d'échappement ?\n\n**Causes multiples possibles** - Diagnostic nécessaire pour cibler.\n\n🔓 **Pour identifier la cause exacte, laisse ton email !**`;
+      baseResponse = `🔧 **Diagnostic Perte Puissance** ⚡\n\nPerte de puissance détectée dans "${message}".\n\n**À préciser :**\n• Perte progressive ou brutale ?\n• À chaud ou à froid ?\n• Voyants allumés ?\n• Fumée d'échappement ?\n\n**Causes multiples possibles** - Diagnostic nécessaire pour cibler.\n\n🎯 **DIAGNOSTIC COMPLET GRATUIT :**\n📧 **Tapez votre email dans le chat** ⬇️\n*Exemple : votre.nom@gmail.com*`;
     } else {
       baseResponse = `🧠 **Analyse Perte Puissance Premium** ⚡\n\nAnalyse de "${message}" :\n\n**Causes fréquentes :**\n• Turbo défaillant (40%) - 500-1200€\n• Injection/allumage (30%) - 150-400€\n• FAP colmaté (20%) - 150-300€\n• Capteurs HS (10%) - 80-200€\n\n**Diagnostic prioritaire** pour cibler l'intervention.\n\n✅ **Estimation : 150-1200€** selon la cause identifiée.`;
     }
   }
   else {
     if (userLevel === 0) {
-      baseResponse = `🔧 **Diagnostic Auto Général** 🚗\n\nAnalyse de "${message}".\n\n**Pour un diagnostic précis, j'ai besoin de plus d'infos :**\n• Symptômes exacts ?\n• Quand ça arrive ?\n• Voyants allumés ?\n• Bruits particuliers ?\n\n**Expert automobile** prêt à t'aider !\n\n🔓 **Pour un diagnostic sur-mesure, laisse ton email !**`;
+      baseResponse = `🔧 **Diagnostic Auto Général** 🚗\n\nAnalyse de "${message}".\n\n**Pour un diagnostic précis, j'ai besoin de plus d'infos :**\n• Symptômes exacts ?\n• Quand ça arrive ?\n• Voyants allumés ?\n• Bruits particuliers ?\n\n**Expert automobile** prêt à t'aider !\n\n🎯 **DIAGNOSTIC COMPLET GRATUIT :**\n📧 **Tapez votre email dans le chat** ⬇️\n*Exemple : votre.nom@gmail.com*`;
     } else {
       baseResponse = `🧠 **Diagnostic Auto Premium** 🔧\n\nAnalyse approfondie de "${message}" :\n\n**Méthodologie experte :**\n• Identification symptômes\n• Diagnostic différentiel\n• Estimation coûts\n• Solutions optimales\n\n**Mon expertise** à ton service pour résoudre ton problème !\n\n✅ **Diagnostic personnalisé** selon tes symptômes précis.`;
     }
