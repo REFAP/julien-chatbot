@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Julien - Expert FAP Re-Fap | Diagnostic Gratuit</title>
-    <meta name="description" content="Diagnostic gratuit FAP/EGR/AdBlue avec Julien, expert depuis 20 ans. Analysez vos voyants moteur, obtenez solutions et devis Re-Fap.">
+    <title>Julien - Expert FAP Re-Fap | Diagnostic Gratuit IA</title>
+    <meta name="description" content="Diagnostic gratuit FAP/EGR/AdBlue avec Julien, expert IA depuis 20 ans. Dual Brain Claude+OpenAI pour solutions premium.">
     
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -17,17 +17,19 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const JulienProductionIntelligentCommercial = () => {
+        const JulienDualBrainChatbot = () => {
             const [messages, setMessages] = useState([
                 {
                     type: 'bot',
-                    content: "Salut ! 👋 Moi c'est Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Je vais diagnostiquer ton problème GRATUITEMENT ! Décris-moi ton souci ou envoie une photo de ton voyant 📸",
+                    content: "Salut ! 👋 Moi c'est Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Mon IA Dual Brain va diagnostiquer ton problème GRATUITEMENT ! Décris-moi ton souci ou envoie une photo 📸",
                     timestamp: new Date()
                 }
             ]);
             const [inputMessage, setInputMessage] = useState('');
             const [isTyping, setIsTyping] = useState(false);
             const [showCallbackForm, setShowCallbackForm] = useState(false);
+            const [showUpgradeForm, setShowUpgradeForm] = useState(false);
+            const [userData, setUserData] = useState({});
             const [callbackData, setCallbackData] = useState({
                 nom: '',
                 telephone: '',
@@ -38,32 +40,16 @@
             const [leadData, setLeadData] = useState({
                 sessionId: Math.random().toString(36).substr(2, 9),
                 startTime: new Date(),
-                symptoms: [],
-                vehicle: {},
-                profile: '',
-                contactRequested: false
+                interactions: 0
             });
 
-            // États pour Airtable
-            const [knowledgeBase, setKnowledgeBase] = useState([]);
-            const [knowledgeLoaded, setKnowledgeLoaded] = useState(false);
-            const [interactionCount, setInteractionCount] = useState(0);
+            // États Dual Brain
+            const [userLevel, setUserLevel] = useState(0);
+            const [aiMode, setAiMode] = useState('simulation');
+            const [leadValue, setLeadValue] = useState(0);
+            const [conversionStrategy, setConversionStrategy] = useState(null);
 
-            // Charger Knowledge Base au démarrage
             useEffect(() => {
-                const initKnowledge = async () => {
-                    console.log('🚀 Chargement Knowledge Base Airtable...');
-                    const knowledge = await loadKnowledgeBase();
-                    setKnowledgeBase(knowledge);
-                    setKnowledgeLoaded(true);
-                    
-                    if (knowledge.length > 0) {
-                        console.log('📚 Knowledge Base prête:', knowledge.length, 'expertises');
-                        trackEvent('knowledge_loaded', { count: knowledge.length });
-                    }
-                };
-                
-                initKnowledge();
                 trackEvent('session_start', { sessionId: leadData.sessionId });
             }, []);
 
@@ -80,315 +66,60 @@
                 }]);
             };
 
-            // Fonction pour charger la Knowledge Base
-            const loadKnowledgeBase = async () => {
+            // 🧠 FONCTION DUAL BRAIN PRINCIPALE
+            const getDualBrainResponse = async (userMsg) => {
                 try {
-                    console.log('📚 Chargement Knowledge Base...');
+                    console.log('🧠 Dual Brain IA activé...');
                     
-                    const response = await fetch('/api/airtable-integration', {
+                    // Appel au Dual Brain
+                    const response = await fetch('/api/chat-dual-brain', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            action: 'GET_KNOWLEDGE'
+                            message: userMsg,
+                            userData: userData,
+                            sessionId: leadData.sessionId
                         })
                     });
 
                     const data = await response.json();
                     
-                    if (data.success) {
-                        console.log('✅ Knowledge Base chargée:', data.knowledge.length, 'entrées');
-                        return data.knowledge;
-                    }
-                    
-                    return [];
-                } catch (error) {
-                    console.warn('⚠️ Erreur chargement Knowledge:', error.message);
-                    return [];
-                }
-            };
-
-            // Fonction pour logger les interactions
-            const logInteractionToAirtable = async (sessionId, userMessage, botResponse, metadata = {}) => {
-                try {
-                    await fetch('/api/airtable-integration', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'CREATE_DIAGNOSTIC',
-                            data: {
-                                symptomes: userMessage,
-                                marque: metadata.vehicleBrand || '',
-                                annee: metadata.vehicleYear || null,
-                                codes: metadata.errorCodes || '',
-                                diagnostic: botResponse.substring(0, 500),
-                                solution: metadata.solution || '',
-                                resultat: metadata.outcome || 'En cours',
-                                photoUrl: metadata.photoUrl || ''
-                            }
-                        })
-                    });
-                    
-                    console.log('🗄️ Interaction loggée dans Airtable');
-                    
-                    // Incrémenter compteur knowledge si utilisée
-                    if (metadata.knowledgeUsed) {
-                        await fetch('/api/airtable-integration', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                action: 'UPDATE_KNOWLEDGE_USAGE',
-                                data: { knowledgeId: metadata.knowledgeUsed }
-                            })
-                        });
-                    }
-                    
-                } catch (error) {
-                    console.warn('⚠️ Failed to log interaction:', error.message);
-                }
-            };
-
-            // Enrichir Claude avec Knowledge Base
-            const enrichClaudeWithKnowledge = (userMessage, knowledgeBase) => {
-                try {
-                    const keywords = extractKeywords(userMessage);
-                    
-                    // Trouver les entrées pertinentes
-                    const relevantKnowledge = knowledgeBase.filter(entry => {
-                        const entryKeywords = (entry.symptomes || '').toLowerCase();
-                        return keywords.some(keyword => entryKeywords.includes(keyword));
-                    });
-                    
-                    if (relevantKnowledge.length === 0) {
-                        return { context: '', knowledgeUsed: null };
-                    }
-                    
-                    // Trier par utilisation (popularité)
-                    relevantKnowledge.sort((a, b) => (b.utilisation || 0) - (a.utilisation || 0));
-                    
-                    // Prendre les 2 meilleures entrées
-                    const topEntries = relevantKnowledge.slice(0, 2);
-                    
-                    const knowledgeContext = topEntries.map(entry => 
-                        `📚 EXPERTISE AIRTABLE - ${entry.categorie} :
-Symptômes clés: ${entry.symptomes}
-Marques concernées: ${entry.marques}
-Réponse type: ${entry.reponse}
-Arguments commerciaux: ${entry.arguments}
-CTA recommandé: ${entry.cta || 'Commander nettoyage Re-Fap'}`
-                    ).join('\n\n');
-                    
-                    return {
-                        context: knowledgeContext,
-                        knowledgeUsed: topEntries[0]?.id || null
-                    };
-                    
-                } catch (error) {
-                    console.warn('⚠️ Erreur enrichissement knowledge:', error.message);
-                    return { context: '', knowledgeUsed: null };
-                }
-            };
-
-            // Extraction de mots-clés améliorée
-            const extractKeywords = (message) => {
-                const keywords = [];
-                const lowerMessage = message.toLowerCase();
-                
-                // Symptômes FAP/EGR
-                if (lowerMessage.includes('fume') || lowerMessage.includes('fumée')) keywords.push('fumee');
-                if (lowerMessage.includes('voyant')) keywords.push('voyant');
-                if (lowerMessage.includes('fap')) keywords.push('fap');
-                if (lowerMessage.includes('egr')) keywords.push('egr');
-                if (lowerMessage.includes('adblue')) keywords.push('adblue');
-                if (lowerMessage.includes('puissance')) keywords.push('puissance');
-                if (lowerMessage.includes('consommation') || lowerMessage.includes('consomme')) keywords.push('consommation');
-                if (lowerMessage.includes('régénération') || lowerMessage.includes('regeneration')) keywords.push('regeneration');
-                if (lowerMessage.includes('encrassé') || lowerMessage.includes('encrasse')) keywords.push('encrassement');
-                if (lowerMessage.includes('moteur')) keywords.push('moteur');
-                if (lowerMessage.includes('bruit')) keywords.push('bruit');
-                if (lowerMessage.includes('fuite')) keywords.push('fuite');
-                
-                // Marques sensibles
-                if (lowerMessage.includes('peugeot')) keywords.push('peugeot');
-                if (lowerMessage.includes('citroën') || lowerMessage.includes('citroen')) keywords.push('citroen');
-                if (lowerMessage.includes('renault')) keywords.push('renault');
-                if (lowerMessage.includes('bmw')) keywords.push('bmw');
-                if (lowerMessage.includes('mercedes')) keywords.push('mercedes');
-                if (lowerMessage.includes('audi')) keywords.push('audi');
-                if (lowerMessage.includes('volkswagen') || lowerMessage.includes('vw')) keywords.push('volkswagen');
-                
-                // Codes erreur
-                if (lowerMessage.includes('p2002')) keywords.push('code_p2002');
-                if (lowerMessage.includes('p2463')) keywords.push('code_p2463');
-                if (lowerMessage.includes('p0401')) keywords.push('code_egr');
-                
-                return keywords;
-            };
-
-            // Détecter infos véhicule
-            const extractVehicleInfo = (message) => {
-                const lowerMessage = message.toLowerCase();
-                let vehicleBrand = '';
-                let vehicleYear = null;
-                
-                // Détecter marque
-                const brands = ['peugeot', 'citroën', 'citroen', 'renault', 'bmw', 'mercedes', 'audi', 'volkswagen', 'vw'];
-                for (const brand of brands) {
-                    if (lowerMessage.includes(brand)) {
-                        vehicleBrand = brand === 'citroen' ? 'citroën' : brand;
-                        break;
-                    }
-                }
-                
-                // Détecter année (regex pour 4 chiffres entre 2000 et 2025)
-                const yearMatch = message.match(/\b(20[0-2][0-9])\b/);
-                if (yearMatch) {
-                    vehicleYear = parseInt(yearMatch[1]);
-                }
-                
-                return { vehicleBrand, vehicleYear };
-            };
-
-            // ⭐ NOUVELLE VERSION INTELLIGENTE - getClaudeResponse
-            const getClaudeResponse = async (userMsg, conversationHistory) => {
-                try {
-                    console.log('🧠 Claude IA Intelligente + Airtable activé...');
-                    
-                    // 1. Extraire infos du message
-                    const { vehicleBrand, vehicleYear } = extractVehicleInfo(userMsg);
-                    const keywords = extractKeywords(userMsg);
-                    
-                    // 2. Enrichir avec Knowledge Base
-                    const { context: knowledgeContext, knowledgeUsed } = enrichClaudeWithKnowledge(userMsg, knowledgeBase);
-                    
-                    // 3. 🧠 PROMPT JULIEN INTELLIGENT + PROGRESSIF
-                    const enrichedPrompt = `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap.
-
-${knowledgeContext ? `${knowledgeContext}
-
-📚 CONTEXTE AIRTABLE : Utilise ces données comme base de connaissance.` : ''}
-
-🧠 APPROCHE PROGRESSIVE EN 3 PHASES :
-
-🔍 PHASE 1 - EXPERT TECHNIQUE (si infos insuffisantes) :
-- "Intéressant... Laisse-moi analyser ces symptômes..."
-- "D'après mon expérience, ces éléments peuvent indiquer plusieurs choses..."
-- "Pour établir un diagnostic précis, j'ai besoin de quelques infos :"
-- Pose 2-3 questions techniques pertinentes
-- Montre ton expertise sans conclure
-
-🎯 PHASE 2 - DIAGNOSTIC ÉCLAIRÉ (si assez d'infos) :
-- "Parfait ! Avec ces éléments, voici mon analyse experte..."
-- "Ces symptômes + ton véhicule = diagnostic clair :"
-- Explication technique détaillée
-- "Maintenant, parlons solutions intelligentes..."
-
-💰 PHASE 3 - SOLUTIONS COMMERCIALES (après diagnostic) :
-- Présenter les options clairement
-- Arguments Re-Fap vs concurrence
-- "Tu veux qu'on règle ça ? Ou je te rappelle sous 2h ?"
-
-🚫 RÈGLES STRICTES :
-
-1. JAMAIS vendre sans diagnostic complet
-2. TOUJOURS poser des questions avant de conclure
-3. MONTRER l'expertise technique avant le commercial
-4. CONSTRUIRE la confiance avant la vente
-5. Maximum 120 mots par réponse
-
-📊 EXEMPLES CONCRETS :
-
-❌ TROP COMMERCIAL TROP TÔT :
-"Voyant FAP = FAP encrassé ! Nettoyage 99€ vs remplacement 1000€. Tu économises 900€ ! Je te rappelle ?"
-
-✅ APPROCHE PROGRESSIVE :
-"Intéressant, un voyant FAP... Ça peut indiquer plusieurs niveaux de problème.
-
-D'après mon expérience, j'ai besoin de 3 infos pour un diagnostic précis :
-- Depuis quand ce voyant est allumé ?
-- Tu fais plutôt ville ou autoroute ?
-- Marque/année de ton véhicule ?
-
-Avec ça, je pourrai te dire exactement ce qui se passe et les meilleures solutions ! 🔧"
-
-🎯 OBJECTIF : Être un EXPERT qui DIAGNOSTIQUE, puis un COMMERCIAL qui CONSEILLE !
-
-RESTE NATUREL ET FRANÇAIS !`;
-
-                    // 4. Construire historique Claude
-                    const claudeHistory = conversationHistory.slice(-6).map(msg => ({
-                        role: msg.type === 'user' ? 'user' : 'assistant',
-                        content: typeof msg.content === 'string' ? msg.content : 'Message système'
-                    }));
-                    
-                    claudeHistory.push({
-                        role: 'user',
-                        content: userMsg
-                    });
-
-                    // 5. Appel Claude
-                    const response = await fetch('/api/analyze-image', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            conversation: claudeHistory,
-                            prompt: enrichedPrompt
-                        })
-                    });
-
-                    const data = await response.json();
-                    let botResponse = '';
-                    let success = false;
-                    
-                    if (data.success && data.analysis) {
-                        botResponse = data.analysis;
-                        success = true;
-                        trackEvent('claude_intelligent_success', { knowledgeUsed: !!knowledgeUsed });
+                    if (data.success && data.message) {
+                        console.log('✅ Dual Brain success:', data.metadata?.aiMode);
+                        
+                        // Mise à jour des données business
+                        if (data.rewardSystem) {
+                            setUserLevel(data.rewardSystem.userLevel);
+                            setLeadValue(data.rewardSystem.leadValue);
+                            setConversionStrategy(data.rewardSystem.conversionStrategy);
+                        }
+                        
+                        setAiMode(data.metadata?.aiMode || 'dual_brain');
+                        setLeadData(prev => ({ ...prev, interactions: prev.interactions + 1 }));
+                        
+                        // Proposition d'upgrade si strategy disponible
+                        if (data.rewardSystem?.conversionStrategy && userLevel === 0) {
+                            setTimeout(() => {
+                                setShowUpgradeForm(true);
+                            }, 2000);
+                        }
+                        
+                        return {
+                            text: data.message,
+                            mode: data.metadata?.aiMode || 'dual_brain',
+                            score: data.score || 8.0
+                        };
                     } else {
-                        botResponse = data.fallback || "Salut ! Décris-moi ton problème auto, je vais l'analyser avec attention ! 🔧";
-                        trackEvent('claude_fallback', { error: data.error });
+                        throw new Error(data.error || 'Erreur Dual Brain');
                     }
                     
-                    // 6. Logger dans Airtable
-                    await logInteractionToAirtable(
-                        leadData.sessionId,
-                        userMsg,
-                        botResponse,
-                        {
-                            vehicleBrand,
-                            vehicleYear,
-                            errorCodes: keywords.filter(k => k.startsWith('code_')).join(', '),
-                            solution: success ? 'Claude IA intelligent + Airtable' : 'Fallback',
-                            outcome: success ? 'Succès' : 'Échec',
-                            knowledgeUsed
-                        }
-                    );
-                    
-                    // 7. Incrémenter compteur interactions
-                    setInteractionCount(prev => prev + 1);
-                    
-                    console.log('✅ Claude IA intelligent + Airtable logged');
-                    return botResponse;
-                    
                 } catch (error) {
-                    console.error('💥 Erreur Claude intelligent:', error);
-                    
-                    // Log erreur dans Airtable
-                    await logInteractionToAirtable(
-                        leadData.sessionId,
-                        userMsg,
-                        'Erreur technique',
-                        {
-                            solution: 'Erreur',
-                            outcome: 'Échec technique',
-                            errorDetails: error.message
-                        }
-                    );
-                    
-                    trackEvent('claude_error', { error: error.message });
-                    
-                    return `Salut ! Décris-moi ton problème auto, je vais l'analyser avec mon expertise ! 
-
-Erreur temporaire : ${error.message}`;
+                    console.error('❌ Erreur Dual Brain:', error);
+                    return {
+                        text: `Salut ! Décris-moi ton problème auto, je vais l'analyser ! 🔧\n\nErreur temporaire : ${error.message}`,
+                        mode: 'fallback',
+                        score: 5.0
+                    };
                 }
             };
 
@@ -403,12 +134,12 @@ Erreur temporaire : ${error.message}`;
 
                 trackEvent('message_sent', { 
                     message: userMsg.substring(0, 50),
-                    knowledgeAvailable: knowledgeLoaded
+                    userLevel
                 });
 
-                // APPEL VERSION INTELLIGENTE
-                const response = await getClaudeResponse(userMsg, messages);
-                addMessage(response, 'bot', 'claude_intelligent');
+                // Appel Dual Brain
+                const response = await getDualBrainResponse(userMsg);
+                addMessage(response.text, 'bot', response.mode);
                 setIsTyping(false);
             };
 
@@ -425,7 +156,7 @@ Erreur temporaire : ${error.message}`;
                     trackEvent('photo_uploaded', { 
                         fileName: file.name, 
                         fileSize: file.size,
-                        knowledgeAvailable: knowledgeLoaded
+                        userLevel
                     });
                     
                     // Compression d'image
@@ -472,113 +203,14 @@ Erreur temporaire : ${error.message}`;
                             });
                         }
 
-                        // Enrichir prompt photo avec Knowledge Base
-                        const { context: knowledgeContext, knowledgeUsed } = enrichClaudeWithKnowledge(
-                            'Photo voyant tableau de bord', 
-                            knowledgeBase
-                        );
-                        
-                        const enrichedPhotoPrompt = `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap.
-
-${knowledgeContext ? `${knowledgeContext}
-
-🎯 UTILISE CETTE EXPERTISE AIRTABLE pour analyser la photo !` : ''}
-
-🧠 ANALYSE INTELLIGENTE ET PROGRESSIVE DE PHOTO :
-
-⚡ ÉTAPE 1 - OBSERVATION EXPERTE (OBLIGATOIRE) :
-- "Intéressant, laisse-moi analyser cette photo en détail..."
-- "Je distingue sur ton tableau de bord..."
-- "D'après ce que j'observe, il y a plusieurs éléments à analyser..."
-
-📋 ÉTAPE 2 - QUESTIONS DE DIAGNOSTIC (AVANT TOUTE CONCLUSION) :
-- "Pour affiner mon diagnostic, j'ai besoin de quelques précisions :"
-- "Depuis quand ce voyant est-il allumé ?"
-- "As-tu remarqué d'autres symptômes ? (fumée, perte puissance, bruit...)"
-- "Quelle est la marque/modèle/année de ton véhicule ?"
-- "À quelle fréquence fais-tu des trajets longs (>30km) ?"
-
-🎯 ÉTAPE 3 - DIAGNOSTIC PROGRESSIF (SEULEMENT APRÈS QUESTIONS) :
-- "Avec ces éléments, voici mon analyse experte..."
-- "Ce pattern de voyants + tes symptômes pointent vers..."
-- "Ça confirme mes premières observations..."
-
-🚫 RÈGLES STRICTES ANALYSE PHOTO :
-
-1. JAMAIS de conclusion immédiate après une photo
-2. TOUJOURS poser 2-3 questions techniques avant diagnostic
-3. MONTRER ton expertise par l'observation détaillée
-4. PAS de prix ou commercial dans la première réponse photo
-5. Construire la confiance avant de vendre
-
-📸 EXEMPLE PARFAIT ANALYSE PHOTO :
-
-❌ MAUVAIS (actuel) :
-"Je vois que ton FAP est encrassé, il faut agir rapidement ! Nettoyage 99€ vs remplacement 1000€. Tu veux qu'on regarde les disponibilités ?"
-
-✅ BON (nouveau) :
-"Intéressant, laisse-moi analyser cette photo en détail...
-
-Sur ton tableau de bord, je distingue le voyant FAP allumé avec le symbole caractéristique. L'affichage semble indiquer un problème de régénération.
-
-Pour affiner mon diagnostic d'expert, j'aurais besoin de quelques précisions :
-- Depuis combien de temps ce voyant est-il allumé ?
-- As-tu remarqué de la fumée ou une perte de puissance ?
-- Quelle est la marque et l'année de ton véhicule ?
-
-Avec ces infos, je pourrai te donner un diagnostic précis et les meilleures solutions ! 🔧"
-
-🎯 OBJECTIF : Être un EXPERT qui ANALYSE, pas un VENDEUR qui CONCLUT !`;
-                        
-                        // Analyse photo avec Claude
-                        const response = await fetch('/api/analyze-image', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                image: imageData,
-                                prompt: enrichedPhotoPrompt
-                            })
-                        });
-
-                        const data = await response.json();
-                        
-                        if (data.success && data.analysis) {
-                            addMessage(`📸 **ANALYSE PHOTO INTELLIGENTE + AIRTABLE** 🧠\n\n${data.analysis}`, 'bot', 'claude_photo_intelligent');
-                            
-                            // Logger analyse photo
-                            await logInteractionToAirtable(
-                                leadData.sessionId,
-                                `Photo: ${file.name}`,
-                                data.analysis,
-                                {
-                                    vehicleBrand: '',
-                                    photoUrl: 'uploaded',
-                                    solution: 'Analyse photo intelligente',
-                                    outcome: 'Photo analysée',
-                                    knowledgeUsed
-                                }
-                            );
-                        } else {
-                            addMessage(`📸 Photo reçue ! Laisse-moi analyser ça avec attention... Dis-moi ce que tu vois : voyants allumés, messages affichés ?`, 'bot', 'auto');
-                        }
+                        // Analyse photo avec Dual Brain
+                        const photoPrompt = `Photo voyant tableau de bord - ${file.name}`;
+                        const response = await getDualBrainResponse(photoPrompt);
+                        addMessage(`📸 **ANALYSE PHOTO DUAL BRAIN** 🧠\n\n${response.text}`, 'bot', response.mode);
                         
                     } catch (error) {
                         console.error('❌ Erreur upload:', error);
                         addMessage(`❌ Erreur analyse : ${error.message}`, 'bot');
-                        
-                        // Logger erreur
-                        await logInteractionToAirtable(
-                            leadData.sessionId,
-                            `Photo: ${file.name}`,
-                            'Erreur analyse photo',
-                            {
-                                solution: 'Erreur photo',
-                                outcome: 'Échec upload',
-                                errorDetails: error.message
-                            }
-                        );
                     }
                     
                     setIsTyping(false);
@@ -587,17 +219,48 @@ Avec ces infos, je pourrai te donner un diagnostic précis et les meilleures sol
             };
 
             const handleGarageClick = () => {
-                trackEvent('garage_redirect', { sessionId: leadData.sessionId });
+                trackEvent('garage_redirect', { sessionId: leadData.sessionId, userLevel });
                 window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank');
             };
 
             const handleCallbackClick = () => {
-                trackEvent('callback_requested', { sessionId: leadData.sessionId });
+                trackEvent('callback_requested', { sessionId: leadData.sessionId, userLevel });
                 setShowCallbackForm(true);
                 addMessage("Je souhaite être rappelé gratuitement", 'user');
                 setTimeout(() => {
-                    addMessage("📞 **Formulaire de rappel activé !**\n\nRemplis le formulaire qui s'affiche pour être recontacté ! 🎯", 'bot', 'form');
+                    addMessage("📞 **Formulaire de rappel activé !**\n\nRemplis le formulaire pour être recontacté ! 🎯", 'bot', 'form');
                 }, 500);
+            };
+
+            const handleUpgradeClick = () => {
+                setShowUpgradeForm(true);
+                trackEvent('upgrade_requested', { userLevel, leadValue });
+            };
+
+            const handleUpgradeSubmit = async (e) => {
+                e.preventDefault();
+                
+                if (!callbackData.email) {
+                    alert('Email obligatoire pour le diagnostic premium !');
+                    return;
+                }
+
+                // Mise à jour userData
+                const newUserData = {
+                    ...userData,
+                    email: callbackData.email,
+                    firstName: callbackData.nom,
+                    location: callbackData.vehicule
+                };
+                setUserData(newUserData);
+                setUserLevel(1);
+
+                addMessage(`✅ **Diagnostic Premium Activé !** 🎯\n\nMerci ${callbackData.nom} ! Ton niveau utilisateur a été upgraded. Pose-moi maintenant ta question pour une analyse premium !`, 'bot', 'upgrade_success');
+
+                setShowUpgradeForm(false);
+                setCallbackData({ nom: '', telephone: '', email: '', probleme: '', vehicule: '' });
+                
+                trackEvent('upgrade_completed', { newLevel: 1, email: callbackData.email });
             };
 
             const handleCallbackSubmit = async (e) => {
@@ -608,44 +271,43 @@ Avec ces infos, je pourrai te donner un diagnostic précis et les meilleures sol
                     return;
                 }
 
+                // Mise à jour userData pour niveau 2
+                const newUserData = {
+                    ...userData,
+                    email: callbackData.email,
+                    phone: callbackData.telephone,
+                    firstName: callbackData.nom,
+                    vehicleModel: callbackData.vehicule
+                };
+                setUserData(newUserData);
+                setUserLevel(2);
+
                 try {
-                    console.log('📧 Envoi email automatique...');
+                    console.log('📧 Envoi lead Dual Brain...');
                     
-                    // 1. ENREGISTRER LE LEAD DANS AIRTABLE
+                    // Création lead via Dual Brain
                     try {
-                        const leadResponse = await fetch('/api/airtable-integration', {
+                        const leadResponse = await fetch('/api/chat-dual-brain', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 action: 'CREATE_LEAD',
-                                data: {
-                                    nom: callbackData.nom,
-                                    telephone: callbackData.telephone,
-                                    email: callbackData.email,
-                                    sessionId: leadData.sessionId,
-                                    probleme: callbackData.probleme,
-                                    vehicule: callbackData.vehicule,
-                                    source: 'Formulaire IA Intelligent'
-                                }
+                                userData: newUserData,
+                                sessionId: leadData.sessionId,
+                                message: `Lead rappel: ${callbackData.probleme}`
                             })
                         });
 
                         const leadResult = await leadResponse.json();
                         if (leadResult.success) {
-                            console.log('🗄️ Lead intelligent enregistré dans Airtable:', leadResult.leadId);
-                            trackEvent('airtable_lead_created', { 
-                                sessionId: leadData.sessionId,
-                                leadId: leadResult.leadId,
-                                interactions: interactionCount
-                            });
+                            console.log('🗄️ Lead Dual Brain créé:', leadResult.leadInfo);
                         }
-                    } catch (airtableError) {
-                        console.warn('⚠️ Airtable lead failed:', airtableError.message);
+                    } catch (error) {
+                        console.warn('⚠️ Lead creation failed:', error.message);
                     }
 
-                    // 2. ENVOI EMAIL (code existant)
+                    // Envoi email
                     try {
-                        // Charger EmailJS de manière sécurisée
                         if (typeof emailjs === 'undefined') {
                             console.log('📦 Chargement EmailJS...');
                             await new Promise((resolve, reject) => {
@@ -654,21 +316,19 @@ Avec ces infos, je pourrai te donner un diagnostic précis et les meilleures sol
                                 script.onload = resolve;
                                 script.onerror = reject;
                                 document.head.appendChild(script);
-                                setTimeout(reject, 5000); // Timeout 5s
+                                setTimeout(reject, 5000);
                             });
                         }
 
-                        // Initialiser EmailJS
                         emailjs.init('mUrOzXIRFoYWzUmeW');
 
-                        // Envoyer l'email
                         const response = await emailjs.send(
                             'service_mnjblro',
                             'template_trg4q0n',
                             {
                                 name: callbackData.nom,
-                                subject: `🔥 NOUVEAU RAPPEL RE-FAP IA INTELLIGENT - ${callbackData.nom}`,
-                                message: `NOUVEAU RAPPEL RE-FAP IA INTELLIGENT - ${callbackData.nom}
+                                subject: `🧠 LEAD DUAL BRAIN IA - ${callbackData.nom}`,
+                                message: `NOUVEAU LEAD DUAL BRAIN IA - ${callbackData.nom}
 
 📋 INFORMATIONS CLIENT :
 • Nom/Prénom : ${callbackData.nom}
@@ -679,127 +339,104 @@ Avec ces infos, je pourrai te donner un diagnostic précis et les meilleures sol
 • Véhicule : ${callbackData.vehicule || 'Non précisé'}
 • Problème : ${callbackData.probleme || 'Non précisé'}
 
-🧠 DONNÉES CHATBOT IA INTELLIGENT :
+🧠 DONNÉES DUAL BRAIN IA :
 • Session ID : ${leadData.sessionId}
-• Interactions : ${interactionCount}
-• Knowledge Base : ${knowledgeBase.length} expertises
+• Interactions : ${leadData.interactions}
+• Mode IA : ${aiMode}
+• User Level : ${userLevel}
+• Lead Value : ${leadValue}€
 • Horodatage : ${new Date().toLocaleString('fr-FR')}
 
-⚡ ACTION REQUISE : Rappeler ${callbackData.nom} au ${callbackData.telephone} sous 2h !
+⚡ ACTION REQUISE : Rappeler ${callbackData.nom} sous 2h !
 
-🎯 LEAD QUALIFIÉ PAR IA INTELLIGENTE + AIRTABLE`
+🎯 LEAD QUALIFIÉ PAR DUAL BRAIN IA (Claude + OpenAI)`
                             }
                         );
 
                         console.log('✅ EmailJS succès:', response);
 
-                        addMessage(`✅ **Email automatique IA intelligent envoyé !**
+                        addMessage(`✅ **Lead Dual Brain envoyé !**
 
-📧 **Email envoyé automatiquement à mgaume@re-fap.fr**
-🗄️ **Lead enregistré dans Airtable avec ${interactionCount} interactions**
-🧠 **Analysé par IA intelligente avec ${knowledgeBase.length} expertises**
+📧 **Email automatique envoyé à mgaume@re-fap.fr**
+🧠 **Analysé par Dual Brain IA (Claude + OpenAI)**
+💰 **Valeur lead : ${leadValue}€**
 
 📋 **Récapitulatif :**
 • Nom : ${callbackData.nom}
 • Téléphone : ${callbackData.telephone}
-• Problème : ${callbackData.probleme || 'Non précisé'}
+• Level : Premium (${userLevel})
 
-📞 **Un expert Re-Fap va t'appeler sous 2h !**
+📞 **Un expert va t'appeler sous 2h !**
 
-En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_intelligent');
-
-                        trackEvent('callback_emailjs_success', { 
-                            sessionId: leadData.sessionId,
-                            phone: callbackData.telephone.substring(0, 4) + 'xxxx',
-                            interactions: interactionCount
-                        });
+Continue à me poser des questions pour l'analyse premium ! 🔧`, 'bot', 'dual_brain_success');
 
                     } catch (emailjsError) {
-                        console.log('⚠️ EmailJS échoué, fallback mailto:', emailjsError.message);
-                        throw emailjsError; // Passer au fallback
-                    }
-                    
-                } catch (error) {
-                    console.log('📧 Fallback mailto activé');
-                    
-                    // FALLBACK GARANTI: mailto
-                    const emailBody = `NOUVEAU RAPPEL RE-FAP IA INTELLIGENT - ${callbackData.nom}
+                        console.log('📧 Fallback mailto...', emailjsError.message);
+                        
+                        const emailBody = `NOUVEAU LEAD DUAL BRAIN IA - ${callbackData.nom}
 
-📋 INFORMATIONS CLIENT :
-• Nom/Prénom : ${callbackData.nom}
+🧠 DUAL BRAIN IA : Claude + OpenAI
+💰 Valeur lead : ${leadValue}€
+📊 Level : ${userLevel}
+🎯 Interactions : ${leadData.interactions}
+
+📋 INFORMATIONS :
+• Nom : ${callbackData.nom}
 • Téléphone : ${callbackData.telephone}
 • Email : ${callbackData.email || 'Non renseigné'}
-
-🚗 PROBLÈME VÉHICULE :
 • Véhicule : ${callbackData.vehicule || 'Non précisé'}
 • Problème : ${callbackData.probleme || 'Non précisé'}
 
-🧠 DONNÉES CHATBOT IA INTELLIGENT :
-• Session ID : ${leadData.sessionId}
-• Interactions : ${interactionCount}
-• Knowledge Base : ${knowledgeBase.length} expertises
-• Horodatage : ${new Date().toLocaleString('fr-FR')}
+Session: ${leadData.sessionId}`;
 
-⚡ ACTION REQUISE : Rappeler sous 2h !
+                        const mailtoLink = `mailto:mgaume@re-fap.fr?subject=${encodeURIComponent('🧠 LEAD DUAL BRAIN IA - ' + callbackData.nom)}&body=${encodeURIComponent(emailBody)}`;
+                        
+                        window.open(mailtoLink, '_blank');
 
-🎯 LEAD QUALIFIÉ PAR IA INTELLIGENTE + AIRTABLE`;
-
-                    const mailtoLink = `mailto:mgaume@re-fap.fr,contact@re-fap.fr?subject=${encodeURIComponent('🔥 NOUVEAU RAPPEL RE-FAP IA INTELLIGENT - ' + callbackData.nom)}&body=${encodeURIComponent(emailBody)}`;
-                    
-                    window.open(mailtoLink, '_blank');
-
-                    addMessage(`📧 **Email client ouvert !**
-🗄️ **Lead enregistré dans Airtable**
-
-📋 **Tes informations :**
-• Nom : ${callbackData.nom}
-• Téléphone : ${callbackData.telephone}
+                        addMessage(`📧 **Email client ouvert !**
+🧠 **Lead Dual Brain généré (${leadValue}€)**
 
 💬 **Instructions :**
-1. Ton email client s'est ouvert
-2. L'email est pré-rempli avec tes infos
-3. Clique "Envoyer" !
+1. Email pré-rempli ouvert
+2. Clique "Envoyer"
+3. Rappel sous 2h garanti !
 
-📞 **Un expert Re-Fap va t'appeler sous 2h !**`, 'bot', 'mailto_fallback');
+🎯 **Ton niveau premium est activé !**`, 'bot', 'mailto_fallback');
+                    }
 
-                    trackEvent('callback_mailto_fallback', { 
-                        sessionId: leadData.sessionId,
-                        error: error.message
-                    });
+                } catch (error) {
+                    console.error('Erreur callback:', error);
+                    addMessage(`❌ Erreur envoi : ${error.message}`, 'bot');
                 }
 
                 setShowCallbackForm(false);
                 setCallbackData({ nom: '', telephone: '', email: '', probleme: '', vehicule: '' });
             };
 
-            // Affichage status Knowledge Base
-            const renderKnowledgeStatus = () => {
-                if (!knowledgeLoaded) {
-                    return (
-                        <div className="text-xs text-gray-500 mb-2 text-center">
-                            📚 Chargement IA intelligente...
-                        </div>
-                    );
-                }
-                
-                if (knowledgeBase.length > 0) {
-                    return (
-                        <div className="text-xs text-green-600 mb-2 text-center">
-                            ✅ IA intelligente: {knowledgeBase.length} expertises Airtable • {interactionCount} interactions
-                        </div>
-                    );
-                }
-                
-                return (
-                    <div className="text-xs text-orange-500 mb-2 text-center">
-                        ⚠️ Base de connaissances vide
-                    </div>
-                );
+            const getLevelName = () => {
+                const names = {
+                    0: 'Diagnostic de Base',
+                    1: 'Diagnostic Avancé', 
+                    2: 'Expertise Premium',
+                    3: 'Service VIP'
+                };
+                return names[userLevel] || 'Inconnu';
+            };
+
+            const getAiModeDisplay = () => {
+                const modes = {
+                    'dual_brain': '🧠 Dual Brain (Claude + OpenAI)',
+                    'claude_only': '🎯 Claude Expert',
+                    'airtable': '📚 Knowledge Base',
+                    'simulation': '⚡ Simulation',
+                    'fallback': '🔄 Fallback'
+                };
+                return modes[aiMode] || '🤖 IA';
             };
 
             return (
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-orange-50">
-                    {/* Header avec status knowledge */}
+                    {/* Header avec stats Dual Brain */}
                     <header className="bg-white shadow-sm border-b">
                         <div className="max-w-6xl mx-auto px-2 sm:px-4 py-3">
                             <div className="flex items-center justify-between">
@@ -808,9 +445,9 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                         <span className="text-white font-bold text-sm sm:text-lg">re-fap</span>
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <h1 className="text-sm sm:text-lg font-bold text-gray-800 truncate">Julien - Expert FAP</h1>
+                                        <h1 className="text-sm sm:text-lg font-bold text-gray-800 truncate">Julien - Expert FAP Dual Brain</h1>
                                         <p className="text-xs text-gray-600 hidden sm:block">
-                                            Diagnostic gratuit • IA intelligente • {knowledgeBase.length} expertises
+                                            {getAiModeDisplay()} • {getLevelName()} • {leadValue}€ lead
                                         </p>
                                     </div>
                                 </div>
@@ -823,23 +460,31 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                 </button>
                             </div>
                         </div>
-                        {renderKnowledgeStatus()}
+                        
+                        {/* Status Dual Brain */}
+                        <div className="text-xs text-center py-2 bg-gradient-to-r from-purple-50 to-blue-50">
+                            <span className="text-purple-600 font-medium">
+                                🧠 {getAiModeDisplay()} • Level {userLevel} • {leadData.interactions} interactions • {leadValue > 0 ? `${leadValue}€ lead` : 'Lead en cours'}
+                            </span>
+                        </div>
                     </header>
 
-                    {/* Chat principal avec CTA responsive */}
+                    {/* Chat principal */}
                     <div className="max-w-6xl mx-auto p-2 sm:p-4">
                         <div className="flex flex-col lg:flex-row gap-2 sm:gap-4">
-                            {/* Chat principal */}
+                            {/* Chat */}
                             <div className="flex-1 bg-white rounded-xl shadow-lg overflow-hidden">
                                 {/* Header chat */}
                                 <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white p-4">
                                     <div className="flex items-center">
                                         <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-3">
-                                            <span className="text-2xl">👨‍🔧</span>
+                                            <span className="text-2xl">🧠</span>
                                         </div>
                                         <div>
-                                            <h2 className="text-xl font-bold">Julien, ton expert FAP</h2>
-                                            <p className="text-orange-100 text-sm">Diagnostic GRATUIT • IA intelligente • {knowledgeBase.length} expertises</p>
+                                            <h2 className="text-xl font-bold">Julien Dual Brain IA</h2>
+                                            <p className="text-orange-100 text-sm">
+                                                Claude + OpenAI • {getLevelName()}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -851,9 +496,11 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                             <div className={`inline-block p-3 rounded-lg max-w-[85%] sm:max-w-md ${
                                                 message.type === 'user' 
                                                     ? 'bg-blue-500 text-white' 
-                                                    : message.source === 'claude_intelligent' || message.source === 'claude_photo_intelligent'
+                                                    : message.source === 'dual_brain'
                                                         ? 'bg-purple-100 text-gray-800 border-l-4 border-purple-500'
-                                                        : 'bg-white text-gray-800 border border-gray-200'
+                                                        : message.source === 'claude_only'
+                                                            ? 'bg-blue-100 text-gray-800 border-l-4 border-blue-500'
+                                                            : 'bg-white text-gray-800 border border-gray-200'
                                             }`}>
                                                 {typeof message.content === 'string' ? 
                                                     message.content.split('\n').map((line, i) => (
@@ -866,9 +513,10 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                                 
                                                 {message.type === 'bot' && (
                                                     <div className="text-xs text-gray-400 mt-2">
-                                                        {message.source === 'claude_intelligent' ? '🧠 IA Intelligente' : 
-                                                         message.source === 'claude_photo_intelligent' ? '📸 Analyse Photo IA' : 
-                                                         '⚡ Expert'} • {new Date(message.timestamp).toLocaleTimeString()}
+                                                        {message.source === 'dual_brain' ? '🧠 Dual Brain' : 
+                                                         message.source === 'claude_only' ? '🎯 Claude Expert' : 
+                                                         message.source === 'airtable' ? '📚 Knowledge' : 
+                                                         '⚡ Auto'} • {new Date(message.timestamp).toLocaleTimeString()}
                                                     </div>
                                                 )}
                                             </div>
@@ -880,11 +528,11 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                             <div className="inline-block bg-white p-3 rounded-lg border border-gray-200">
                                                 <div className="flex items-center space-x-2">
                                                     <div className="flex space-x-1">
-                                                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                                                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                                                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+                                                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                                                        <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                                                     </div>
-                                                    <span className="text-sm text-gray-600">Julien analyse intelligemment... 🧠💰📞</span>
+                                                    <span className="text-sm text-gray-600">Dual Brain analyse... 🧠💎</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -930,7 +578,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                                 📸 <span className="hidden sm:inline">Photo de mon voyant</span><span className="sm:hidden">Photo</span>
                                             </label>
                                             <p className="text-xs text-gray-600 mt-2 px-2">
-                                                JPG/PNG max 5MB • Analyse IA ! 🧠
+                                                JPG/PNG max 5MB • Analyse Dual Brain ! 🧠
                                             </p>
                                         </div>
                                     </div>
@@ -948,8 +596,8 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                                 onClick={async () => {
                                                     addMessage(option.msg, 'user');
                                                     setIsTyping(true);
-                                                    const response = await getClaudeResponse(option.msg, messages);
-                                                    addMessage(response, 'bot', 'claude_intelligent');
+                                                    const response = await getDualBrainResponse(option.msg);
+                                                    addMessage(response.text, 'bot', response.mode);
                                                     setIsTyping(false);
                                                 }}
                                                 disabled={isTyping}
@@ -961,7 +609,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                         ))}
                                     </div>
 
-                                    {/* CTA mobile - en bas du chat */}
+                                    {/* CTA mobile */}
                                     <div className="lg:hidden p-3 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
                                         <h4 className="font-bold text-orange-800 text-sm mb-2 text-center">🎯 Besoin d'aide ?</h4>
                                         <div className="grid grid-cols-1 gap-2">
@@ -975,20 +623,40 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                                 onClick={handleCallbackClick}
                                                 className="bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded text-sm font-medium transition-colors"
                                             >
-                                                📞 Être rappelé gratuitement
+                                                📞 Être rappelé gratuitement (Lead {leadValue}€)
                                             </button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* CTA Section verticale - DESKTOP SEULEMENT */}
+                            {/* CTA Section - DESKTOP */}
                             <div className="hidden lg:block w-64 space-y-4">
-                                {/* Titre CTA */}
-                                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
-                                    <h4 className="font-bold text-orange-800 text-sm mb-1">🎯 Besoin d'aide ?</h4>
-                                    <p className="text-xs text-orange-600">Solutions Re-Fap personnalisées</p>
+                                {/* Stats Dual Brain */}
+                                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-3 text-center">
+                                    <h4 className="font-bold text-purple-800 text-sm mb-1">🧠 Dual Brain Stats</h4>
+                                    <div className="text-xs text-purple-600 space-y-1">
+                                        <div>Level: {getLevelName()}</div>
+                                        <div>Mode: {getAiModeDisplay()}</div>
+                                        <div>Lead: {leadValue}€</div>
+                                        <div>Interactions: {leadData.interactions}</div>
+                                    </div>
                                 </div>
+
+                                {/* Upgrade si niveau 0 */}
+                                {userLevel === 0 && conversionStrategy && (
+                                    <button
+                                        onClick={handleUpgradeClick}
+                                        className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
+                                    >
+                                        <div className="text-center">
+                                            <div className="text-2xl mb-2">🔓</div>
+                                            <div className="font-bold">Diagnostic Premium</div>
+                                            <div className="font-bold">GRATUIT</div>
+                                            <div className="text-xs mt-1 opacity-90">Dual Brain activé !</div>
+                                        </div>
+                                    </button>
+                                )}
 
                                 {/* Bouton Garage */}
                                 <button
@@ -999,7 +667,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                         <div className="text-2xl mb-2">🏪</div>
                                         <div className="font-bold">Trouver un garage</div>
                                         <div className="font-bold">de confiance</div>
-                                        <div className="text-xs mt-1 opacity-90">Réseau partenaire Re-Fap</div>
+                                        <div className="text-xs mt-1 opacity-90">Réseau Re-Fap</div>
                                     </div>
                                 </button>
 
@@ -1012,32 +680,103 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                         <div className="text-2xl mb-2">📞</div>
                                         <div className="font-bold">Être rappelé</div>
                                         <div className="font-bold">gratuitement</div>
-                                        <div className="text-xs mt-1 opacity-90">Expert sous 2h</div>
+                                        <div className="text-xs mt-1 opacity-90">Lead {leadValue}€ • Expert sous 2h</div>
                                     </div>
                                 </button>
-
-                                {/* Info complémentaire */}
-                                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
-                                    <div className="text-xs text-gray-600">
-                                        <div className="font-semibold text-green-600 mb-1">✅ Diagnostic gratuit</div>
-                                        <div>🧠 IA intelligente + {knowledgeBase.length} expertises</div>
-                                        <div>💰 Solutions économiques</div>
-                                        <div>📊 {interactionCount} interactions</div>
-                                    </div>
-                                </div>
                             </div>
                         </div>
 
-                        {/* FORMULAIRE DE RAPPEL - Modal */}
+                        {/* MODAL UPGRADE PREMIUM */}
+                        {showUpgradeForm && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+                                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto mx-2">
+                                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-3 sm:p-4 rounded-t-xl">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex-1">
+                                                <h3 className="text-base sm:text-lg font-bold">🔓 Diagnostic Premium Gratuit</h3>
+                                                <p className="text-xs sm:text-sm opacity-90">Dual Brain Claude + OpenAI</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => setShowUpgradeForm(false)}
+                                                className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded ml-2"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <form onSubmit={handleUpgradeSubmit} className="p-4 sm:p-6 space-y-4">
+                                        <div className="text-center mb-4">
+                                            <div className="text-2xl mb-2">🧠</div>
+                                            <p className="text-sm text-gray-600">
+                                                Débloquez l'analyse Dual Brain premium ! Fusion Claude (précision) + OpenAI (créativité) pour un diagnostic unique.
+                                            </p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Email *
+                                            </label>
+                                            <input
+                                                type="email"
+                                                required
+                                                value={callbackData.email}
+                                                onChange={(e) => setCallbackData({...callbackData, email: e.target.value})}
+                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-sm"
+                                                placeholder="votre@email.com"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Prénom
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={callbackData.nom}
+                                                onChange={(e) => setCallbackData({...callbackData, nom: e.target.value})}
+                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-sm"
+                                                placeholder="Votre prénom"
+                                            />
+                                        </div>
+
+                                        <div className="bg-purple-50 p-2 sm:p-3 rounded-lg text-xs text-purple-700">
+                                            🎁 <strong>Vous obtenez :</strong>
+                                            <br />• Analyse Dual Brain (Claude + OpenAI)
+                                            <br />• Diagnostic technique approfondi
+                                            <br />• Recommandations personnalisées
+                                            <br />• Estimation coûts précise
+                                        </div>
+
+                                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowUpgradeForm(false)}
+                                                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
+                                            >
+                                                Plus tard
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
+                                            >
+                                                🔓 Activer Premium
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* MODAL RAPPEL */}
                         {showCallbackForm && (
                             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
                                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto mx-2">
-                                    {/* Header formulaire */}
                                     <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-3 sm:p-4 rounded-t-xl">
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1">
-                                                <h3 className="text-base sm:text-lg font-bold">📞 Rappel gratuit</h3>
-                                                <p className="text-xs sm:text-sm opacity-90">Expert sous 2h</p>
+                                                <h3 className="text-base sm:text-lg font-bold">📞 Rappel Expert</h3>
+                                                <p className="text-xs sm:text-sm opacity-90">Lead {leadValue}€ • Dual Brain</p>
                                             </div>
                                             <button 
                                                 onClick={() => setShowCallbackForm(false)}
@@ -1048,7 +787,6 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                         </div>
                                     </div>
 
-                                    {/* Formulaire */}
                                     <form onSubmit={handleCallbackSubmit} className="p-4 sm:p-6 space-y-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1117,13 +855,12 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                                             />
                                         </div>
 
-                                        {/* Info RGPD */}
-                                        <div className="bg-gray-50 p-2 sm:p-3 rounded-lg text-xs text-gray-600">
-                                            ✅ Vos données sont utilisées uniquement pour le rappel. Aucun spam.
-                                            <br />🧠 Lead qualifié par IA intelligente + {knowledgeBase.length} expertises
+                                        <div className="bg-green-50 p-2 sm:p-3 rounded-lg text-xs text-green-700">
+                                            🧠 <strong>Lead Dual Brain :</strong> {leadValue}€
+                                            <br />📊 Analysé par IA premium (Claude + OpenAI)
+                                            <br />✅ Données utilisées uniquement pour le rappel
                                         </div>
 
-                                        {/* Boutons */}
                                         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                                             <button
                                                 type="button"
@@ -1148,15 +885,15 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
                     {/* Footer */}
                     <footer className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 text-center text-xs sm:text-sm text-gray-600">
                         <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-6 mb-3">
-                            <span className="flex items-center"><span className="text-green-500 mr-1">✅</span> Diagnostic gratuit</span>
-                            <span className="flex items-center"><span className="text-blue-500 mr-1">🧠</span> IA + {knowledgeBase.length} expertises</span>
-                            <span className="flex items-center"><span className="text-orange-500 mr-1">💰</span> Solutions économiques</span>
-                            <span className="flex items-center"><span className="text-purple-500 mr-1">📊</span> {interactionCount} interactions</span>
+                            <span className="flex items-center"><span className="text-purple-500 mr-1">🧠</span> Dual Brain IA</span>
+                            <span className="flex items-center"><span className="text-blue-500 mr-1">🎯</span> {getLevelName()}</span>
+                            <span className="flex items-center"><span className="text-green-500 mr-1">💰</span> {leadValue}€ lead</span>
+                            <span className="flex items-center"><span className="text-orange-500 mr-1">📊</span> {leadData.interactions} interactions</span>
                         </div>
                         <p className="text-xs px-2">
                             Powered by <a href="https://re-fap.fr" className="text-orange-600 hover:underline">Re-Fap</a> • 
-                            Expert nettoyage FAP depuis 2015 •
-                            <span className="hidden sm:inline"> IA intelligente Airtable •</span>
+                            Dual Brain IA (Claude + OpenAI) •
+                            <span className="hidden sm:inline"> Diagnostic premium •</span>
                             <span className="block sm:inline"> Session: {leadData.sessionId}</span>
                         </p>
                     </footer>
@@ -1164,7 +901,7 @@ En attendant, continue à me poser des questions ! 🔧`, 'bot', 'auto_success_i
             );
         };
 
-        ReactDOM.render(<JulienProductionIntelligentCommercial />, document.getElementById('root'));
+        ReactDOM.render(<JulienDualBrainChatbot />, document.getElementById('root'));
     </script>
 </body>
 </html>
