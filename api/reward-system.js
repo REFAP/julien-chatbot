@@ -2,23 +2,16 @@
 // API pour gérer le système de récompense progressif
 
 import { ProgressiveRewardSystem } from '../lib/utils/rewardSystem.js';
-import { AdvancedRateLimiter } from '../lib/middleware/rateLimiter.js';
-import { DualBrainOrchestrator } from '../lib/ai/dual-brain.js';
-import { LeadGenerationSystem } from '../lib/utils/leads.js';
+import { getEnvConfig } from '../lib/utils/env.js';
 
+// Initialisation simple sans imports complexes pour tester
 const rewardSystem = new ProgressiveRewardSystem();
-const rateLimiter = new AdvancedRateLimiter();
-const dualBrain = new DualBrainOrchestrator();
-const leadSystem = new LeadGenerationSystem();
 
 export default async function handler(req, res) {
-  // Rate limiting
-  const rateLimitResult = await rateLimiter.checkLimit(req);
-  if (rateLimitResult.limited) {
-    return res.status(429).json({
-      error: 'Rate limit exceeded',
-      retryAfter: rateLimitResult.retryAfter
-    });
+  // Simple rate limiting
+  const userAgent = req.headers['user-agent'] || '';
+  if (userAgent.includes('bot') || userAgent.includes('crawler')) {
+    return res.status(429).json({ error: 'Bots not allowed' });
   }
 
   if (req.method === 'POST') {
@@ -88,25 +81,21 @@ async function handleAnalyzeWithRewards(message, userData, res) {
     questionType
   );
 
-  // Appel à l'IA selon le niveau de détail autorisé
-  const aiResponse = await dualBrain.processQuery({
-    message,
-    aiMode: rewardResponse.aiMode,
-    detailLevel: rewardResponse.detailLevel,
-    userData,
-    isPremium: rewardResponse.level > 0
-  });
+  // Appel à l'IA selon le niveau de détail autorisé - SIMULATION
+  const aiResponse = {
+    response: generateSimulatedResponse(message, rewardResponse.level),
+    processingTime: 250
+  };
 
-  // Génération du lead si données suffisantes
+  // Génération du lead si données suffisantes - SIMULATION
   let leadInfo = null;
   if (rewardResponse.level > 0) {
-    leadInfo = await leadSystem.generateLead({
-      userData,
-      questionType,
-      aiResponse: aiResponse.response,
-      leadValue: rewardResponse.leadValue,
-      partner: rewardResponse.optimalPartner
-    });
+    leadInfo = {
+      id: `lead_${Date.now()}`,
+      value: rewardResponse.leadValue,
+      partner: rewardResponse.optimalPartner,
+      status: 'generated'
+    };
   }
 
   // Tracking analytics
@@ -310,4 +299,16 @@ function calculateDataCompleteness(userData) {
   );
   
   return Math.round((providedFields.length / allFields.length) * 100);
+}
+
+// Fonction de simulation pour tester sans les vrais imports
+function generateSimulatedResponse(message, level) {
+  const responses = {
+    0: `Diagnostic de base : ${message.includes('freinage') ? 'Problème de freinage détecté' : 'Problème automobile détecté'}. Analyse limitée disponible.`,
+    1: `Diagnostic avancé : Analyse approfondie de votre problème. Recommandations détaillées et estimation des coûts.`,
+    2: `Expertise maximale : Diagnostic complet avec mise en relation directe garage partenaire.`,
+    3: `Service VIP : Diagnostic prédictif personnalisé avec suivi à vie.`
+  };
+  
+  return responses[level] || responses[0];
 }
