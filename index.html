@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Julien - Expert FAP Re-Fap | Diagnostic Gratuit IA</title>
-    <meta name="description" content="Diagnostic gratuit FAP/EGR/AdBlue avec Julien, expert IA depuis 20 ans. Dual Brain Claude+OpenAI pour solutions premium.">
+    <title>Julien - Robin des Bois de la Mécanique | Aide Anti-Arnaque Re-Fap</title>
+    <meta name="description" content="Julien t'aide à faire durer ta voiture au meilleur coût. Diagnostic gratuit, solutions anti-arnaque, conseils de mécano militant depuis 20 ans.">
     
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -17,18 +17,18 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const JulienDualBrainChatbot = () => {
+        const JulienMilitantChatbot = () => {
             const [messages, setMessages] = useState([
                 {
                     type: 'bot',
-                    content: "Salut ! 👋 Moi c'est Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap. Mon IA Dual Brain va diagnostiquer ton problème GRATUITEMENT ! Décris-moi ton souci ou envoie une photo 📸",
-                    timestamp: new Date()
+                    content: "Salut ! 👋 C'est Julien, ton mécano militant depuis 20 ans !\n\n🛠️ **Je suis là pour t'aider** à faire durer ta voiture au meilleur coût, pas pour te vendre quoi que ce soit.\n\n💪 **Mon combat :** T'éviter les arnaques de l'industrie auto et te faire économiser des centaines d'euros !\n\nDécris-moi ton problème auto... 🚗",
+                    timestamp: new Date(),
+                    militant: true
                 }
             ]);
             const [inputMessage, setInputMessage] = useState('');
             const [isTyping, setIsTyping] = useState(false);
             const [showCallbackForm, setShowCallbackForm] = useState(false);
-            const [showUpgradeForm, setShowUpgradeForm] = useState(false);
             const [userData, setUserData] = useState({});
             const [callbackData, setCallbackData] = useState({
                 nom: '',
@@ -37,88 +37,89 @@
                 probleme: '',
                 vehicule: ''
             });
-            const [leadData, setLeadData] = useState({
+            const [sessionData, setSessionData] = useState({
                 sessionId: Math.random().toString(36).substr(2, 9),
                 startTime: new Date(),
-                interactions: 0
+                interactions: 0,
+                helpProvided: 0
             });
 
-            // États Dual Brain
+            // États militants
             const [userLevel, setUserLevel] = useState(0);
-            const [aiMode, setAiMode] = useState('simulation');
-            const [leadValue, setLeadValue] = useState(0);
-            const [conversionStrategy, setConversionStrategy] = useState(null);
+            const [helpValue, setHelpValue] = useState(0);
+            const [isEmailCollected, setIsEmailCollected] = useState(false);
 
             useEffect(() => {
-                trackEvent('session_start', { sessionId: leadData.sessionId });
+                trackEvent('session_militant_start', { sessionId: sessionData.sessionId });
             }, []);
 
             const trackEvent = (event, data = {}) => {
-                console.log('📊 Event tracked:', event, data);
+                console.log('📊 Événement militant:', event, data);
             };
 
-            const addMessage = (content, type = 'bot', source = 'auto') => {
+            const addMessage = (content, type = 'bot', source = 'militant') => {
                 setMessages(prev => [...prev, {
                     type,
                     content,
                     timestamp: new Date(),
-                    source
+                    source,
+                    militant: true
                 }]);
             };
 
-            // 🧠 FONCTION DUAL BRAIN PRINCIPALE
-            const getDualBrainResponse = async (userMsg) => {
+            // 🤝 FONCTION PRINCIPALE MILITANTE
+            const getMilitantResponse = async (userMsg) => {
                 try {
-                    console.log('🧠 Dual Brain IA activé...');
+                    console.log('🤝 Julien Militant activé...');
                     
-                    // Appel au Dual Brain
                     const response = await fetch('/api/chat-dual-brain', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             message: userMsg,
                             userData: userData,
-                            sessionId: leadData.sessionId
+                            sessionId: sessionData.sessionId
                         })
                     });
 
                     const data = await response.json();
                     
                     if (data.success && data.message) {
-                        console.log('✅ Dual Brain success:', data.metadata?.aiMode);
+                        console.log('✅ Aide militante fournie:', data.metadata?.mode);
                         
-                        // Mise à jour des données business
-                        if (data.rewardSystem) {
-                            setUserLevel(data.rewardSystem.userLevel);
-                            setLeadValue(data.rewardSystem.leadValue);
-                            setConversionStrategy(data.rewardSystem.conversionStrategy);
+                        // Mise à jour des données d'aide
+                        if (data.metadata) {
+                            setUserLevel(data.metadata.userLevel || 0);
+                            setHelpValue(data.metadata.leadValue || 0);
+                            
+                            // Détection email collecté
+                            if (data.metadata.email) {
+                                setIsEmailCollected(true);
+                                setUserData(prev => ({ ...prev, email: data.metadata.email }));
+                            }
                         }
                         
-                        setAiMode(data.metadata?.aiMode || 'dual_brain');
-                        setLeadData(prev => ({ ...prev, interactions: prev.interactions + 1 }));
-                        
-                        // Proposition d'upgrade si strategy disponible
-                        if (data.rewardSystem?.conversionStrategy && userLevel === 0) {
-                            setTimeout(() => {
-                                setShowUpgradeForm(true);
-                            }, 2000);
-                        }
+                        setSessionData(prev => ({ 
+                            ...prev, 
+                            interactions: prev.interactions + 1,
+                            helpProvided: prev.helpProvided + (data.metadata?.leadValue || 25)
+                        }));
                         
                         return {
                             text: data.message,
-                            mode: data.metadata?.aiMode || 'dual_brain',
-                            score: data.score || 8.0
+                            mode: data.metadata?.mode || 'militant_helper',
+                            score: data.score || 8.5
                         };
                     } else {
-                        throw new Error(data.error || 'Erreur Dual Brain');
+                        throw new Error(data.error || 'Erreur système');
                     }
                     
                 } catch (error) {
-                    console.error('❌ Erreur Dual Brain:', error);
+                    console.error('❌ Erreur aide militante:', error);
                     return {
-                        text: `Salut ! Décris-moi ton problème auto, je vais l'analyser ! 🔧\n\nErreur temporaire : ${error.message}`,
-                        mode: 'fallback',
-                        score: 5.0
+                        text: `Salut ! C'est Julien, ton mécano militant ! 🛠️\n\nPetit souci technique temporaire, mais je peux quand même t'aider !\n\nDécris-moi ton problème auto et je vais te donner des conseils anti-arnaque ! 💪\n\n*Erreur: ${error.message}*`,
+                        mode: 'militant_fallback',
+                        score: 7.0
                     };
                 }
             };
@@ -132,13 +133,14 @@
                 setInputMessage('');
                 setIsTyping(true);
 
-                trackEvent('message_sent', { 
+                trackEvent('message_militant_sent', { 
                     message: userMsg.substring(0, 50),
-                    userLevel
+                    userLevel,
+                    helpValue
                 });
 
-                // Appel Dual Brain
-                const response = await getDualBrainResponse(userMsg);
+                // Appel système militant
+                const response = await getMilitantResponse(userMsg);
                 addMessage(response.text, 'bot', response.mode);
                 setIsTyping(false);
             };
@@ -147,70 +149,26 @@
                 const file = event.target.files[0];
                 if (file) {
                     if (!file.type.startsWith('image/')) {
-                        alert('📸 Merci d\'envoyer une image (JPG, PNG...)');
+                        alert('📸 Envoie-moi une photo claire de ton problème !');
                         return;
                     }
                     
                     addMessage(`📸 Photo envoyée : ${file.name}`, 'user');
                     setIsTyping(true);
-                    trackEvent('photo_uploaded', { 
+                    trackEvent('photo_militant_uploaded', { 
                         fileName: file.name, 
-                        fileSize: file.size,
                         userLevel
                     });
                     
-                    // Compression d'image
-                    const compressImage = (file, maxWidth = 800, quality = 0.8) => {
-                        return new Promise((resolve) => {
-                            const canvas = document.createElement('canvas');
-                            const ctx = canvas.getContext('2d');
-                            const img = new Image();
-                            
-                            img.onload = () => {
-                                let { width, height } = img;
-                                if (width > maxWidth) {
-                                    height = (height * maxWidth) / width;
-                                    width = maxWidth;
-                                }
-                                
-                                canvas.width = width;
-                                canvas.height = height;
-                                ctx.drawImage(img, 0, 0, width, height);
-                                
-                                const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-                                resolve(compressedDataUrl);
-                            };
-                            
-                            const reader = new FileReader();
-                            reader.onload = (e) => {
-                                img.src = e.target.result;
-                            };
-                            reader.readAsDataURL(file);
-                        });
-                    };
-                    
                     try {
-                        let imageData;
-                        
-                        if (file.size > 1024 * 1024) {
-                            console.log('🗜️ Compression image...');
-                            imageData = await compressImage(file, 800, 0.8);
-                        } else {
-                            const reader = new FileReader();
-                            imageData = await new Promise((resolve) => {
-                                reader.onload = (e) => resolve(e.target.result);
-                                reader.readAsDataURL(file);
-                            });
-                        }
-
-                        // Analyse photo avec Dual Brain
-                        const photoPrompt = `Photo voyant tableau de bord - ${file.name}`;
-                        const response = await getDualBrainResponse(photoPrompt);
-                        addMessage(`📸 **ANALYSE PHOTO DUAL BRAIN** 🧠\n\n${response.text}`, 'bot', response.mode);
+                        // Analyse photo militante
+                        const photoPrompt = `Photo problème auto - ${file.name}`;
+                        const response = await getMilitantResponse(photoPrompt);
+                        addMessage(`📸 **ANALYSE PHOTO MILITANTE** 🔧\n\n${response.text}`, 'bot', response.mode);
                         
                     } catch (error) {
-                        console.error('❌ Erreur upload:', error);
-                        addMessage(`❌ Erreur analyse : ${error.message}`, 'bot');
+                        console.error('❌ Erreur analyse photo:', error);
+                        addMessage(`❌ Souci analyse photo, mais décris-moi ton problème en texte, je vais t'aider ! 💪`, 'bot');
                     }
                     
                     setIsTyping(false);
@@ -219,59 +177,28 @@
             };
 
             const handleGarageClick = () => {
-                trackEvent('garage_redirect', { sessionId: leadData.sessionId, userLevel });
+                trackEvent('garage_confiance_requested', { sessionId: sessionData.sessionId, userLevel });
                 window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank');
             };
 
             const handleCallbackClick = () => {
-                trackEvent('callback_requested', { sessionId: leadData.sessionId, userLevel });
+                trackEvent('aide_expert_requested', { sessionId: sessionData.sessionId, userLevel });
                 setShowCallbackForm(true);
-                addMessage("Je souhaite être rappelé gratuitement", 'user');
+                addMessage("Je veux parler à un expert", 'user');
                 setTimeout(() => {
-                    addMessage("📞 **Formulaire de rappel activé !**\n\nRemplis le formulaire pour être recontacté ! 🎯", 'bot', 'form');
+                    addMessage("🤝 **Formulaire d'aide expert activé !**\n\nPas de vente, juste de l'aide personnalisée d'un vrai mécano ! 💪", 'bot', 'aide_expert');
                 }, 500);
-            };
-
-            const handleUpgradeClick = () => {
-                setShowUpgradeForm(true);
-                trackEvent('upgrade_requested', { userLevel, leadValue });
-            };
-
-            const handleUpgradeSubmit = async (e) => {
-                e.preventDefault();
-                
-                if (!callbackData.email) {
-                    alert('Email obligatoire pour le diagnostic premium !');
-                    return;
-                }
-
-                // Mise à jour userData
-                const newUserData = {
-                    ...userData,
-                    email: callbackData.email,
-                    firstName: callbackData.nom,
-                    location: callbackData.vehicule
-                };
-                setUserData(newUserData);
-                setUserLevel(1);
-
-                addMessage(`✅ **Diagnostic Premium Activé !** 🎯\n\nMerci ${callbackData.nom} ! Ton niveau utilisateur a été upgraded. Pose-moi maintenant ta question pour une analyse premium !`, 'bot', 'upgrade_success');
-
-                setShowUpgradeForm(false);
-                setCallbackData({ nom: '', telephone: '', email: '', probleme: '', vehicule: '' });
-                
-                trackEvent('upgrade_completed', { newLevel: 1, email: callbackData.email });
             };
 
             const handleCallbackSubmit = async (e) => {
                 e.preventDefault();
                 
                 if (!callbackData.nom || !callbackData.telephone) {
-                    alert('Nom et téléphone obligatoires !');
+                    alert('Nom et téléphone requis pour que notre expert te rappelle !');
                     return;
                 }
 
-                // Mise à jour userData pour niveau 2
+                // Mise à jour userData
                 const newUserData = {
                     ...userData,
                     email: callbackData.email,
@@ -283,30 +210,9 @@
                 setUserLevel(2);
 
                 try {
-                    console.log('📧 Envoi lead Dual Brain...');
+                    console.log('📞 Demande aide expert...');
                     
-                    // Création lead via Dual Brain
-                    try {
-                        const leadResponse = await fetch('/api/chat-dual-brain', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                action: 'CREATE_LEAD',
-                                userData: newUserData,
-                                sessionId: leadData.sessionId,
-                                message: `Lead rappel: ${callbackData.probleme}`
-                            })
-                        });
-
-                        const leadResult = await leadResponse.json();
-                        if (leadResult.success) {
-                            console.log('🗄️ Lead Dual Brain créé:', leadResult.leadInfo);
-                        }
-                    } catch (error) {
-                        console.warn('⚠️ Lead creation failed:', error.message);
-                    }
-
-                    // Envoi email
+                    // Envoi demande d'aide
                     try {
                         if (typeof emailjs === 'undefined') {
                             console.log('📦 Chargement EmailJS...');
@@ -327,8 +233,8 @@
                             'template_trg4q0n',
                             {
                                 name: callbackData.nom,
-                                subject: `🧠 LEAD DUAL BRAIN IA - ${callbackData.nom}`,
-                                message: `NOUVEAU LEAD DUAL BRAIN IA - ${callbackData.nom}
+                                subject: `🤝 DEMANDE AIDE EXPERT MILITANT - ${callbackData.nom}`,
+                                message: `DEMANDE AIDE EXPERT JULIEN MILITANT
 
 📋 INFORMATIONS CLIENT :
 • Nom/Prénom : ${callbackData.nom}
@@ -339,46 +245,47 @@
 • Véhicule : ${callbackData.vehicule || 'Non précisé'}
 • Problème : ${callbackData.probleme || 'Non précisé'}
 
-🧠 DONNÉES DUAL BRAIN IA :
-• Session ID : ${leadData.sessionId}
-• Interactions : ${leadData.interactions}
-• Mode IA : ${aiMode}
+🤝 DONNÉES AIDE MILITANTE :
+• Session ID : ${sessionData.sessionId}
+• Interactions : ${sessionData.interactions}
+• Aide fournie : ${sessionData.helpProvided}€ d'économies
 • User Level : ${userLevel}
-• Lead Value : ${leadValue}€
+• Approche : Militante anti-arnaque
 • Horodatage : ${new Date().toLocaleString('fr-FR')}
 
-⚡ ACTION REQUISE : Rappeler ${callbackData.nom} sous 2h !
+📞 ACTION : Rappeler ${callbackData.nom} pour aide personnalisée
+🎯 PAS DE VENTE - JUSTE DE L'AIDE EXPERTE !
 
-🎯 LEAD QUALIFIÉ PAR DUAL BRAIN IA (Claude + OpenAI)`
+Généré par Julien le Mécano Militant Re-Fap`
                             }
                         );
 
-                        console.log('✅ EmailJS succès:', response);
+                        console.log('✅ Demande aide envoyée:', response);
 
-                        addMessage(`✅ **Lead Dual Brain envoyé !**
+                        addMessage(`✅ **Demande d'aide envoyée !**
 
 📧 **Email automatique envoyé à mgaume@re-fap.fr**
-🧠 **Analysé par Dual Brain IA (Claude + OpenAI)**
-💰 **Valeur lead : ${leadValue}€**
+🤝 **Approche militante confirmée (pas de vente !)**
+💰 **Aide déjà fournie : ${sessionData.helpProvided}€ d'économies**
 
 📋 **Récapitulatif :**
 • Nom : ${callbackData.nom}
 • Téléphone : ${callbackData.telephone}
-• Level : Premium (${userLevel})
+• Approche : Aide experte anti-arnaque
 
-📞 **Un expert va t'appeler sous 2h !**
+📞 **Un expert va t'appeler pour t'aider (pas pour vendre) !**
 
-Continue à me poser des questions pour l'analyse premium ! 🔧`, 'bot', 'dual_brain_success');
+Continue à me poser tes questions, je suis toujours là ! 🛠️`, 'bot', 'aide_expert_success');
 
                     } catch (emailjsError) {
-                        console.log('📧 Fallback mailto...', emailjsError.message);
+                        console.log('📧 Fallback email...', emailjsError.message);
                         
-                        const emailBody = `NOUVEAU LEAD DUAL BRAIN IA - ${callbackData.nom}
+                        const emailBody = `DEMANDE AIDE EXPERT MILITANT - ${callbackData.nom}
 
-🧠 DUAL BRAIN IA : Claude + OpenAI
-💰 Valeur lead : ${leadValue}€
+🤝 APPROCHE MILITANTE : Aide sans vente
+💰 Économies déjà réalisées : ${sessionData.helpProvided}€
 📊 Level : ${userLevel}
-🎯 Interactions : ${leadData.interactions}
+🎯 Interactions : ${sessionData.interactions}
 
 📋 INFORMATIONS :
 • Nom : ${callbackData.nom}
@@ -387,26 +294,26 @@ Continue à me poser des questions pour l'analyse premium ! 🔧`, 'bot', 'dual_
 • Véhicule : ${callbackData.vehicule || 'Non précisé'}
 • Problème : ${callbackData.probleme || 'Non précisé'}
 
-Session: ${leadData.sessionId}`;
+Session: ${sessionData.sessionId}`;
 
-                        const mailtoLink = `mailto:mgaume@re-fap.fr?subject=${encodeURIComponent('🧠 LEAD DUAL BRAIN IA - ' + callbackData.nom)}&body=${encodeURIComponent(emailBody)}`;
+                        const mailtoLink = `mailto:mgaume@re-fap.fr?subject=${encodeURIComponent('🤝 AIDE EXPERT MILITANT - ' + callbackData.nom)}&body=${encodeURIComponent(emailBody)}`;
                         
                         window.open(mailtoLink, '_blank');
 
                         addMessage(`📧 **Email client ouvert !**
-🧠 **Lead Dual Brain généré (${leadValue}€)**
+🤝 **Demande d'aide experte préparée**
 
 💬 **Instructions :**
 1. Email pré-rempli ouvert
 2. Clique "Envoyer"
-3. Rappel sous 2h garanti !
+3. Aide experte garantie (pas de vente !)
 
-🎯 **Ton niveau premium est activé !**`, 'bot', 'mailto_fallback');
+💪 **Ton aide militante continue !**`, 'bot', 'mailto_fallback');
                     }
 
                 } catch (error) {
-                    console.error('Erreur callback:', error);
-                    addMessage(`❌ Erreur envoi : ${error.message}`, 'bot');
+                    console.error('Erreur demande aide:', error);
+                    addMessage(`❌ Erreur temporaire : ${error.message}`, 'bot');
                 }
 
                 setShowCallbackForm(false);
@@ -415,56 +322,56 @@ Session: ${leadData.sessionId}`;
 
             const getLevelName = () => {
                 const names = {
-                    0: 'Diagnostic de Base',
-                    1: 'Diagnostic Avancé', 
-                    2: 'Expertise Premium',
-                    3: 'Service VIP'
+                    0: 'Aide Gratuite',
+                    1: 'Accompagnement Personnalisé', 
+                    2: 'Support Expert',
+                    3: 'Aide VIP'
                 };
-                return names[userLevel] || 'Inconnu';
+                return names[userLevel] || 'Helper';
             };
 
-            const getAiModeDisplay = () => {
+            const getModeDisplay = () => {
                 const modes = {
-                    'dual_brain': '🧠 Dual Brain (Claude + OpenAI)',
-                    'claude_only': '🎯 Claude Expert',
-                    'airtable': '📚 Knowledge Base',
-                    'simulation': '⚡ Simulation',
-                    'fallback': '🔄 Fallback'
+                    'dual_brain_militant': '🤝 Dual Brain Militant',
+                    'claude_militant': '🔧 Expert Claude',
+                    'openai_militant': '💡 Assistant Humain',
+                    'simulation_militante': '⚡ Aide Intelligente',
+                    'militant_fallback': '🛠️ Mécano Manuel'
                 };
-                return modes[aiMode] || '🤖 IA';
+                return modes[sessionData.lastMode] || '🤝 Aide Militante';
             };
 
             return (
-                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-orange-50">
-                    {/* Header avec stats Dual Brain */}
-                    <header className="bg-white shadow-sm border-b">
+                <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
+                    {/* Header militant */}
+                    <header className="bg-white shadow-sm border-b-2 border-green-500">
                         <div className="max-w-6xl mx-auto px-2 sm:px-4 py-3">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center min-w-0 flex-1">
-                                    <div className="mr-2 sm:mr-3 bg-gradient-to-r from-green-500 to-green-600 px-2 sm:px-4 py-1 sm:py-2 rounded-lg shadow-sm">
-                                        <span className="text-white font-bold text-sm sm:text-lg">re-fap</span>
+                                    <div className="mr-2 sm:mr-3 bg-gradient-to-r from-green-600 to-green-700 px-2 sm:px-4 py-1 sm:py-2 rounded-lg shadow-sm">
+                                        <span className="text-white font-bold text-sm sm:text-lg">🤝 re-fap</span>
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <h1 className="text-sm sm:text-lg font-bold text-gray-800 truncate">Julien - Expert FAP Dual Brain</h1>
-                                        <p className="text-xs text-gray-600 hidden sm:block">
-                                            {getAiModeDisplay()} • {getLevelName()} • {leadValue}€ lead
+                                        <h1 className="text-sm sm:text-lg font-bold text-gray-800 truncate">Julien - Robin des Bois Mécanique</h1>
+                                        <p className="text-xs text-green-700 hidden sm:block">
+                                            {getModeDisplay()} • {getLevelName()} • {sessionData.helpProvided}€ économisés
                                         </p>
                                     </div>
                                 </div>
                                 <button 
                                     onClick={() => window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank')}
-                                    className="bg-orange-500 hover:bg-orange-600 text-white px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ml-2 whitespace-nowrap"
+                                    className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ml-2 whitespace-nowrap"
                                 >
-                                    <span className="hidden sm:inline">📞 Devis gratuit</span>
-                                    <span className="sm:hidden">📞</span>
+                                    <span className="hidden sm:inline">🛠️ Garages de confiance</span>
+                                    <span className="sm:hidden">🛠️</span>
                                 </button>
                             </div>
                         </div>
                         
-                        {/* Status Dual Brain */}
-                        <div className="text-xs text-center py-2 bg-gradient-to-r from-purple-50 to-blue-50">
-                            <span className="text-purple-600 font-medium">
-                                🧠 {getAiModeDisplay()} • Level {userLevel} • {leadData.interactions} interactions • {leadValue > 0 ? `${leadValue}€ lead` : 'Lead en cours'}
+                        {/* Status militant */}
+                        <div className="text-xs text-center py-2 bg-gradient-to-r from-green-100 to-blue-100">
+                            <span className="text-green-800 font-medium">
+                                🤝 Aide Militante Active • {getLevelName()} • {sessionData.interactions} interactions • {sessionData.helpProvided}€ économisés
                             </span>
                         </div>
                     </header>
@@ -473,17 +380,17 @@ Session: ${leadData.sessionId}`;
                     <div className="max-w-6xl mx-auto p-2 sm:p-4">
                         <div className="flex flex-col lg:flex-row gap-2 sm:gap-4">
                             {/* Chat */}
-                            <div className="flex-1 bg-white rounded-xl shadow-lg overflow-hidden">
-                                {/* Header chat */}
-                                <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white p-4">
+                            <div className="flex-1 bg-white rounded-xl shadow-lg overflow-hidden border-2 border-green-200">
+                                {/* Header chat militant */}
+                                <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4">
                                     <div className="flex items-center">
                                         <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-3">
-                                            <span className="text-2xl">🧠</span>
+                                            <span className="text-2xl">🤝</span>
                                         </div>
                                         <div>
-                                            <h2 className="text-xl font-bold">Julien Dual Brain IA</h2>
-                                            <p className="text-orange-100 text-sm">
-                                                Claude + OpenAI • {getLevelName()}
+                                            <h2 className="text-xl font-bold">Julien - Mécano Militant</h2>
+                                            <p className="text-green-100 text-sm">
+                                                Robin des Bois • Anti-Arnaque • {getLevelName()}
                                             </p>
                                         </div>
                                     </div>
@@ -495,11 +402,11 @@ Session: ${leadData.sessionId}`;
                                         <div key={index} className={`mb-4 ${message.type === 'user' ? 'text-right' : ''}`}>
                                             <div className={`inline-block p-3 rounded-lg max-w-[85%] sm:max-w-md ${
                                                 message.type === 'user' 
-                                                    ? 'bg-blue-500 text-white' 
-                                                    : message.source === 'dual_brain'
-                                                        ? 'bg-purple-100 text-gray-800 border-l-4 border-purple-500'
-                                                        : message.source === 'claude_only'
-                                                            ? 'bg-blue-100 text-gray-800 border-l-4 border-blue-500'
+                                                    ? 'bg-green-500 text-white' 
+                                                    : message.source?.includes('militant')
+                                                        ? 'bg-green-50 text-gray-800 border-l-4 border-green-500'
+                                                        : message.source?.includes('expert')
+                                                            ? 'bg-blue-50 text-gray-800 border-l-4 border-blue-500'
                                                             : 'bg-white text-gray-800 border border-gray-200'
                                             }`}>
                                                 {typeof message.content === 'string' ? 
@@ -513,10 +420,9 @@ Session: ${leadData.sessionId}`;
                                                 
                                                 {message.type === 'bot' && (
                                                     <div className="text-xs text-gray-400 mt-2">
-                                                        {message.source === 'dual_brain' ? '🧠 Dual Brain' : 
-                                                         message.source === 'claude_only' ? '🎯 Claude Expert' : 
-                                                         message.source === 'airtable' ? '📚 Knowledge' : 
-                                                         '⚡ Auto'} • {new Date(message.timestamp).toLocaleTimeString()}
+                                                        {message.source?.includes('militant') ? '🤝 Aide Militante' : 
+                                                         message.source?.includes('expert') ? '🔧 Expert' : 
+                                                         '💪 Auto'} • {new Date(message.timestamp).toLocaleTimeString()}
                                                     </div>
                                                 )}
                                             </div>
@@ -525,14 +431,14 @@ Session: ${leadData.sessionId}`;
                                     
                                     {isTyping && (
                                         <div className="mb-4">
-                                            <div className="inline-block bg-white p-3 rounded-lg border border-gray-200">
+                                            <div className="inline-block bg-green-50 p-3 rounded-lg border-l-4 border-green-500">
                                                 <div className="flex items-center space-x-2">
                                                     <div className="flex space-x-1">
-                                                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
-                                                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                                                        <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                                                        <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce"></div>
+                                                        <div className="w-2 h-2 bg-green-600 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                                                        <div className="w-2 h-2 bg-green-700 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                                                     </div>
-                                                    <span className="text-sm text-gray-600">Dual Brain analyse... 🧠💎</span>
+                                                    <span className="text-sm text-green-700">Julien analyse ton problème... 🤝🔧</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -540,20 +446,20 @@ Session: ${leadData.sessionId}`;
                                 </div>
 
                                 {/* Input */}
-                                <div className="p-2 sm:p-4 border-t bg-white">
+                                <div className="p-2 sm:p-4 border-t-2 border-green-200 bg-white">
                                     <form onSubmit={handleSendMessage} className="flex gap-2 mb-3">
                                         <input
                                             type="text"
                                             value={inputMessage}
                                             onChange={(e) => setInputMessage(e.target.value)}
-                                            placeholder="💬 Décris ton problème..."
-                                            className="flex-1 p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-sm"
+                                            placeholder="💬 Décris ton problème auto..."
+                                            className="flex-1 p-2 sm:p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
                                             disabled={isTyping}
                                         />
                                         <button
                                             type="submit"
                                             disabled={isTyping || !inputMessage.trim()}
-                                            className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-colors text-sm whitespace-nowrap"
+                                            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-colors text-sm whitespace-nowrap"
                                         >
                                             <span className="hidden sm:inline">Envoyer</span>
                                             <span className="sm:hidden">📤</span>
@@ -561,7 +467,7 @@ Session: ${leadData.sessionId}`;
                                     </form>
 
                                     {/* Upload photo */}
-                                    <div className="mb-3 p-2 sm:p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-dashed border-blue-300">
+                                    <div className="mb-3 p-2 sm:p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-dashed border-green-400">
                                         <div className="text-center">
                                             <input
                                                 type="file"
@@ -573,35 +479,35 @@ Session: ${leadData.sessionId}`;
                                             />
                                             <label 
                                                 htmlFor="imageUpload" 
-                                                className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg inline-flex items-center gap-2 font-medium transition-colors text-sm"
+                                                className="cursor-pointer bg-green-600 hover:bg-green-700 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg inline-flex items-center gap-2 font-medium transition-colors text-sm"
                                             >
-                                                📸 <span className="hidden sm:inline">Photo de mon voyant</span><span className="sm:hidden">Photo</span>
+                                                📸 <span className="hidden sm:inline">Photo de ton problème</span><span className="sm:hidden">Photo</span>
                                             </label>
-                                            <p className="text-xs text-gray-600 mt-2 px-2">
-                                                JPG/PNG max 5MB • Analyse Dual Brain ! 🧠
+                                            <p className="text-xs text-green-700 mt-2 px-2">
+                                                JPG/PNG max 5MB • Analyse militante ! 🤝
                                             </p>
                                         </div>
                                     </div>
 
-                                    {/* Quick options */}
+                                    {/* Quick options militantes */}
                                     <div className="grid grid-cols-2 gap-1 sm:gap-2 mb-4 lg:mb-0">
                                         {[
-                                            { text: "🟡 Voyant FAP", textMobile: "🟡 FAP", msg: "Voyant FAP allumé" },
-                                            { text: "💨 Ça fume", textMobile: "💨 Fume", msg: "Ça pue et ça fume" },
-                                            { text: "⚡ Perte puissance", textMobile: "⚡ Puissance", msg: "Plus de puissance en ville" },
-                                            { text: "🔧 Je suis bricoleur", textMobile: "🔧 Bricoleur", msg: "Je démonte moi-même" }
+                                            { text: "🌪️ Problème FAP", textMobile: "🌪️ FAP", msg: "Mon FAP déconne, voyant allumé" },
+                                            { text: "🚗 Freins bizarres", textMobile: "🚗 Freins", msg: "Mes freins font du bruit" },
+                                            { text: "⚠️ Voyant moteur", textMobile: "⚠️ Voyant", msg: "Voyant moteur orange allumé" },
+                                            { text: "💰 Éviter arnaque", textMobile: "💰 Arnaque", msg: "On veut me vendre cher, c'est normal ?" }
                                         ].map((option, index) => (
                                             <button
                                                 key={index}
                                                 onClick={async () => {
                                                     addMessage(option.msg, 'user');
                                                     setIsTyping(true);
-                                                    const response = await getDualBrainResponse(option.msg);
+                                                    const response = await getMilitantResponse(option.msg);
                                                     addMessage(response.text, 'bot', response.mode);
                                                     setIsTyping(false);
                                                 }}
                                                 disabled={isTyping}
-                                                className="bg-gray-100 hover:bg-gray-200 p-2 rounded text-xs sm:text-sm disabled:opacity-50 transition-colors"
+                                                className="bg-green-100 hover:bg-green-200 text-green-800 p-2 rounded text-xs sm:text-sm disabled:opacity-50 transition-colors border border-green-300"
                                             >
                                                 <span className="hidden sm:inline">{option.text}</span>
                                                 <span className="sm:hidden">{option.textMobile}</span>
@@ -609,174 +515,77 @@ Session: ${leadData.sessionId}`;
                                         ))}
                                     </div>
 
-                                    {/* CTA mobile */}
-                                    <div className="lg:hidden p-3 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
-                                        <h4 className="font-bold text-orange-800 text-sm mb-2 text-center">🎯 Besoin d'aide ?</h4>
+                                    {/* CTA mobile militant */}
+                                    <div className="lg:hidden p-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-200">
+                                        <h4 className="font-bold text-green-800 text-sm mb-2 text-center">🤝 Aide Militante</h4>
                                         <div className="grid grid-cols-1 gap-2">
                                             <button
                                                 onClick={handleGarageClick}
-                                                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded text-sm font-medium transition-colors"
+                                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded text-sm font-medium transition-colors"
                                             >
-                                                🏪 Trouver un garage de confiance
+                                                🛠️ Garages de confiance (pas d'arnaque)
                                             </button>
                                             <button
                                                 onClick={handleCallbackClick}
-                                                className="bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded text-sm font-medium transition-colors"
+                                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded text-sm font-medium transition-colors"
                                             >
-                                                📞 Être rappelé gratuitement (Lead {leadValue}€)
+                                                📞 Aide expert perso ({sessionData.helpProvided}€ économisés)
                                             </button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* CTA Section - DESKTOP */}
+                            {/* Sidebar militante - DESKTOP */}
                             <div className="hidden lg:block w-64 space-y-4">
-                                {/* Stats Dual Brain */}
-                                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-3 text-center">
-                                    <h4 className="font-bold text-purple-800 text-sm mb-1">🧠 Dual Brain Stats</h4>
-                                    <div className="text-xs text-purple-600 space-y-1">
+                                {/* Stats aide militante */}
+                                <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-lg p-3 text-center">
+                                    <h4 className="font-bold text-green-800 text-sm mb-1">🤝 Aide Fournie</h4>
+                                    <div className="text-xs text-green-700 space-y-1">
                                         <div>Level: {getLevelName()}</div>
-                                        <div>Mode: {getAiModeDisplay()}</div>
-                                        <div>Lead: {leadValue}€</div>
-                                        <div>Interactions: {leadData.interactions}</div>
+                                        <div>Économies: {sessionData.helpProvided}€</div>
+                                        <div>Interactions: {sessionData.interactions}</div>
+                                        <div>Mode: Anti-arnaque</div>
                                     </div>
                                 </div>
 
-                                {/* Upgrade si niveau 0 */}
-                                {userLevel === 0 && conversionStrategy && (
-                                    <button
-                                        onClick={handleUpgradeClick}
-                                        className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
-                                    >
-                                        <div className="text-center">
-                                            <div className="text-2xl mb-2">🔓</div>
-                                            <div className="font-bold">Diagnostic Premium</div>
-                                            <div className="font-bold">GRATUIT</div>
-                                            <div className="text-xs mt-1 opacity-90">Dual Brain activé !</div>
-                                        </div>
-                                    </button>
-                                )}
-
-                                {/* Bouton Garage */}
+                                {/* Bouton Garages confiance */}
                                 <button
                                     onClick={handleGarageClick}
-                                    className="w-full bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
+                                    className="w-full bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg border-2 border-green-500"
                                 >
                                     <div className="text-center">
-                                        <div className="text-2xl mb-2">🏪</div>
-                                        <div className="font-bold">Trouver un garage</div>
+                                        <div className="text-2xl mb-2">🛠️</div>
+                                        <div className="font-bold">Garages</div>
                                         <div className="font-bold">de confiance</div>
-                                        <div className="text-xs mt-1 opacity-90">Réseau Re-Fap</div>
+                                        <div className="text-xs mt-1 opacity-90">Réseau anti-arnaque</div>
                                     </div>
                                 </button>
 
-                                {/* Bouton Rappel */}
+                                {/* Bouton Aide expert */}
                                 <button
                                     onClick={handleCallbackClick}
-                                    className="w-full bg-green-500 hover:bg-green-600 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg border-2 border-blue-500"
                                 >
                                     <div className="text-center">
                                         <div className="text-2xl mb-2">📞</div>
-                                        <div className="font-bold">Être rappelé</div>
-                                        <div className="font-bold">gratuitement</div>
-                                        <div className="text-xs mt-1 opacity-90">Lead {leadValue}€ • Expert sous 2h</div>
+                                        <div className="font-bold">Aide expert</div>
+                                        <div className="font-bold">personnalisée</div>
+                                        <div className="text-xs mt-1 opacity-90">{sessionData.helpProvided}€ économisés • Pas de vente</div>
                                     </div>
                                 </button>
                             </div>
                         </div>
 
-                        {/* MODAL UPGRADE PREMIUM */}
-                        {showUpgradeForm && (
-                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-                                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto mx-2">
-                                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-3 sm:p-4 rounded-t-xl">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex-1">
-                                                <h3 className="text-base sm:text-lg font-bold">🔓 Diagnostic Premium Gratuit</h3>
-                                                <p className="text-xs sm:text-sm opacity-90">Dual Brain Claude + OpenAI</p>
-                                            </div>
-                                            <button 
-                                                onClick={() => setShowUpgradeForm(false)}
-                                                className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded ml-2"
-                                            >
-                                                ✕
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <form onSubmit={handleUpgradeSubmit} className="p-4 sm:p-6 space-y-4">
-                                        <div className="text-center mb-4">
-                                            <div className="text-2xl mb-2">🧠</div>
-                                            <p className="text-sm text-gray-600">
-                                                Débloquez l'analyse Dual Brain premium ! Fusion Claude (précision) + OpenAI (créativité) pour un diagnostic unique.
-                                            </p>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Email *
-                                            </label>
-                                            <input
-                                                type="email"
-                                                required
-                                                value={callbackData.email}
-                                                onChange={(e) => setCallbackData({...callbackData, email: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-sm"
-                                                placeholder="votre@email.com"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Prénom
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={callbackData.nom}
-                                                onChange={(e) => setCallbackData({...callbackData, nom: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-sm"
-                                                placeholder="Votre prénom"
-                                            />
-                                        </div>
-
-                                        <div className="bg-purple-50 p-2 sm:p-3 rounded-lg text-xs text-purple-700">
-                                            🎁 <strong>Vous obtenez :</strong>
-                                            <br />• Analyse Dual Brain (Claude + OpenAI)
-                                            <br />• Diagnostic technique approfondi
-                                            <br />• Recommandations personnalisées
-                                            <br />• Estimation coûts précise
-                                        </div>
-
-                                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowUpgradeForm(false)}
-                                                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
-                                            >
-                                                Plus tard
-                                            </button>
-                                            <button
-                                                type="submit"
-                                                className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
-                                            >
-                                                🔓 Activer Premium
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* MODAL RAPPEL */}
+                        {/* MODAL AIDE EXPERT */}
                         {showCallbackForm && (
                             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-                                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto mx-2">
-                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-3 sm:p-4 rounded-t-xl">
+                                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto mx-2 border-2 border-green-300">
+                                    <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-3 sm:p-4 rounded-t-xl">
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1">
-                                                <h3 className="text-base sm:text-lg font-bold">📞 Rappel Expert</h3>
-                                                <p className="text-xs sm:text-sm opacity-90">Lead {leadValue}€ • Dual Brain</p>
+                                                <h3 className="text-base sm:text-lg font-bold">📞 Aide Expert Militante</h3>
+                                                <p className="text-xs sm:text-sm opacity-90">Pas de vente - Juste de l'aide !</p>
                                             </div>
                                             <button 
                                                 onClick={() => setShowCallbackForm(false)}
@@ -788,6 +597,13 @@ Session: ${leadData.sessionId}`;
                                     </div>
 
                                     <form onSubmit={handleCallbackSubmit} className="p-4 sm:p-6 space-y-4">
+                                        <div className="text-center mb-4">
+                                            <div className="text-2xl mb-2">🤝</div>
+                                            <p className="text-sm text-gray-600">
+                                                Un expert mécano va te rappeler pour t'aider personnellement. Pas de vente, juste de l'aide !
+                                            </p>
+                                        </div>
+
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                                 Nom / Prénom *
@@ -797,8 +613,8 @@ Session: ${leadData.sessionId}`;
                                                 required
                                                 value={callbackData.nom}
                                                 onChange={(e) => setCallbackData({...callbackData, nom: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="Votre nom complet"
+                                                className="w-full p-2 sm:p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                                                placeholder="Ton nom complet"
                                             />
                                         </div>
 
@@ -811,21 +627,21 @@ Session: ${leadData.sessionId}`;
                                                 required
                                                 value={callbackData.telephone}
                                                 onChange={(e) => setCallbackData({...callbackData, telephone: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                                                className="w-full p-2 sm:p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
                                                 placeholder="06 12 34 56 78"
                                             />
                                         </div>
 
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Email
+                                                Email (optionnel)
                                             </label>
                                             <input
                                                 type="email"
                                                 value={callbackData.email}
                                                 onChange={(e) => setCallbackData({...callbackData, email: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="votre@email.com"
+                                                className="w-full p-2 sm:p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                                                placeholder="ton@email.com"
                                             />
                                         </div>
 
@@ -836,8 +652,8 @@ Session: ${leadData.sessionId}`;
                                             <textarea
                                                 value={callbackData.probleme}
                                                 onChange={(e) => setCallbackData({...callbackData, probleme: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="Voyants allumés, fumées..."
+                                                className="w-full p-2 sm:p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                                                placeholder="Voyants, bruits, problèmes..."
                                                 rows="3"
                                             />
                                         </div>
@@ -850,15 +666,17 @@ Session: ${leadData.sessionId}`;
                                                 type="text"
                                                 value={callbackData.vehicule}
                                                 onChange={(e) => setCallbackData({...callbackData, vehicule: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                                                className="w-full p-2 sm:p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
                                                 placeholder="Peugeot 308 2018"
                                             />
                                         </div>
 
-                                        <div className="bg-green-50 p-2 sm:p-3 rounded-lg text-xs text-green-700">
-                                            🧠 <strong>Lead Dual Brain :</strong> {leadValue}€
-                                            <br />📊 Analysé par IA premium (Claude + OpenAI)
-                                            <br />✅ Données utilisées uniquement pour le rappel
+                                        <div className="bg-green-50 p-2 sm:p-3 rounded-lg text-xs text-green-700 border border-green-200">
+                                            🤝 <strong>Promesse militante :</strong>
+                                            <br />• Aide experte personnalisée
+                                            <br />• Aucune vente forcée
+                                            <br />• Solutions anti-arnaque garanties
+                                            <br />• Économies maximales pour toi
                                         </div>
 
                                         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
@@ -871,9 +689,9 @@ Session: ${leadData.sessionId}`;
                                             </button>
                                             <button
                                                 type="submit"
-                                                className="w-full bg-green-500 hover:bg-green-600 text-white py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
+                                                className="w-full bg-green-600 hover:bg-green-700 text-white py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
                                             >
-                                                📞 Demander le rappel
+                                                📞 Demander l'aide
                                             </button>
                                         </div>
                                     </form>
@@ -882,26 +700,26 @@ Session: ${leadData.sessionId}`;
                         )}
                     </div>
 
-                    {/* Footer */}
+                    {/* Footer militant */}
                     <footer className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 text-center text-xs sm:text-sm text-gray-600">
                         <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-6 mb-3">
-                            <span className="flex items-center"><span className="text-purple-500 mr-1">🧠</span> Dual Brain IA</span>
-                            <span className="flex items-center"><span className="text-blue-500 mr-1">🎯</span> {getLevelName()}</span>
-                            <span className="flex items-center"><span className="text-green-500 mr-1">💰</span> {leadValue}€ lead</span>
-                            <span className="flex items-center"><span className="text-orange-500 mr-1">📊</span> {leadData.interactions} interactions</span>
+                            <span className="flex items-center"><span className="text-green-600 mr-1">🤝</span> Aide Militante</span>
+                            <span className="flex items-center"><span className="text-blue-600 mr-1">💰</span> {sessionData.helpProvided}€ économisés</span>
+                            <span className="flex items-center"><span className="text-purple-600 mr-1">🛠️</span> {getLevelName()}</span>
+                            <span className="flex items-center"><span className="text-orange-600 mr-1">📊</span> {sessionData.interactions} interactions</span>
                         </div>
                         <p className="text-xs px-2">
-                            Powered by <a href="https://re-fap.fr" className="text-orange-600 hover:underline">Re-Fap</a> • 
-                            Dual Brain IA (Claude + OpenAI) •
-                            <span className="hidden sm:inline"> Diagnostic premium •</span>
-                            <span className="block sm:inline"> Session: {leadData.sessionId}</span>
+                            Powered by <a href="https://re-fap.fr" className="text-green-700 hover:underline">Re-Fap</a> • 
+                            Julien le Mécano Militant •
+                            <span className="hidden sm:inline"> Robin des Bois anti-arnaque •</span>
+                            <span className="block sm:inline"> Session: {sessionData.sessionId}</span>
                         </p>
                     </footer>
                 </div>
             );
         };
 
-        ReactDOM.render(<JulienDualBrainChatbot />, document.getElementById('root'));
+        ReactDOM.render(<JulienMilitantChatbot />, document.getElementById('root'));
     </script>
 </body>
 </html>
