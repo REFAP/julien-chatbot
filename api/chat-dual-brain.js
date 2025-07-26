@@ -1,4 +1,10 @@
-// api/chat-dual-brain.js - Version avec CTA email optimisé et capture automatique
+// Mise à jour de l'API pour intégrer la simulation militante avancée
+
+import { SimulationMilitanteAvancee } from './simulation-militante-avancee.js';
+import { PROMPTS_MILITANTS, getPromptMilitant } from './prompts-militants-avances.js';
+
+// Instance globale de la simulation
+const simulationMilitante = new SimulationMilitanteAvancee();
 
 export default async function handler(req, res) {
   // Configuration CORS
@@ -15,38 +21,26 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Détecter si l'utilisateur a fourni un email
     const { message, userData = {}, sessionId } = req.body;
     
     if (!message) {
       return res.status(400).json({ error: 'Message requis' });
     }
 
+    // Détection email automatique
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
     const userEmail = message.match(emailRegex)?.[0];
     
     if (userEmail) {
-      // Email détecté = upgrade automatique vers premium gratuit
       return res.status(200).json({
         success: true,
-        message: `🎉 **EMAIL CONFIRMÉ : ${userEmail}** 🎉\n\n` +
-          `✅ **DIAGNOSTIC PREMIUM GRATUIT ACTIVÉ !**\n\n` +
-          `📧 **Votre rapport détaillé sera envoyé dans 2 minutes à :**\n` +
-          `${userEmail}\n\n` +
-          `🚀 **Diagnostic en cours de génération...**\n` +
-          `• Analyse technique approfondie de votre problème de freinage\n` +
-          `• Estimation précise des coûts (plaquettes, disques, main d'œuvre)\n` +
-          `• Guide de réparation avec photos étape par étape\n` +
-          `• Liste de garages recommandés dans votre région\n` +
-          `• Conseils anti-arnaque pour négocier\n\n` +
-          `📱 **Vérifiez votre boîte mail dans 2 minutes !**\n` +
-          `*Pensez à vérifier vos spams si besoin*\n\n` +
-          `🎁 **BONUS :** Vous recevrez aussi nos alertes rappels constructeurs !`,
+        message: genererReponseEmailConfirme(userEmail),
         metadata: {
-          mode: "🎁 Email Premium Activé",
+          mode: "🤝 Accompagnement Personnalisé",
           userLevel: 1,
-          leadValue: 85,
+          leadValue: 65,
           email: userEmail,
+          militant: true,
           timestamp: new Date().toISOString()
         }
       });
@@ -56,74 +50,58 @@ export default async function handler(req, res) {
     let userLevel = 0;
     if (userData.email) userLevel = 1;
     if (userData.phone) userLevel = 2;
-    if (userData.vehicleInfo) userLevel = 3;
 
     const levelNames = {
-      0: "Diagnostic de Base",
-      1: "Diagnostic Avancé", 
-      2: "Expertise Premium",
-      3: "Service VIP"
+      0: "Aide Gratuite",
+      1: "Accompagnement Personnalisé", 
+      2: "Support Expert"
     };
 
-    // Appel Dual Brain avec dialogue direct
-    let response = "";
-    let mode = "simulation_intelligent";
-    
-    // Essai Claude + OpenAI (Dual Brain réel)
+    // 🤝 APPEL SIMULATION MILITANTE AVANCÉE D'ABORD
+    const simulationResult = simulationMilitante.analyserProbleme(message, userLevel);
+    let response = simulationResult.content;
+    let mode = `simulation_militante_${simulationResult.type}`;
+    let economicValue = simulationResult.economic_value;
+
+    // 🧠 ESSAI IA RÉELLES avec prompts militants spécialisés
     try {
-      const claudeResponse = await callClaude(message, userLevel);
-      const openaiResponse = await callOpenAI(message, userLevel);
+      const needType = detectNeedType(message);
+      const claudeResponse = await callClaudeMilitantAvance(message, needType, userLevel);
+      const openaiResponse = await callOpenAIMilitantAvance(message, needType, userLevel);
       
       if (claudeResponse && openaiResponse) {
-        // FUSION INTELLIGENTE pour dialogue direct
-        response = await fusionDualBrain(message, claudeResponse, openaiResponse, userLevel);
-        mode = "dual_brain_real";
+        // Fusion avec simulation comme base
+        response = await fusionMilitanteAvancee(
+          simulationResult, 
+          claudeResponse, 
+          openaiResponse, 
+          userLevel
+        );
+        mode = "dual_brain_militant_avance";
+        economicValue = Math.max(economicValue, 300);
       } else if (claudeResponse) {
-        response = await formatClaudeResponse(message, claudeResponse, userLevel);
-        mode = "claude_real";
+        response = await fusionSimulationClaude(simulationResult, claudeResponse, userLevel);
+        mode = "claude_militant_enrichi";
+        economicValue = Math.max(economicValue, 250);
       } else if (openaiResponse) {
-        response = await formatOpenAIResponse(message, openaiResponse, userLevel);
-        mode = "openai_real";
+        response = await fusionSimulationOpenAI(simulationResult, openaiResponse, userLevel);
+        mode = "openai_militant_enrichi";
+        economicValue = Math.max(economicValue, 220);
       }
     } catch (error) {
-      console.log('APIs échouent, utilisation mode intelligent:', error.message);
+      console.log('IA indisponibles, simulation militante pure utilisée:', error.message);
+      // response reste celui de la simulation
     }
 
-    // Fallback intelligent avec dialogue direct
-    if (!response) {
-      response = await simulationIntelligente(message, userLevel);
-      mode = "simulation_intelligent";
+    // Ajout aide email pour niveau 0 (bienveillant)
+    if (userLevel === 0 && !response.includes('email')) {
+      response += genererInvitationEmailBienveillante();
     }
 
-    // Ajout du CTA email pour niveau 0
-    if (userLevel === 0) {
-      response += `\n\n🎁 **DIAGNOSTIC PREMIUM GRATUIT** 🎁\n`;
-      response += `**Obtenez IMMÉDIATEMENT votre rapport complet :**\n`;
-      response += `✅ Diagnostic précis spécifique à votre véhicule\n`;
-      response += `✅ Estimation exacte des coûts de réparation\n`;
-      response += `✅ Guide de réparation détaillé\n`;
-      response += `✅ Conseils pour éviter l'arnaque garage\n\n`;
-      response += `📧 **TAPEZ VOTRE EMAIL DANS LE CHAT** ⬇️\n`;
-      response += `*Exemple : votre.email@gmail.com*\n`;
-      response += `⚡ **Rapport envoyé automatiquement en 2 minutes !**\n`;
-      response += `\n💡 **BONUS :** Alertes rappels constructeurs + conseils experts gratuits !`;
-    }
-
-    // Calcul business
+    // Calcul business avec valeurs militantes
     const needType = detectNeedType(message);
-    const baseScore = calculateScore(needType, mode);
-    const leadValue = calculateLeadValue(needType, userLevel, mode);
-
-    // Logging Airtable
-    await logToAirtable({
-      message,
-      response,
-      userLevel,
-      leadValue,
-      mode,
-      needType,
-      sessionId
-    });
+    const baseScore = calculateMilitantScore(needType, mode, simulationResult.confidence);
+    const leadValue = Math.round(economicValue * 0.15); // 15% de l'économie = valeur lead
 
     return res.status(200).json({
       success: true,
@@ -134,31 +112,29 @@ export default async function handler(req, res) {
         levelName: levelNames[userLevel],
         needType,
         leadValue,
+        economicValue, // Économie pour l'automobiliste
         score: baseScore,
-        partner: needType === "brakes" ? "MIDAS" : "IDGARAGES",
+        partner: getPartnerMilitant(needType),
+        militant: true,
+        confidence: simulationResult.confidence,
         timestamp: new Date().toISOString()
       }
     });
 
   } catch (error) {
-    console.error('Erreur chat-dual-brain:', error);
+    console.error('Erreur chat militant avancé:', error);
     return res.status(500).json({ error: 'Erreur serveur' });
   }
 }
 
-// === APPELS APIs ===
-async function callClaude(message, userLevel) {
+// === APPELS IA MILITANTS AVANCÉS ===
+
+async function callClaudeMilitantAvance(message, needType, userLevel) {
   try {
     const claudeKey = process.env.CLAUDE_API_KEY;
     if (!claudeKey) return null;
 
-    const systemPrompt = `Tu es Julien, expert automobile FAP/EGR/AdBlue. Réponds directement et précisément à la question posée.
-    
-    Niveau utilisateur: ${userLevel}
-    - Niveau 0: Diagnostic de base + invitation email pour plus de détails
-    - Niveau 1+: Diagnostic complet avec estimations de coûts
-    
-    Style: Expert technique mais accessible, questions pertinentes pour approfondir le diagnostic.`;
+    const militantPrompt = getPromptMilitant(needType, userLevel);
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -169,9 +145,9 @@ async function callClaude(message, userLevel) {
       },
       body: JSON.stringify({
         model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 1000,
+        max_tokens: 1200,
         messages: [
-          { role: 'user', content: `${systemPrompt}\n\nQuestion: ${message}` }
+          { role: 'user', content: `${militantPrompt}\n\nProblème auto: ${message}` }
         ]
       })
     });
@@ -180,23 +156,17 @@ async function callClaude(message, userLevel) {
     const data = await response.json();
     return data.content[0].text;
   } catch (error) {
-    console.error('Erreur Claude:', error);
+    console.error('Erreur Claude militant avancé:', error);
     return null;
   }
 }
 
-async function callOpenAI(message, userLevel) {
+async function callOpenAIMilitantAvance(message, needType, userLevel) {
   try {
     const openaiKey = process.env.CLE_API_OPENAI;
     if (!openaiKey) return null;
 
-    const systemPrompt = `Tu es un assistant conversationnel expert en automobile. Réponds de manière engageante et persuasive à la question posée.
-    
-    Niveau utilisateur: ${userLevel}
-    - Niveau 0: Encourage à donner email pour diagnostic complet
-    - Niveau 1+: Sois très détaillé et expert
-    
-    Style: Chaleureux, rassurant, expert en conversion client.`;
+    const militantPrompt = getPromptMilitant(needType, userLevel);
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -206,9 +176,9 @@ async function callOpenAI(message, userLevel) {
       },
       body: JSON.stringify({
         model: 'gpt-4o',
-        max_tokens: 1000,
+        max_tokens: 1200,
         messages: [
-          { role: 'system', content: systemPrompt },
+          { role: 'system', content: militantPrompt },
           { role: 'user', content: message }
         ]
       })
@@ -218,122 +188,134 @@ async function callOpenAI(message, userLevel) {
     const data = await response.json();
     return data.choices[0].message.content;
   } catch (error) {
-    console.error('Erreur OpenAI:', error);
+    console.error('Erreur OpenAI militant avancé:', error);
     return null;
   }
 }
 
-// === FUSION DUAL BRAIN ===
-async function fusionDualBrain(message, claudeResponse, openaiResponse, userLevel) {
-  // Fusion intelligente des deux réponses
-  const needType = detectNeedType(message);
-  
+// === FUSIONS MILITANTES AVANCÉES ===
+
+async function fusionMilitanteAvancee(simulationResult, claudeResponse, openaiResponse, userLevel) {
   if (userLevel === 0) {
-    return `🔧 **Diagnostic Dual Brain Activé** 🧠\n\n${claudeResponse}\n\n💡 **Expertise Complémentaire:**\n${openaiResponse}`;
+    return `🤝 **Diagnostic Militant Triple-Check** 🛠️
+
+**🧠 Base de connaissances Julien :**
+${simulationResult.content}
+
+**🔧 Validation Expert Claude :**
+${claudeResponse}
+
+**💡 Perspective Humaine OpenAI :**
+${openaiResponse}
+
+✅ **Triple validation militante = diagnostic fiable à 100% !**`;
   } else {
-    return `🧠 **Analyse Dual Brain Premium** 🔧\n\n**Diagnostic Technique (Claude):**\n${claudeResponse}\n\n**Analyse Complémentaire (OpenAI):**\n${openaiResponse}\n\n✅ **Diagnostic complet terminé !**`;
+    return `🧠 **Analyse Militant Premium Triple-Puissance** 🔧
+
+**📚 Diagnostic de base (Julien) :**
+${simulationResult.content}
+
+**🎯 Expertise technique (Claude) :**
+${claudeResponse}
+
+**🤝 Approche humaine (OpenAI) :**
+${openaiResponse}
+
+🏆 **Analyse complète terminée - Plan d'action anti-arnaque dans ton guide !**`;
   }
 }
 
-async function formatClaudeResponse(message, claudeResponse, userLevel) {
-  if (userLevel === 0) {
-    return `🔧 **Diagnostic Claude Activé** \n\n${claudeResponse}`;
-  } else {
-    return `🧠 **Analyse Claude Premium** 🔧\n\n${claudeResponse}`;
-  }
+async function fusionSimulationClaude(simulationResult, claudeResponse, userLevel) {
+  return `🔧 **Diagnostic Militant + Expert Claude** 🧠
+
+**💪 Analyse militante :**
+${simulationResult.content}
+
+**🎯 Validation experte :**
+${claudeResponse}
+
+✅ **Double-check militant + expert = fiabilité maximale !**`;
 }
 
-async function formatOpenAIResponse(message, openaiResponse, userLevel) {
-  if (userLevel === 0) {
-    return `🤖 **Diagnostic OpenAI Activé** \n\n${openaiResponse}`;
-  } else {
-    return `🤖 **Analyse OpenAI Premium** 🔧\n\n${openaiResponse}`;
-  }
+async function fusionSimulationOpenAI(simulationResult, openaiResponse, userLevel) {
+  return `🤝 **Diagnostic Militant + Assistant Humain** 💡
+
+**🛠️ Base militante :**
+${simulationResult.content}
+
+**💬 Perspective humaine :**
+${openaiResponse}
+
+✅ **Approche technique + humaine = aide complète !**`;
 }
 
-// === SIMULATION INTELLIGENTE ===
-async function simulationIntelligente(message, userLevel) {
-  const needType = detectNeedType(message);
-  const lowerMessage = message.toLowerCase();
-  
-  let baseResponse = "";
-  
-  // Réponses directes et intelligentes selon le problème
-  if (needType === "brakes") {
-    if (userLevel === 0) {
-      baseResponse = `🔧 **Diagnostic Freinage** 🚗\n\nD'après ta description "${message}", je détecte un problème de freinage qui nécessite une attention immédiate.\n\n**Questions importantes :**\n• Le bruit apparaît-il au freinage ou en roulant ?\n• Est-ce un grincement, un couinement ou un bruit métallique ?\n• Le frein tire-t-il d'un côté ?\n\n⚠️ **Sécurité prioritaire** : Les freins sont un élément vital, un contrôle rapide est recommandé.\n\n🎯 **POUR VOTRE DIAGNOSTIC COMPLET GRATUIT :**\n📧 **Tapez simplement votre email dans le chat** ⬇️\n*Exemple : votre.nom@gmail.com*\n\n⚡ **Vous recevrez automatiquement :**\n• Analyse précise de votre problème\n• Estimation exacte des coûts\n• Guide photos étape par étape\n• Garages recommandés près de chez vous`;
-    } else {
-      baseResponse = `🧠 **Diagnostic Freinage Premium** 🔧\n\nAnalyse de "${message}" :\n\n**Causes probables :**\n• Plaquettes usées (80% des cas) - 120-250€\n• Disques voilés (15% des cas) - 200-400€ \n• Étriers grippés (5% des cas) - 150-300€\n\n**Diagnostic immédiat recommandé** - La sécurité avant tout !\n\n✅ **Estimation moyenne : 150-300€** selon l'intervention nécessaire.`;
-    }
-  } 
-  else if (needType === "engine") {
-    if (lowerMessage.includes("voyant")) {
-      if (userLevel === 0) {
-        baseResponse = `🔧 **Diagnostic Voyant Moteur** ⚠️\n\nVoyant moteur détecté dans "${message}".\n\n**Questions essentielles :**\n• Quelle couleur ? (Orange/Rouge)\n• Il clignote ou reste fixe ?\n• Depuis combien de temps ?\n• Perte de puissance ressentie ?\n\n**Diagnostic nécessaire** - Le voyant indique un dysfonctionnement à identifier.\n\n🎯 **DIAGNOSTIC COMPLET GRATUIT :**\n📧 **Tapez votre email dans le chat** ⬇️\n*Exemple : votre.nom@gmail.com*`;
-      } else {
-        baseResponse = `🧠 **Analyse Voyant Moteur Premium** ⚠️\n\nAnalyse de "${message}" :\n\n**Si orange fixe :** Pollution/FAP (60%) - 150-400€\n**Si orange clignotant :** Allumage/injection (25%) - 100-250€\n**Si rouge :** Urgence moteur (15%) - 200-800€\n\n**Action immédiate :** Diagnostic OBD obligatoire pour identifier le code défaut exact.\n\n✅ **Diagnostic OBD : 60-80€** + intervention selon code défaut.`;
-      }
-    } else if (lowerMessage.includes("fap") || lowerMessage.includes("egr")) {
-      if (userLevel === 0) {
-        baseResponse = `🔧 **Diagnostic FAP/EGR** 🌪️\n\nProblème FAP/EGR détecté dans "${message}".\n\n**Symptômes à préciser :**\n• Voyant anti-pollution allumé ?\n• Perte de puissance ?\n• Fumée noire à l'échappement ?\n• Type de conduite (ville/route) ?\n\n**Mon expertise** : FAP/EGR sont ma spécialité Re-Fap !\n\n🎯 **DIAGNOSTIC FAP/EGR GRATUIT :**\n📧 **Tapez votre email dans le chat** ⬇️\n*Exemple : votre.nom@gmail.com*`;
-      } else {
-        baseResponse = `🧠 **Expertise FAP/EGR Premium** 🌪️\n\nAnalyse spécialisée de "${message}" :\n\n**Solutions FAP/EGR :**\n• Régénération forcée - 80-120€\n• Nettoyage FAP/EGR - 150-250€\n• Remplacement FAP - 800-1500€\n• Reprogrammation légale - 400-600€\n\n**Ma recommandation** : Diagnostic approfondi pour solution optimale.\n\n✅ **Spécialiste Re-Fap** - Solutions sur-mesure selon ton usage !`;
-      }
-    }
-  }
-  else if (needType === "power") {
-    if (userLevel === 0) {
-      baseResponse = `🔧 **Diagnostic Perte Puissance** ⚡\n\nPerte de puissance détectée dans "${message}".\n\n**À préciser :**\n• Perte progressive ou brutale ?\n• À chaud ou à froid ?\n• Voyants allumés ?\n• Fumée d'échappement ?\n\n**Causes multiples possibles** - Diagnostic nécessaire pour cibler.\n\n🎯 **DIAGNOSTIC COMPLET GRATUIT :**\n📧 **Tapez votre email dans le chat** ⬇️\n*Exemple : votre.nom@gmail.com*`;
-    } else {
-      baseResponse = `🧠 **Analyse Perte Puissance Premium** ⚡\n\nAnalyse de "${message}" :\n\n**Causes fréquentes :**\n• Turbo défaillant (40%) - 500-1200€\n• Injection/allumage (30%) - 150-400€\n• FAP colmaté (20%) - 150-300€\n• Capteurs HS (10%) - 80-200€\n\n**Diagnostic prioritaire** pour cibler l'intervention.\n\n✅ **Estimation : 150-1200€** selon la cause identifiée.`;
-    }
-  }
-  else {
-    if (userLevel === 0) {
-      baseResponse = `🔧 **Diagnostic Auto Général** 🚗\n\nAnalyse de "${message}".\n\n**Pour un diagnostic précis, j'ai besoin de plus d'infos :**\n• Symptômes exacts ?\n• Quand ça arrive ?\n• Voyants allumés ?\n• Bruits particuliers ?\n\n**Expert automobile** prêt à t'aider !\n\n🎯 **DIAGNOSTIC COMPLET GRATUIT :**\n📧 **Tapez votre email dans le chat** ⬇️\n*Exemple : votre.nom@gmail.com*`;
-    } else {
-      baseResponse = `🧠 **Diagnostic Auto Premium** 🔧\n\nAnalyse approfondie de "${message}" :\n\n**Méthodologie experte :**\n• Identification symptômes\n• Diagnostic différentiel\n• Estimation coûts\n• Solutions optimales\n\n**Mon expertise** à ton service pour résoudre ton problème !\n\n✅ **Diagnostic personnalisé** selon tes symptômes précis.`;
-    }
-  }
-  
-  return baseResponse;
+// === UTILITAIRES MILITANTS ===
+
+function genererReponseEmailConfirme(email) {
+  const prenom = email.split('@')[0].split('.')[0];
+  return `🎉 **Super ${prenom} !** 📧
+
+✅ **Email confirmé → Passage en mode accompagnement personnalisé !**
+
+📋 **Ce que tu vas recevoir dans 2 minutes :**
+• **Guide anti-arnaque complet** de ton problème
+• **Vrais coûts** vs prix gonflés des arnaqueurs  
+• **Garages de confiance** testés près de chez toi
+• **Astuces de mécano** pour éviter les récidives
+• **Plan d'action** étape par étape
+
+📱 **En attendant, continue à me parler !**
+*Je suis là pour t'aider, pas pour te vendre.*
+
+🛠️ **Raconte-moi ton problème en détail** pour que je puisse t'accompagner au mieux !`;
 }
 
-// === FONCTIONS UTILITAIRES ===
+function genererInvitationEmailBienveillante() {
+  return `\n\n💡 **Pour aller plus loin gratuitement :**\nLaisse ton email si tu veux que je t'envoie :\n• Le guide complet anti-arnaque de ton problème\n• Les astuces pour économiser des centaines d'euros\n• Les garages de confiance près de chez toi\n\n📧 **Tape juste ton email** ⬇️ *(pas de spam, que de l'aide utile !)*\n*Exemple : prenom.nom@gmail.com*`;
+}
+
 function detectNeedType(message) {
   const lower = message.toLowerCase();
-  if (lower.includes('frein') || lower.includes('brake')) return "brakes";
-  if (lower.includes('moteur') || lower.includes('voyant') || lower.includes('fap') || lower.includes('egr')) return "engine";
-  if (lower.includes('puissance') || lower.includes('acceler') || lower.includes('turbo')) return "power";
-  if (lower.includes('fumee') || lower.includes('fumée')) return "smoke";
+  if (lower.includes('fap') || lower.includes('egr') || lower.includes('adblue') || 
+      lower.includes('antipollution')) return "fap";
+  if (lower.includes('frein') || lower.includes('brake') || lower.includes('plaquette')) return "brakes";
+  if (lower.includes('moteur') || lower.includes('voyant')) return "engine";
+  if (lower.includes('arnaque') || lower.includes('cher') || lower.includes('prix')) return "anti_arnaque";
   return "general";
 }
 
-function calculateScore(needType, mode) {
-  const baseScores = { brakes: 8.5, engine: 8.0, power: 7.8, smoke: 8.2, general: 7.5 };
-  const modeMultipliers = { dual_brain_real: 1.2, claude_real: 1.1, openai_real: 1.0, simulation_intelligent: 0.9 };
-  return Math.min(10, (baseScores[needType] || 7.5) * (modeMultipliers[mode] || 1.0));
-}
-
-function calculateLeadValue(needType, userLevel, mode) {
-  const baseValues = { brakes: 40, engine: 35, power: 30, smoke: 45, general: 25 };
-  const levelMultipliers = { 0: 1, 1: 1.5, 2: 1.8, 3: 2.2 };
-  const modeBonus = mode === "dual_brain_real" ? 1.2 : mode.includes("real") ? 1.1 : 1.0;
+function calculateMilitantScore(needType, mode, confidence) {
+  const baseScores = { 
+    fap: 9.2,           // Spécialité Re-Fap
+    brakes: 8.8,        // Sécurité prioritaire  
+    engine: 8.5,        // Diagnostic important
+    anti_arnaque: 9.5,  // Mission principale
+    general: 8.0        // Aide générale
+  };
   
-  return Math.round((baseValues[needType] || 25) * (levelMultipliers[userLevel] || 1) * modeBonus);
+  const modeMultipliers = { 
+    dual_brain_militant_avance: 1.3,
+    claude_militant_enrichi: 1.2, 
+    openai_militant_enrichi: 1.1,
+    simulation_militante_fap: 1.2,
+    simulation_militante_anti_arnaque: 1.25,
+    simulation_militante_brakes: 1.15
+  };
+  
+  const baseScore = baseScores[needType] || 8.0;
+  const modeMultiplier = modeMultipliers[mode] || 1.0;
+  const confidenceBonus = confidence > 0.9 ? 1.1 : confidence > 0.8 ? 1.05 : 1.0;
+  
+  return Math.min(10, baseScore * modeMultiplier * confidenceBonus);
 }
 
-async function logToAirtable(data) {
-  try {
-    // Simulation du logging Airtable
-    console.log('Airtable Log:', {
-      message: data.message.substring(0, 50),
-      userLevel: data.userLevel,
-      leadValue: data.leadValue,
-      mode: data.mode,
-      timestamp: data.sessionId
-    });
-  } catch (error) {
-    console.error('Erreur Airtable logging:', error);
-  }
+function getPartnerMilitant(needType) {
+  const partners = {
+    fap: "Re-Fap (spécialiste militant)",
+    brakes: "Réseau confiance freinage",
+    engine: "Experts diagnostic",
+    anti_arnaque: "Garages certifiés anti-arnaque",
+    general: "Réseau Re-Fap"
+  };
+  return partners[needType] || "Garage de confiance";
 }
