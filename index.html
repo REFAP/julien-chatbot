@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Julien - Robin des Bois de la Mécanique | Aide Anti-Arnaque Re-Fap</title>
-    <meta name="description" content="Julien t'aide à faire durer ta voiture au meilleur coût. Diagnostic gratuit, solutions anti-arnaque, conseils de mécano militant depuis 20 ans.">
+    <title>Julien - Ton assistant auto de confiance | CTA Intelligent Re-Fap</title>
+    <meta name="description" content="Julien t'aide à faire durer ta voiture au meilleur coût. Diagnostic gratuit, solutions anti-arnaque, orientation intelligente vers les bons partenaires.">
     
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -17,26 +17,28 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const JulienMilitantChatbot = () => {
+        const JulienMilitantChatbotAvecCTA = () => {
             const [messages, setMessages] = useState([
                 {
                     type: 'bot',
-                    content: "Salut ! 👋 C'est Julien, ton mécano militant depuis 20 ans !\n\n🛠️ **Je suis là pour t'aider** à faire durer ta voiture au meilleur coût, pas pour te vendre quoi que ce soit.\n\n💪 **Mon combat :** T'éviter les arnaques de l'industrie auto et te faire économiser des centaines d'euros !\n\nDécris-moi ton problème auto... 🚗",
+                    content: "Salut ! 👋 C'est Julien, ton mécano militant depuis 20 ans !\n\n🛠️ Je suis là pour t'aider à faire durer ta voiture au meilleur coût, pas pour te vendre quoi que ce soit.\n\n💪 Mon combat : T'éviter les arnaques de l'industrie auto et te faire économiser des centaines d'euros !\n\nDécris-moi ton problème auto... 🚗",
                     timestamp: new Date(),
                     militant: true
                 }
             ]);
+            
             const [inputMessage, setInputMessage] = useState('');
             const [isTyping, setIsTyping] = useState(false);
-            const [showCallbackForm, setShowCallbackForm] = useState(false);
+            const [historique, setHistorique] = useState([]);
+            
+            // États CTA
+            const [currentCTA, setCurrentCTA] = useState(null);
+            const [showCTAModal, setShowCTAModal] = useState(false);
+            const [ctaFormData, setCTAFormData] = useState({});
+            const [parcoursUtilisateur, setParcoursUtilisateur] = useState({});
+            
+            // États utilisateur
             const [userData, setUserData] = useState({});
-            const [callbackData, setCallbackData] = useState({
-                nom: '',
-                telephone: '',
-                email: '',
-                probleme: '',
-                vehicule: ''
-            });
             const [sessionData, setSessionData] = useState({
                 sessionId: Math.random().toString(36).substr(2, 9),
                 startTime: new Date(),
@@ -46,31 +48,20 @@
 
             // États militants
             const [userLevel, setUserLevel] = useState(0);
-            const [helpValue, setHelpValue] = useState(0);
             const [isEmailCollected, setIsEmailCollected] = useState(false);
 
             useEffect(() => {
-                trackEvent('session_militant_start', { sessionId: sessionData.sessionId });
+                trackEvent('session_militant_cta_start', { sessionId: sessionData.sessionId });
             }, []);
 
             const trackEvent = (event, data = {}) => {
-                console.log('📊 Événement militant:', event, data);
+                console.log('📊 Événement CTA:', event, data);
             };
 
-            const addMessage = (content, type = 'bot', source = 'militant') => {
-                setMessages(prev => [...prev, {
-                    type,
-                    content,
-                    timestamp: new Date(),
-                    source,
-                    militant: true
-                }]);
-            };
-
-            // 🤝 FONCTION PRINCIPALE MILITANTE
-            const getMilitantResponse = async (userMsg) => {
+            // 🎯 FONCTION PRINCIPALE AVEC CTA INTELLIGENT
+            const getMilitantResponseAvecCTA = async (userMsg) => {
                 try {
-                    console.log('🤝 Julien Militant activé...');
+                    console.log('🎯 Appel API avec CTA intelligent...');
                     
                     const response = await fetch('/api/chat-dual-brain', {
                         method: 'POST',
@@ -78,19 +69,34 @@
                         body: JSON.stringify({
                             message: userMsg,
                             userData: userData,
-                            sessionId: sessionData.sessionId
+                            sessionId: sessionData.sessionId,
+                            historique: historique
                         })
                     });
 
                     const data = await response.json();
                     
                     if (data.success && data.message) {
-                        console.log('✅ Aide militante fournie:', data.metadata?.mode);
+                        console.log('✅ Réponse + CTA reçue:', data.cta?.type);
                         
-                        // Mise à jour des données d'aide
+                        // Mise à jour historique
+                        setHistorique(prev => [...prev, userMsg]);
+                        
+                        // Mise à jour parcours utilisateur
+                        if (data.parcours) {
+                            setParcoursUtilisateur(data.parcours);
+                            console.log('🎯 Parcours détecté:', data.parcours);
+                        }
+                        
+                        // Gestion CTA intelligent
+                        if (data.cta && data.cta.boutons && data.cta.boutons.length > 0) {
+                            setCurrentCTA(data.cta);
+                            console.log('🎯 CTA configuré:', data.cta.type);
+                        }
+                        
+                        // Mise à jour données business
                         if (data.metadata) {
                             setUserLevel(data.metadata.userLevel || 0);
-                            setHelpValue(data.metadata.leadValue || 0);
                             
                             // Détection email collecté
                             if (data.metadata.email) {
@@ -99,31 +105,93 @@
                             }
                         }
                         
+                        // Mise à jour session
                         setSessionData(prev => ({ 
                             ...prev, 
                             interactions: prev.interactions + 1,
-                            helpProvided: prev.helpProvided + (data.metadata?.leadValue || 25)
+                            helpProvided: prev.helpProvided + (data.metadata?.economicValue || 50)
                         }));
                         
                         return {
                             text: data.message,
                             mode: data.metadata?.mode || 'militant_helper',
-                            score: data.score || 8.5
+                            cta: data.cta,
+                            parcours: data.parcours
                         };
                     } else {
                         throw new Error(data.error || 'Erreur système');
                     }
                     
                 } catch (error) {
-                    console.error('❌ Erreur aide militante:', error);
+                    console.error('❌ Erreur CTA:', error);
                     return {
-                        text: `Salut ! C'est Julien, ton mécano militant ! 🛠️\n\nPetit souci technique temporaire, mais je peux quand même t'aider !\n\nDécris-moi ton problème auto et je vais te donner des conseils anti-arnaque ! 💪\n\n*Erreur: ${error.message}*`,
-                        mode: 'militant_fallback',
-                        score: 7.0
+                        text: `Salut ! C'est Julien ! Petit souci technique, mais décris-moi ton problème auto... 💪\n\n*Erreur: ${error.message}*`,
+                        mode: 'militant_fallback'
                     };
                 }
             };
 
+            // 🎯 GESTION ACTIONS CTA
+            const handleCTAAction = async (action, ctaData = {}) => {
+                try {
+                    console.log('🎯 Action CTA déclenchée:', action, ctaData);
+                    
+                    setIsTyping(true);
+                    
+                    // Ajouter message utilisateur correspondant à l'action
+                    const actionMessage = getActionMessage(action);
+                    addMessage(actionMessage, 'user');
+                    
+                    const response = await fetch('/api/chat-dual-brain', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: action,
+                            userData: userData,
+                            sessionId: sessionData.sessionId,
+                            ctaData: { ...ctaData, ...ctaFormData }
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Ajouter la réponse au chat
+                        addMessage(data.message, 'bot', `cta_${action}`);
+                        
+                        // Nouveau CTA si présent
+                        if (data.cta) {
+                            setCurrentCTA(data.cta);
+                            
+                            // Si c'est un formulaire, ouvrir modal
+                            if (data.cta.form) {
+                                setShowCTAModal(true);
+                            }
+                        }
+                        
+                        // Tracking de l'action
+                        trackEvent('cta_action_completed', {
+                            action,
+                            parcours: parcoursUtilisateur.type,
+                            sessionId: sessionData.sessionId
+                        });
+                        
+                        // Reset formulaire
+                        setCTAFormData({});
+                        
+                    } else {
+                        addMessage(`❌ Erreur: ${data.error}`, 'bot', 'error');
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ Erreur action CTA:', error);
+                    addMessage(`❌ Erreur temporaire: ${error.message}`, 'bot', 'error');
+                } finally {
+                    setIsTyping(false);
+                }
+            };
+
+            // 📝 GESTION ENVOI MESSAGE
             const handleSendMessage = async (e) => {
                 e.preventDefault();
                 if (!inputMessage.trim()) return;
@@ -133,18 +201,21 @@
                 setInputMessage('');
                 setIsTyping(true);
 
-                trackEvent('message_militant_sent', { 
+                // Réinitialiser CTA en cours
+                setCurrentCTA(null);
+
+                trackEvent('message_sent', { 
                     message: userMsg.substring(0, 50),
                     userLevel,
-                    helpValue
+                    parcours: parcoursUtilisateur.type
                 });
 
-                // Appel système militant
-                const response = await getMilitantResponse(userMsg);
+                const response = await getMilitantResponseAvecCTA(userMsg);
                 addMessage(response.text, 'bot', response.mode);
                 setIsTyping(false);
             };
 
+            // 📷 GESTION UPLOAD IMAGE
             const handleImageUpload = async (event) => {
                 const file = event.target.files[0];
                 if (file) {
@@ -155,20 +226,20 @@
                     
                     addMessage(`📸 Photo envoyée : ${file.name}`, 'user');
                     setIsTyping(true);
-                    trackEvent('photo_militant_uploaded', { 
+                    trackEvent('photo_uploaded', { 
                         fileName: file.name, 
-                        userLevel
+                        userLevel,
+                        parcours: parcoursUtilisateur.type
                     });
                     
                     try {
-                        // Analyse photo militante
                         const photoPrompt = `Photo problème auto - ${file.name}`;
-                        const response = await getMilitantResponse(photoPrompt);
+                        const response = await getMilitantResponseAvecCTA(photoPrompt);
                         addMessage(`📸 **ANALYSE PHOTO MILITANTE** 🔧\n\n${response.text}`, 'bot', response.mode);
                         
                     } catch (error) {
                         console.error('❌ Erreur analyse photo:', error);
-                        addMessage(`❌ Souci analyse photo, mais décris-moi ton problème en texte, je vais t'aider ! 💪`, 'bot');
+                        addMessage(`❌ Souci analyse photo, mais décris-moi ton problème en texte ! 💪`, 'bot');
                     }
                     
                     setIsTyping(false);
@@ -176,148 +247,470 @@
                 }
             };
 
-            const handleGarageClick = () => {
-                trackEvent('garage_confiance_requested', { sessionId: sessionData.sessionId, userLevel });
-                window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank');
+            // 💬 AJOUT MESSAGE AVEC CTA
+            const addMessage = (content, type = 'bot', source = 'militant') => {
+                setMessages(prev => [...prev, {
+                    type,
+                    content,
+                    timestamp: new Date(),
+                    source,
+                    militant: true,
+                    cta: type === 'bot' ? currentCTA : null
+                }]);
             };
 
-            const handleCallbackClick = () => {
-                trackEvent('aide_expert_requested', { sessionId: sessionData.sessionId, userLevel });
-                setShowCallbackForm(true);
-                addMessage("Je veux parler à un expert", 'user');
-                setTimeout(() => {
-                    addMessage("🤝 **Formulaire d'aide expert activé !**\n\nPas de vente, juste de l'aide personnalisée d'un vrai mécano ! 💪", 'bot', 'aide_expert');
-                }, 500);
+            // 🎯 RENDU CTA BOUTONS
+            const renderCTAButtons = (cta) => {
+                if (!cta || !cta.boutons) return null;
+                
+                return (
+                    <div className="mt-4 space-y-2">
+                        {cta.message && (
+                            <div className="text-sm font-medium text-gray-700 mb-2 p-2 bg-green-100 rounded border-l-4 border-green-500">
+                                {cta.message}
+                            </div>
+                        )}
+                        <div className="grid grid-cols-1 gap-2">
+                            {cta.boutons.map((bouton, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => handleCTAAction(bouton.action, bouton.data)}
+                                    className={`p-3 rounded-lg text-sm font-medium transition-colors text-left ${getCTAButtonStyle(bouton.data?.type)} hover:shadow-md`}
+                                    disabled={isTyping}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span>{bouton.text}</span>
+                                        <span className="text-xs opacity-75">
+                                            {getCTAButtonIcon(bouton.data?.type)}
+                                        </span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                        
+                        {/* Indicateur de priorité */}
+                        {cta.priorite === 'haute' && (
+                            <div className="text-xs text-center text-orange-600 font-medium mt-2">
+                                🔥 Actions prioritaires recommandées
+                            </div>
+                        )}
+                    </div>
+                );
             };
 
-            const handleCallbackSubmit = async (e) => {
+            // 🎨 STYLE CTA BOUTONS
+            const getCTAButtonStyle = (type) => {
+                const styles = {
+                    'carter_cash_localisation': 'bg-orange-500 hover:bg-orange-600 text-white border-2 border-orange-600',
+                    'garage_refap': 'bg-green-600 hover:bg-green-700 text-white border-2 border-green-700',
+                    'rdv_idgarages': 'bg-blue-600 hover:bg-blue-700 text-white border-2 border-blue-700',
+                    'envoi_postal': 'bg-purple-600 hover:bg-purple-700 text-white border-2 border-purple-700',
+                    'rappel_expert_fap': 'bg-red-600 hover:bg-red-700 text-white border-2 border-red-700',
+                    'nurturing_fap': 'bg-indigo-600 hover:bg-indigo-700 text-white border-2 border-indigo-700',
+                    'email_suivi': 'bg-gray-600 hover:bg-gray-700 text-white border-2 border-gray-700',
+                    'diagnostic_ligne': 'bg-teal-600 hover:bg-teal-700 text-white border-2 border-teal-700',
+                    'guide_technique': 'bg-yellow-600 hover:bg-yellow-700 text-white border-2 border-yellow-700'
+                };
+                
+                return styles[type] || 'bg-green-600 hover:bg-green-700 text-white border-2 border-green-700';
+            };
+
+            // 🎨 ICÔNES CTA BOUTONS
+            const getCTAButtonIcon = (type) => {
+                const icons = {
+                    'carter_cash_localisation': '🏪',
+                    'garage_refap': '🛠️',
+                    'rdv_idgarages': '📅',
+                    'envoi_postal': '📦',
+                    'rappel_expert_fap': '📞',
+                    'nurturing_fap': '📧',
+                    'email_suivi': '📬',
+                    'diagnostic_ligne': '🔍',
+                    'guide_technique': '📋'
+                };
+                
+                return icons[type] || '🎯';
+            };
+
+            // 📋 MODAL FORMULAIRE CTA
+            const renderCTAModal = () => {
+                if (!showCTAModal || !currentCTA?.form) return null;
+                
+                const form = currentCTA.form;
+                
+                return (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto border-2 border-green-300">
+                            <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4 rounded-t-xl">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-lg font-bold">
+                                        {currentCTA.type === 'lead_generation' ? '📞 Contact Expert' :
+                                         currentCTA.type === 'lead_generation_envoi' ? '📦 Envoi Postal Re-Fap' :
+                                         currentCTA.type === 'callback_request' ? '📞 Demande de Rappel' :
+                                         currentCTA.type === 'email_nurturing' ? '📧 Guide Personnalisé' :
+                                         currentCTA.type === 'lead_capture' ? '📋 Localisation Précise' :
+                                         '📋 Informations'}
+                                    </h3>
+                                    <button 
+                                        onClick={() => setShowCTAModal(false)}
+                                        className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                                <p className="text-sm opacity-90 mt-1">
+                                    {getModalDescription(currentCTA.type)}
+                                </p>
+                            </div>
+
+                            <form onSubmit={handleCTAFormSubmit} className="p-6 space-y-4">
+                                {form.fields.map(field => (
+                                    <div key={field}>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            {getFieldLabel(field)} {form.required?.includes(field) ? '*' : ''}
+                                        </label>
+                                        {field === 'probleme_detaille' || field === 'adresse_complete' ? (
+                                            <textarea
+                                                required={form.required?.includes(field)}
+                                                value={ctaFormData[field] || ''}
+                                                onChange={(e) => setCTAFormData({...ctaFormData, [field]: e.target.value})}
+                                                className="w-full p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                                                placeholder={getFieldPlaceholder(field)}
+                                                rows="3"
+                                            />
+                                        ) : field === 'urgence' ? (
+                                            <select
+                                                required={form.required?.includes(field)}
+                                                value={ctaFormData[field] || ''}
+                                                onChange={(e) => setCTAFormData({...ctaFormData, [field]: e.target.value})}
+                                                className="w-full p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                                            >
+                                                <option value="">Sélectionner...</option>
+                                                <option value="urgent">🔴 Urgent (dans les 2h)</option>
+                                                <option value="rapide">🟡 Rapide (dans la journée)</option>
+                                                <option value="standard">🟢 Standard (dans les 48h)</option>
+                                            </select>
+                                        ) : (
+                                            <input
+                                                type={getFieldType(field)}
+                                                required={form.required?.includes(field)}
+                                                value={ctaFormData[field] || ''}
+                                                onChange={(e) => setCTAFormData({...ctaFormData, [field]: e.target.value})}
+                                                className="w-full p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                                                placeholder={getFieldPlaceholder(field)}
+                                            />
+                                        )}
+                                    </div>
+                                ))}
+
+                                <div className="bg-green-50 p-3 rounded-lg text-xs text-green-700 border border-green-200">
+                                    🤝 <strong>Engagement militant :</strong> Tes données servent uniquement à t'aider. Pas de spam, pas de vente forcée !
+                                    {currentCTA.type === 'lead_generation_envoi' && (
+                                        <div className="mt-2">
+                                            📦 <strong>Service clé en main :</strong> Démontage → Emballage → Transport → Nettoyage → Retour
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCTAModal(false)}
+                                        className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 px-4 rounded-lg font-medium transition-colors text-sm"
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium transition-colors text-sm"
+                                    >
+                                        {getSubmitButtonText(currentCTA.type)}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                );
+            };
+
+            // 📋 SOUMISSION FORMULAIRE CTA
+            const handleCTAFormSubmit = async (e) => {
                 e.preventDefault();
                 
-                if (!callbackData.nom || !callbackData.telephone) {
-                    alert('Nom et téléphone requis pour que notre expert te rappelle !');
+                // Validation des champs requis
+                const form = currentCTA.form;
+                const missing = form.required?.filter(field => !ctaFormData[field]?.trim()) || [];
+                
+                if (missing.length > 0) {
+                    alert(`Champs requis : ${missing.map(f => getFieldLabel(f)).join(', ')}`);
                     return;
                 }
 
-                // Mise à jour userData
-                const newUserData = {
-                    ...userData,
-                    email: callbackData.email,
-                    phone: callbackData.telephone,
-                    firstName: callbackData.nom,
-                    vehicleModel: callbackData.vehicule
-                };
-                setUserData(newUserData);
-                setUserLevel(2);
+                setIsTyping(true);
 
                 try {
-                    console.log('📞 Demande aide expert...');
-                    
-                    // Envoi demande d'aide
-                    try {
-                        if (typeof emailjs === 'undefined') {
-                            console.log('📦 Chargement EmailJS...');
-                            await new Promise((resolve, reject) => {
-                                const script = document.createElement('script');
-                                script.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js';
-                                script.onload = resolve;
-                                script.onerror = reject;
-                                document.head.appendChild(script);
-                                setTimeout(reject, 5000);
-                            });
-                        }
+                    // Traitement selon le type
+                    if (currentCTA.type === 'lead_generation' || currentCTA.type === 'lead_generation_envoi') {
+                        await handleLeadGeneration();
+                    } else if (currentCTA.type === 'callback_request') {
+                        await handleCallbackRequest();
+                    } else if (currentCTA.type === 'email_nurturing') {
+                        await handleEmailNurturing();
+                    } else if (currentCTA.type === 'lead_capture') {
+                        await handleLeadCapture();
+                    }
+                } catch (error) {
+                    console.error('❌ Erreur soumission formulaire:', error);
+                    addMessage(`❌ Erreur : ${error.message}`, 'bot', 'error');
+                } finally {
+                    setIsTyping(false);
+                    setShowCTAModal(false);
+                }
+            };
 
-                        emailjs.init('mUrOzXIRFoYWzUmeW');
-
-                        const response = await emailjs.send(
-                            'service_mnjblro',
-                            'template_trg4q0n',
-                            {
-                                name: callbackData.nom,
-                                subject: `🤝 DEMANDE AIDE EXPERT MILITANT - ${callbackData.nom}`,
-                                message: `DEMANDE AIDE EXPERT JULIEN MILITANT
-
-📋 INFORMATIONS CLIENT :
-• Nom/Prénom : ${callbackData.nom}
-• Téléphone : ${callbackData.telephone}
-• Email : ${callbackData.email || 'Non renseigné'}
-
-🚗 PROBLÈME VÉHICULE :
-• Véhicule : ${callbackData.vehicule || 'Non précisé'}
-• Problème : ${callbackData.probleme || 'Non précisé'}
-
-🤝 DONNÉES AIDE MILITANTE :
-• Session ID : ${sessionData.sessionId}
-• Interactions : ${sessionData.interactions}
-• Aide fournie : ${sessionData.helpProvided}€ d'économies
-• User Level : ${userLevel}
-• Approche : Militante anti-arnaque
-• Horodatage : ${new Date().toLocaleString('fr-FR')}
-
-📞 ACTION : Rappeler ${callbackData.nom} pour aide personnalisée
-🎯 PAS DE VENTE - JUSTE DE L'AIDE EXPERTE !
-
-Généré par Julien le Mécano Militant Re-Fap`
-                            }
-                        );
-
-                        console.log('✅ Demande aide envoyée:', response);
-
-                        addMessage(`✅ **Demande d'aide envoyée !**
-
-📧 **Email automatique envoyé à mgaume@re-fap.fr**
-🤝 **Approche militante confirmée (pas de vente !)**
-💰 **Aide déjà fournie : ${sessionData.helpProvided}€ d'économies**
+            // 📞 GÉNÉRATION LEAD
+            const handleLeadGeneration = async () => {
+                console.log('📞 Génération lead:', ctaFormData);
+                
+                // Mise à jour userData
+                setUserData(prev => ({ ...prev, ...ctaFormData }));
+                setUserLevel(2);
+                
+                // Envoi email si possible
+                try {
+                    await sendEmailNotification();
+                } catch (error) {
+                    console.log('📧 Fallback email manuel:', error.message);
+                }
+                
+                const isEnvoiPostal = currentCTA.type === 'lead_generation_envoi';
+                
+                // Message de confirmation
+                addMessage(`✅ **${isEnvoiPostal ? 'Demande envoi postal' : 'Demande expert'} transmise !**
 
 📋 **Récapitulatif :**
-• Nom : ${callbackData.nom}
-• Téléphone : ${callbackData.telephone}
-• Approche : Aide experte anti-arnaque
+• Nom : ${ctaFormData.nom}
+• Téléphone : ${ctaFormData.telephone}
+${isEnvoiPostal ? `• Adresse : ${ctaFormData.adresse_complete}` : ''}
+• ${isEnvoiPostal ? 'Service' : 'Problème'} : ${ctaFormData.probleme || ctaFormData.vehicule}
 
-📞 **Un expert va t'appeler pour t'aider (pas pour vendre) !**
+${isEnvoiPostal ? 
+    '📦 **Un expert va t\'appeler pour organiser l\'envoi !**\n💰 **Prix tout compris :** 250€ (nettoyage + transport)' :
+    '📞 **Un expert va t\'appeler sous 2h !**'
+}
 
-Continue à me poser tes questions, je suis toujours là ! 🛠️`, 'bot', 'aide_expert_success');
+🤝 **Continue à me poser tes questions en attendant !**`, 'bot', 'lead_success');
+                
+                // Tracking
+                trackEvent('lead_generated', {
+                    type: isEnvoiPostal ? 'envoi_postal' : 'expert_callback',
+                    nom: ctaFormData.nom,
+                    parcours: parcoursUtilisateur.type
+                });
+                
+                // Reset
+                setCTAFormData({});
+            };
 
-                    } catch (emailjsError) {
-                        console.log('📧 Fallback email...', emailjsError.message);
-                        
-                        const emailBody = `DEMANDE AIDE EXPERT MILITANT - ${callbackData.nom}
+            // 📞 RAPPEL REQUEST
+            const handleCallbackRequest = async () => {
+                console.log('📞 Callback request:', ctaFormData);
+                
+                await sendEmailNotification();
+                
+                addMessage(`📞 **Demande de rappel envoyée !**
 
-🤝 APPROCHE MILITANTE : Aide sans vente
-💰 Économies déjà réalisées : ${sessionData.helpProvided}€
-📊 Level : ${userLevel}
-🎯 Interactions : ${sessionData.interactions}
+Un expert FAP va t'appeler ${ctaFormData.urgence === 'urgent' ? 'dans les 2h' : 'dans la journée'} pour :
+• Diagnostic approfondi gratuit
+• Solutions personnalisées
+• Orientation vers la meilleure option
 
-📋 INFORMATIONS :
-• Nom : ${callbackData.nom}
-• Téléphone : ${callbackData.telephone}
-• Email : ${callbackData.email || 'Non renseigné'}
-• Véhicule : ${callbackData.vehicule || 'Non précisé'}
-• Problème : ${callbackData.probleme || 'Non précisé'}
+💪 **100% gratuit, 0% vente forcée !**`, 'bot', 'callback_success');
+                
+                trackEvent('callback_requested', {
+                    urgence: ctaFormData.urgence,
+                    parcours: parcoursUtilisateur.type
+                });
+            };
 
-Session: ${sessionData.sessionId}`;
+            // 📧 NURTURING EMAIL
+            const handleEmailNurturing = async () => {
+                console.log('📧 Email nurturing:', ctaFormData);
+                
+                setUserData(prev => ({ ...prev, email: ctaFormData.email }));
+                setUserLevel(1);
+                setIsEmailCollected(true);
+                
+                addMessage(`📧 **Guide en route !**
 
-                        const mailtoLink = `mailto:mgaume@re-fap.fr?subject=${encodeURIComponent('🤝 AIDE EXPERT MILITANT - ' + callbackData.nom)}&body=${encodeURIComponent(emailBody)}`;
-                        
-                        window.open(mailtoLink, '_blank');
+Tu vas recevoir sur **${ctaFormData.email}** :
+• Guide de suivi diagnostic FAP
+• Questions précises à poser au garage  
+• Que faire selon les résultats
+• Contacts Re-Fap selon diagnostic
 
-                        addMessage(`📧 **Email client ouvert !**
-🤝 **Demande d'aide experte préparée**
+🤝 **On reste en contact pendant ton diagnostic !**
 
-💬 **Instructions :**
-1. Email pré-rempli ouvert
-2. Clique "Envoyer"
-3. Aide experte garantie (pas de vente !)
+💡 **Pro tip :** Dis au garage "je veux juste le diagnostic, pas la réparation"`, 'bot', 'email_success');
+                
+                trackEvent('email_nurturing_started', {
+                    email: ctaFormData.email,
+                    sequence: currentCTA.sequence || 'general'
+                });
+            };
 
-💪 **Ton aide militante continue !**`, 'bot', 'mailto_fallback');
+            // 📍 LEAD CAPTURE
+            const handleLeadCapture = async () => {
+                console.log('📍 Lead capture:', ctaFormData);
+                
+                setUserData(prev => ({ ...prev, ...ctaFormData }));
+                
+                addMessage(`📍 **Localisation enregistrée !**
+
+Recherche en cours de garages Re-Fap près de **${ctaFormData.ville}** (${ctaFormData.code_postal})...
+
+📞 **${ctaFormData.nom}**, tu vas être rappelé au **${ctaFormData.telephone}** avec :
+• Liste des garages partenaires proches
+• Créneaux disponibles
+• Tarifs négociés Re-Fap
+
+⏰ **Rappel sous 2h maximum !**`, 'bot', 'localisation_success');
+            };
+
+            // 📧 ENVOI EMAIL NOTIFICATION
+            const sendEmailNotification = async () => {
+                try {
+                    if (typeof emailjs === 'undefined') {
+                        const script = document.createElement('script');
+                        script.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js';
+                        await new Promise((resolve, reject) => {
+                            script.onload = resolve;
+                            script.onerror = reject;
+                            document.head.appendChild(script);
+                        });
                     }
 
-                } catch (error) {
-                    console.error('Erreur demande aide:', error);
-                    addMessage(`❌ Erreur temporaire : ${error.message}`, 'bot');
-                }
+                    emailjs.init('mUrOzXIRFoYWzUmeW');
 
-                setShowCallbackForm(false);
-                setCallbackData({ nom: '', telephone: '', email: '', probleme: '', vehicule: '' });
+                    const emailData = {
+                        name: ctaFormData.nom,
+                        subject: `🎯 CTA INTELLIGENT: ${currentCTA.type} - ${ctaFormData.nom}`,
+                        message: generateEmailContent()
+                    };
+
+                    await emailjs.send('service_mnjblro', 'template_trg4q0n', emailData);
+                    console.log('✅ Email notification envoyé');
+                    
+                } catch (error) {
+                    console.error('❌ Erreur email:', error);
+                    throw error;
+                }
+            };
+
+            // 📧 GÉNÉRATION CONTENU EMAIL
+            const generateEmailContent = () => {
+                const baseInfo = `NOUVEAU CTA INTELLIGENT - ${ctaFormData.nom}
+
+🎯 TYPE: ${currentCTA.type}
+📊 PARCOURS: ${parcoursUtilisateur.type || 'indéterminé'}
+🎯 SOUS-PARCOURS: ${parcoursUtilisateur.sous_parcours || 'indéterminé'}
+👤 PROFIL: ${parcoursUtilisateur.profil || 'indéterminé'}
+📈 CERTITUDE: ${parcoursUtilisateur.certitude || 'moyenne'}
+
+📋 INFORMATIONS CLIENT :
+• Nom : ${ctaFormData.nom}
+• Téléphone : ${ctaFormData.telephone}
+• Email : ${ctaFormData.email || 'Non renseigné'}`;
+
+                if (currentCTA.type === 'lead_generation_envoi') {
+                    return baseInfo + `
+• Adresse : ${ctaFormData.adresse_complete}
+• Véhicule : ${ctaFormData.vehicule}
+
+📦 SERVICE DEMANDÉ : Envoi postal FAP
+💰 PRIX : 250€ (nettoyage + transport)
+⚡ URGENCE : ${ctaFormData.urgence || 'standard'}`;
+                } else {
+                    return baseInfo + `
+• Véhicule : ${ctaFormData.vehicule || 'Non précisé'}
+• Problème : ${ctaFormData.probleme || ctaFormData.probleme_detaille || 'Non précisé'}
+⚡ URGENCE : ${ctaFormData.urgence || 'standard'}`;
+                }
+            };
+
+            // 🔧 UTILITAIRES
+            const getActionMessage = (action) => {
+                const messages = {
+                    'localiser_carter_cash': '🏪 Localiser Carter Cash équipé',
+                    'localiser_garage_refap': '🛠️ Trouver garage Re-Fap',
+                    'rdv_idgarages': '📅 RDV idGarages',
+                    'formulaire_envoi': '📦 Envoi postal Re-Fap',
+                    'demande_rappel_fap': '📞 Rappel expert FAP',
+                    'email_suivi_diagnostic': '📧 Guide suivi diagnostic'
+                };
+                return messages[action] || `Action: ${action}`;
+            };
+
+            const getModalDescription = (type) => {
+                const descriptions = {
+                    'lead_generation': 'Un expert va te rappeler sous 2h',
+                    'lead_generation_envoi': 'Service clé en main pour nettoyage FAP',
+                    'callback_request': 'Rappel gratuit d\'un expert FAP',
+                    'email_nurturing': 'Guide personnalisé par email',
+                    'lead_capture': 'Localisation précise pour garages proches'
+                };
+                return descriptions[type] || 'Informations requises';
+            };
+
+            const getSubmitButtonText = (type) => {
+                const texts = {
+                    'lead_generation': '📞 Demander rappel',
+                    'lead_generation_envoi': '📦 Organiser envoi',
+                    'callback_request': '📞 Demander rappel',
+                    'email_nurturing': '📧 Recevoir guide',
+                    'lead_capture': '📍 Localiser garages'
+                };
+                return texts[type] || '✅ Valider';
+            };
+
+            const getFieldLabel = (field) => {
+                const labels = {
+                    'nom': 'Nom / Prénom',
+                    'prenom': 'Prénom',
+                    'telephone': 'Téléphone',
+                    'email': 'Email',
+                    'ville': 'Ville',
+                    'code_postal': 'Code Postal',
+                    'vehicule': 'Véhicule',
+                    'probleme': 'Problème',
+                    'probleme_detaille': 'Problème détaillé',
+                    'urgence': 'Urgence',
+                    'adresse_complete': 'Adresse complète'
+                };
+                return labels[field] || field;
+            };
+            
+            const getFieldType = (field) => {
+                if (field === 'email') return 'email';
+                if (field === 'telephone') return 'tel';
+                if (field === 'code_postal') return 'text';
+                return 'text';
+            };
+            
+            const getFieldPlaceholder = (field) => {
+                const placeholders = {
+                    'nom': 'Votre nom complet',
+                    'prenom': 'Votre prénom',
+                    'telephone': '06 12 34 56 78',
+                    'email': 'votre@email.com',
+                    'ville': 'Votre ville',
+                    'code_postal': '63000',
+                    'vehicule': 'Peugeot 308 2018',
+                    'probleme': 'Voyant FAP allumé',
+                    'probleme_detaille': 'Décrivez votre problème en détail...',
+                    'adresse_complete': 'Adresse complète avec code postal'
+                };
+                return placeholders[field] || '';
             };
 
             const getLevelName = () => {
@@ -341,6 +734,7 @@ Session: ${sessionData.sessionId}`;
                 return modes[sessionData.lastMode] || '🤝 Aide Militante';
             };
 
+            // RENDU PRINCIPAL
             return (
                 <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
                     {/* Header militant */}
@@ -352,7 +746,7 @@ Session: ${sessionData.sessionId}`;
                                         <span className="text-white font-bold text-sm sm:text-lg">🤝 re-fap</span>
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <h1 className="text-sm sm:text-lg font-bold text-gray-800 truncate">Julien - Robin des Bois Mécanique</h1>
+                                        <h1 className="text-sm sm:text-lg font-bold text-gray-800 truncate">Julien - Robin des Bois CTA</h1>
                                         <p className="text-xs text-green-700 hidden sm:block">
                                             {getModeDisplay()} • {getLevelName()} • {sessionData.helpProvided}€ économisés
                                         </p>
@@ -368,15 +762,16 @@ Session: ${sessionData.sessionId}`;
                             </div>
                         </div>
                         
-                        {/* Status militant */}
+                        {/* Status militant avec parcours */}
                         <div className="text-xs text-center py-2 bg-gradient-to-r from-green-100 to-blue-100">
                             <span className="text-green-800 font-medium">
-                                🤝 Aide Militante Active • {getLevelName()} • {sessionData.interactions} interactions • {sessionData.helpProvided}€ économisés
+                                🎯 CTA Intelligent Actif • {getLevelName()} • {sessionData.interactions} interactions • {sessionData.helpProvided}€ économisés
+                                {parcoursUtilisateur.type && ` • Parcours: ${parcoursUtilisateur.type}`}
                             </span>
                         </div>
                     </header>
 
-                    {/* Chat principal */}
+                    {/* Chat principal avec CTA */}
                     <div className="max-w-6xl mx-auto p-2 sm:p-4">
                         <div className="flex flex-col lg:flex-row gap-2 sm:gap-4">
                             {/* Chat */}
@@ -385,30 +780,34 @@ Session: ${sessionData.sessionId}`;
                                 <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4">
                                     <div className="flex items-center">
                                         <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-3">
-                                            <span className="text-2xl">🤝</span>
+                                            <span className="text-2xl">🎯</span>
                                         </div>
                                         <div>
-                                            <h2 className="text-xl font-bold">Julien - Mécano Militant</h2>
+                                            <h2 className="text-xl font-bold">Julien - CTA Intelligent</h2>
                                             <p className="text-green-100 text-sm">
                                                 Robin des Bois • Anti-Arnaque • {getLevelName()}
+                                                {parcoursUtilisateur.type && ` • ${parcoursUtilisateur.type}`}
                                             </p>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Messages */}
+                                {/* Messages avec CTA intégrés */}
                                 <div className="h-96 overflow-y-auto p-2 sm:p-4 bg-gray-50">
                                     {messages.map((message, index) => (
                                         <div key={index} className={`mb-4 ${message.type === 'user' ? 'text-right' : ''}`}>
                                             <div className={`inline-block p-3 rounded-lg max-w-[85%] sm:max-w-md ${
                                                 message.type === 'user' 
                                                     ? 'bg-green-500 text-white' 
-                                                    : message.source?.includes('militant')
-                                                        ? 'bg-green-50 text-gray-800 border-l-4 border-green-500'
-                                                        : message.source?.includes('expert')
-                                                            ? 'bg-blue-50 text-gray-800 border-l-4 border-blue-500'
-                                                            : 'bg-white text-gray-800 border border-gray-200'
+                                                    : message.source?.includes('cta_')
+                                                        ? 'bg-blue-50 text-gray-800 border-l-4 border-blue-500'
+                                                        : message.source?.includes('success')
+                                                            ? 'bg-green-50 text-gray-800 border-l-4 border-green-500'
+                                                            : message.source?.includes('error')
+                                                                ? 'bg-red-50 text-gray-800 border-l-4 border-red-500'
+                                                                : 'bg-green-50 text-gray-800 border-l-4 border-green-500'
                                             }`}>
+                                                {/* Contenu du message */}
                                                 {typeof message.content === 'string' ? 
                                                     message.content.split('\n').map((line, i) => (
                                                         <div key={i} className={line.startsWith('**') && line.endsWith('**') ? 'font-bold' : ''}>
@@ -418,17 +817,26 @@ Session: ${sessionData.sessionId}`;
                                                     <div>Erreur affichage message</div>
                                                 }
                                                 
+                                                {/* CTA Boutons intégrés */}
+                                                {message.type === 'bot' && message.cta && renderCTAButtons(message.cta)}
+                                                
+                                                {/* Timestamp avec info parcours */}
                                                 {message.type === 'bot' && (
                                                     <div className="text-xs text-gray-400 mt-2">
-                                                        {message.source?.includes('militant') ? '🤝 Aide Militante' : 
-                                                         message.source?.includes('expert') ? '🔧 Expert' : 
-                                                         '💪 Auto'} • {new Date(message.timestamp).toLocaleTimeString()}
+                                                        {message.source?.includes('cta_') ? '🎯 Action CTA' :
+                                                         message.source?.includes('success') ? '✅ Succès' :
+                                                         message.source?.includes('error') ? '❌ Erreur' :
+                                                         '🤝 Aide Militante'} • {new Date(message.timestamp).toLocaleTimeString()}
+                                                        {parcoursUtilisateur.sous_parcours && (
+                                                            <span className="ml-2">• {parcoursUtilisateur.sous_parcours}</span>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
                                         </div>
                                     ))}
                                     
+                                    {/* Typing indicator */}
                                     {isTyping && (
                                         <div className="mb-4">
                                             <div className="inline-block bg-green-50 p-3 rounded-lg border-l-4 border-green-500">
@@ -438,7 +846,7 @@ Session: ${sessionData.sessionId}`;
                                                         <div className="w-2 h-2 bg-green-600 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
                                                         <div className="w-2 h-2 bg-green-700 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                                                     </div>
-                                                    <span className="text-sm text-green-700">Julien analyse ton problème... 🤝🔧</span>
+                                                    <span className="text-sm text-green-700">Julien analyse... 🎯🔧</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -484,7 +892,7 @@ Session: ${sessionData.sessionId}`;
                                                 📸 <span className="hidden sm:inline">Photo de ton problème</span><span className="sm:hidden">Photo</span>
                                             </label>
                                             <p className="text-xs text-green-700 mt-2 px-2">
-                                                JPG/PNG max 5MB • Analyse militante ! 🤝
+                                                JPG/PNG max 5MB • Analyse CTA intelligente ! 🎯
                                             </p>
                                         </div>
                                     </div>
@@ -492,17 +900,18 @@ Session: ${sessionData.sessionId}`;
                                     {/* Quick options militantes */}
                                     <div className="grid grid-cols-2 gap-1 sm:gap-2 mb-4 lg:mb-0">
                                         {[
-                                            { text: "🌪️ Problème FAP", textMobile: "🌪️ FAP", msg: "Mon FAP déconne, voyant allumé" },
-                                            { text: "🚗 Freins bizarres", textMobile: "🚗 Freins", msg: "Mes freins font du bruit" },
-                                            { text: "⚠️ Voyant moteur", textMobile: "⚠️ Voyant", msg: "Voyant moteur orange allumé" },
+                                            { text: "🌪️ FAP bricoleur", textMobile: "🌪️ FAP DIY", msg: "Mon FAP déconne, je suis bricoleur" },
+                                            { text: "🚗 Problème freins", textMobile: "🚗 Freins", msg: "Mes freins font du bruit bizarre" },
+                                            { text: "⚠️ Voyant allumé", textMobile: "⚠️ Voyant", msg: "Voyant moteur orange, je sais pas quoi faire" },
                                             { text: "💰 Éviter arnaque", textMobile: "💰 Arnaque", msg: "On veut me vendre cher, c'est normal ?" }
                                         ].map((option, index) => (
                                             <button
                                                 key={index}
                                                 onClick={async () => {
                                                     addMessage(option.msg, 'user');
+                                                    setInputMessage('');
                                                     setIsTyping(true);
-                                                    const response = await getMilitantResponse(option.msg);
+                                                    const response = await getMilitantResponseAvecCTA(option.msg);
                                                     addMessage(response.text, 'bot', response.mode);
                                                     setIsTyping(false);
                                                 }}
@@ -514,44 +923,49 @@ Session: ${sessionData.sessionId}`;
                                             </button>
                                         ))}
                                     </div>
-
-                                    {/* CTA mobile militant */}
-                                    <div className="lg:hidden p-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-200">
-                                        <h4 className="font-bold text-green-800 text-sm mb-2 text-center">🤝 Aide Militante</h4>
-                                        <div className="grid grid-cols-1 gap-2">
-                                            <button
-                                                onClick={handleGarageClick}
-                                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded text-sm font-medium transition-colors"
-                                            >
-                                                🛠️ Garages de confiance (pas d'arnaque)
-                                            </button>
-                                            <button
-                                                onClick={handleCallbackClick}
-                                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded text-sm font-medium transition-colors"
-                                            >
-                                                📞 Aide expert perso ({sessionData.helpProvided}€ économisés)
-                                            </button>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
 
-                            {/* Sidebar militante - DESKTOP */}
+                            {/* Sidebar CTA intelligente - DESKTOP */}
                             <div className="hidden lg:block w-64 space-y-4">
-                                {/* Stats aide militante */}
+                                {/* Stats CTA */}
                                 <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-lg p-3 text-center">
-                                    <h4 className="font-bold text-green-800 text-sm mb-1">🤝 Aide Fournie</h4>
+                                    <h4 className="font-bold text-green-800 text-sm mb-1">🎯 CTA Intelligent</h4>
                                     <div className="text-xs text-green-700 space-y-1">
                                         <div>Level: {getLevelName()}</div>
                                         <div>Économies: {sessionData.helpProvided}€</div>
                                         <div>Interactions: {sessionData.interactions}</div>
-                                        <div>Mode: Anti-arnaque</div>
+                                        {parcoursUtilisateur.type && (
+                                            <div>Parcours: {parcoursUtilisateur.type}</div>
+                                        )}
+                                        {parcoursUtilisateur.profil && (
+                                            <div>Profil: {parcoursUtilisateur.profil}</div>
+                                        )}
                                     </div>
                                 </div>
 
+                                {/* Info parcours en cours */}
+                                {parcoursUtilisateur.type && (
+                                    <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-3">
+                                        <h4 className="font-bold text-blue-800 text-sm mb-2">📍 Parcours Détecté</h4>
+                                        <div className="text-xs text-blue-700 space-y-1">
+                                            <div><strong>Type:</strong> {parcoursUtilisateur.type}</div>
+                                            {parcoursUtilisateur.sous_parcours && (
+                                                <div><strong>Étape:</strong> {parcoursUtilisateur.sous_parcours}</div>
+                                            )}
+                                            {parcoursUtilisateur.certitude && (
+                                                <div><strong>Certitude:</strong> {parcoursUtilisateur.certitude}</div>
+                                            )}
+                                            {parcoursUtilisateur.profil && (
+                                                <div><strong>Profil:</strong> {parcoursUtilisateur.profil}</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Bouton Garages confiance */}
                                 <button
-                                    onClick={handleGarageClick}
+                                    onClick={() => window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank')}
                                     className="w-full bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg border-2 border-green-500"
                                 >
                                     <div className="text-center">
@@ -561,157 +975,25 @@ Session: ${sessionData.sessionId}`;
                                         <div className="text-xs mt-1 opacity-90">Réseau anti-arnaque</div>
                                     </div>
                                 </button>
-
-                                {/* Bouton Aide expert */}
-                                <button
-                                    onClick={handleCallbackClick}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg border-2 border-blue-500"
-                                >
-                                    <div className="text-center">
-                                        <div className="text-2xl mb-2">📞</div>
-                                        <div className="font-bold">Aide expert</div>
-                                        <div className="font-bold">personnalisée</div>
-                                        <div className="text-xs mt-1 opacity-90">{sessionData.helpProvided}€ économisés • Pas de vente</div>
-                                    </div>
-                                </button>
                             </div>
                         </div>
-
-                        {/* MODAL AIDE EXPERT */}
-                        {showCallbackForm && (
-                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-                                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto mx-2 border-2 border-green-300">
-                                    <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-3 sm:p-4 rounded-t-xl">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex-1">
-                                                <h3 className="text-base sm:text-lg font-bold">📞 Aide Expert Militante</h3>
-                                                <p className="text-xs sm:text-sm opacity-90">Pas de vente - Juste de l'aide !</p>
-                                            </div>
-                                            <button 
-                                                onClick={() => setShowCallbackForm(false)}
-                                                className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded ml-2"
-                                            >
-                                                ✕
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <form onSubmit={handleCallbackSubmit} className="p-4 sm:p-6 space-y-4">
-                                        <div className="text-center mb-4">
-                                            <div className="text-2xl mb-2">🤝</div>
-                                            <p className="text-sm text-gray-600">
-                                                Un expert mécano va te rappeler pour t'aider personnellement. Pas de vente, juste de l'aide !
-                                            </p>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Nom / Prénom *
-                                            </label>
-                                            <input
-                                                type="text"
-                                                required
-                                                value={callbackData.nom}
-                                                onChange={(e) => setCallbackData({...callbackData, nom: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="Ton nom complet"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Téléphone *
-                                            </label>
-                                            <input
-                                                type="tel"
-                                                required
-                                                value={callbackData.telephone}
-                                                onChange={(e) => setCallbackData({...callbackData, telephone: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="06 12 34 56 78"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Email (optionnel)
-                                            </label>
-                                            <input
-                                                type="email"
-                                                value={callbackData.email}
-                                                onChange={(e) => setCallbackData({...callbackData, email: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="ton@email.com"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Résumé du problème
-                                            </label>
-                                            <textarea
-                                                value={callbackData.probleme}
-                                                onChange={(e) => setCallbackData({...callbackData, probleme: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="Voyants, bruits, problèmes..."
-                                                rows="3"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Véhicule
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={callbackData.vehicule}
-                                                onChange={(e) => setCallbackData({...callbackData, vehicule: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="Peugeot 308 2018"
-                                            />
-                                        </div>
-
-                                        <div className="bg-green-50 p-2 sm:p-3 rounded-lg text-xs text-green-700 border border-green-200">
-                                            🤝 <strong>Promesse militante :</strong>
-                                            <br />• Aide experte personnalisée
-                                            <br />• Aucune vente forcée
-                                            <br />• Solutions anti-arnaque garanties
-                                            <br />• Économies maximales pour toi
-                                        </div>
-
-                                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowCallbackForm(false)}
-                                                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
-                                            >
-                                                Annuler
-                                            </button>
-                                            <button
-                                                type="submit"
-                                                className="w-full bg-green-600 hover:bg-green-700 text-white py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
-                                            >
-                                                📞 Demander l'aide
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        )}
                     </div>
 
-                    {/* Footer militant */}
+                    {/* Modal CTA */}
+                    {renderCTAModal()}
+
+                    {/* Footer */}
                     <footer className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 text-center text-xs sm:text-sm text-gray-600">
                         <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-6 mb-3">
-                            <span className="flex items-center"><span className="text-green-600 mr-1">🤝</span> Aide Militante</span>
+                            <span className="flex items-center"><span className="text-green-600 mr-1">🎯</span> CTA Intelligent</span>
                             <span className="flex items-center"><span className="text-blue-600 mr-1">💰</span> {sessionData.helpProvided}€ économisés</span>
                             <span className="flex items-center"><span className="text-purple-600 mr-1">🛠️</span> {getLevelName()}</span>
                             <span className="flex items-center"><span className="text-orange-600 mr-1">📊</span> {sessionData.interactions} interactions</span>
                         </div>
                         <p className="text-xs px-2">
                             Powered by <a href="https://re-fap.fr" className="text-green-700 hover:underline">Re-Fap</a> • 
-                            Julien le Mécano Militant •
-                            <span className="hidden sm:inline"> Robin des Bois anti-arnaque •</span>
+                            Julien CTA Intelligent •
+                            <span className="hidden sm:inline"> Orientation intelligente multi-parcours •</span>
                             <span className="block sm:inline"> Session: {sessionData.sessionId}</span>
                         </p>
                     </footer>
@@ -719,7 +1001,7 @@ Session: ${sessionData.sessionId}`;
             );
         };
 
-        ReactDOM.render(<JulienMilitantChatbot />, document.getElementById('root'));
+        ReactDOM.render(<JulienMilitantChatbotAvecCTA />, document.getElementById('root'));
     </script>
 </body>
 </html>
