@@ -217,6 +217,9 @@ const ctaSystem = new SystemeCTAIntelligent();
 
 // === API HANDLER PRINCIPAL ===
 export default async function handler(req, res) {
+  // 🚨 DEBUG - NOUVEAU CODE RE-FAP ACTIF
+  console.log('🔥🔥🔥 NOUVEAU CODE RE-FAP DÉPLOYÉ - VERSION CORRIGÉE 🔥🔥🔥');
+  
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -232,7 +235,7 @@ export default async function handler(req, res) {
   try {
     const { message, userData = {}, sessionId, historique = [], action } = req.body;
 
-    console.log('🔧 API Re-Fap:', { message: message?.substring(0, 50), action });
+    console.log('🔧 API Re-Fap NOUVEAU:', { message: message?.substring(0, 50), action });
 
     // GESTION DES ACTIONS CTA
     if (action) {
