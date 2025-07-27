@@ -1,4 +1,4 @@
-// api/chat-dual-brain.js - Version Militante + CTA Intelligent Complet
+// api/chat-dual-brain.js - Version Militante + CTA Re-Fap Business Agressif
 
 // === SYSTÈME CTA INTELLIGENT INTÉGRÉ ===
 class SystemeCTAIntelligent {
@@ -92,11 +92,11 @@ class SystemeCTAIntelligent {
     if (parcours === 'fap_confirme') {
       if (certitude === 'elevee') {
         if (profil === 'bricoleur_confirme') return 'fap_bricoleur_direct';
-        if (profil === 'particulier_standard') return 'fap_garage_direct';
-        return 'fap_qualification_profil';
+        if (profil === 'particulier_standard') return 'fap_solution_refap';
+        return 'fap_solution_refap';
       }
-      if (certitude === 'faible') return 'fap_diagnostic_requis_suivi';
-      return 'fap_diagnostic_general';
+      if (certitude === 'faible') return 'fap_diagnostic_refap';
+      return 'fap_solution_refap';
     }
     
     if (parcours === 'autre_probleme') {
@@ -110,45 +110,54 @@ class SystemeCTAIntelligent {
   // 💎 GÉNÉRATION CTA PERSONNALISÉ
   genererCTA(sousParcours, contexte) {
     const configs = {
+      fap_solution_refap: {
+        type: 'conversion_aggressive',
+        message: `💥 **SOLUTION RE-FAP CLERMONT** 💥
+
+**🔧 FAP bouché = 280€ chez Re-Fap** (au lieu de 1500-2000€ ailleurs)
+• ✅ **Économie : 1720€** 💰
+• ✅ Nettoyage professionnel garanti 2 ans
+• ✅ Diagnostic gratuit inclus  
+• ✅ 24h chrono
+
+**⚠️ STOP À L'ARNAQUE !** Ne te fais pas avoir par "il faut le changer" = 2000€ !`,
+        boutons: [
+          { text: "💸 ÉCONOMISER 1720€", action: "rdv_refap_direct", data: { type: "refap_direct", prix: 280, economie: 1720 } },
+          { text: "📞 Devis gratuit Re-Fap", action: "devis_refap", data: { type: "devis_refap" } },
+          { text: "🚗 Service récupération", action: "recuperation_fap", data: { type: "recuperation" } }
+        ]
+      },
+
       fap_bricoleur_direct: {
         type: 'conversion_immediate',
         message: `🔧 **Tu veux démonter ton FAP toi-même ?** Parfait !
 
-**Tes options pour le nettoyage :**
-• **Carter Cash équipé** (2 machines en France)
-• **Re-Fap Clermont** (tu l'apportes) 
-• **Envoi postal** (on s'occupe de tout)`,
+**💰 Solutions économiques :**
+• **Re-Fap Clermont** (tu l'apportes) : 200€
+• **Envoi postal** (on s'occupe de tout) : 250€
+• **Carter Cash équipé** (2 machines en France) : ~200€
+
+**📦 Service postal Re-Fap :** Le plus pratique !`,
         boutons: [
-          { text: "🏪 Carter Cash près de moi", action: "localiser_carter_cash", data: { type: "carter_cash" } },
+          { text: "📦 Envoi postal Re-Fap", action: "formulaire_envoi", data: { type: "envoi_postal" } },
           { text: "🚗 Apporter à Clermont", action: "infos_clermont", data: { type: "clermont" } },
-          { text: "📦 Envoi postal Re-Fap", action: "formulaire_envoi", data: { type: "envoi_postal" } }
+          { text: "🏪 Carter Cash près de moi", action: "localiser_carter_cash", data: { type: "carter_cash" } }
         ]
       },
 
-      fap_garage_direct: {
-        type: 'conversion_immediate',
-        message: `🚗 **Ton FAP a besoin d'attention !**
-
-**Solutions Re-Fap près de chez toi :**
-• **Nettoyage FAP** (200€) vs remplacement (2000€)
-• **Garages partenaires** formés Re-Fap`,
-        boutons: [
-          { text: "🛠️ Garage Re-Fap près de moi", action: "localiser_garage_refap", data: { type: "garage_refap" } },
-          { text: "📞 Rappel expert (gratuit)", action: "demande_rappel_fap", data: { type: "rappel_fap" } }
-        ]
-      },
-
-      fap_diagnostic_requis_suivi: {
+      fap_diagnostic_refap: {
         type: 'nurturing_conversion',
-        message: `🔍 **Pour confirmer que c'est bien le FAP, diagnostic garage recommandé.**
+        message: `🔍 **Diagnostic FAP Gratuit Re-Fap**
 
-**Plan d'action intelligent :**
-1️⃣ Diagnostic chez un partenaire (60-80€)
-2️⃣ Reste en contact avec nous pendant le diagnostic  
-3️⃣ On t'oriente selon le résultat`,
+**🎯 Avant de dépenser 2000€ ailleurs :**
+• Diagnostic complet gratuit chez Re-Fap
+• On confirme si c'est vraiment le FAP
+• Solution 280€ vs 2000€ si réparable
+
+**💡 Dans 90% des cas :** Simple nettoyage suffit !`,
         boutons: [
-          { text: "🔍 Garage diagnostic près de moi", action: "localiser_garage_diagnostic", data: { type: "diagnostic" } },
-          { text: "📧 Rester en contact (guide)", action: "email_suivi_diagnostic", data: { type: "nurturing_fap" } }
+          { text: "🔍 Diagnostic gratuit Re-Fap", action: "diagnostic_gratuit_refap", data: { type: "diagnostic_gratuit" } },
+          { text: "📞 Conseil expert (gratuit)", action: "conseil_expert_refap", data: { type: "conseil_expert" } }
         ]
       },
 
@@ -162,6 +171,20 @@ class SystemeCTAIntelligent {
         boutons: [
           { text: "📅 RDV idGarages près de moi", action: "rdv_idgarages", data: { type: "rdv_idgarages" } },
           { text: "📧 Guide diagnostic (gratuit)", action: "guide_diagnostic_autre", data: { type: "guide_autre" } }
+        ]
+      },
+
+      autre_diagnostic_ligne_puis_rdv: {
+        type: 'diagnostic_puis_conversion',
+        message: `🔍 **Diagnostic en ligne puis orientation**
+
+**Étapes :**
+1. Questions ciblées pour identifier le problème
+2. Orientation vers la solution la plus économique
+3. RDV chez un partenaire si nécessaire`,
+        boutons: [
+          { text: "🔍 Diagnostic en ligne (5 min)", action: "diagnostic_ligne_complet", data: { type: "diagnostic_ligne" } },
+          { text: "💬 Chat avec expert", action: "chat_expert_diagnostic", data: { type: "chat_expert" } }
         ]
       },
 
@@ -333,23 +356,41 @@ async function handleCTAAction(action, requestBody, res) {
 
   try {
     switch (action) {
-      case 'localiser_carter_cash':
-        return await handleLocalisationCarterCash(userData, res);
+      case 'rdv_refap_direct':
+        return await handleRDVRefapDirect(userData, res);
         
-      case 'localiser_garage_refap':
-        return await handleLocalisationGarageRefap(userData, res);
+      case 'devis_refap':
+        return await handleDevisRefap(userData, res);
         
-      case 'rdv_idgarages':
-        return await handleRDVIdgarages(userData, res);
+      case 'recuperation_fap':
+        return await handleRecuperationFap(userData, res);
+        
+      case 'diagnostic_gratuit_refap':
+        return await handleDiagnosticGratuitRefap(userData, res);
+        
+      case 'conseil_expert_refap':
+        return await handleConseilExpertRefap(userData, res);
         
       case 'formulaire_envoi':
         return await handleFormulaireEnvoi(userData, res);
         
-      case 'demande_rappel_fap':
-        return await handleDemandeRappelFAP(userData, res);
+      case 'infos_clermont':
+        return await handleInfosClermont(userData, res);
         
-      case 'email_suivi_diagnostic':
-        return await handleEmailSuiviDiagnostic(userData, res);
+      case 'localiser_carter_cash':
+        return await handleLocalisationCarterCash(userData, res);
+        
+      case 'rdv_idgarages':
+        return await handleRDVIdgarages(userData, res);
+        
+      case 'diagnostic_ligne_complet':
+        return await handleDiagnosticLigneComplet(userData, res);
+        
+      case 'chat_expert_diagnostic':
+        return await handleChatExpertDiagnostic(userData, res);
+        
+      case 'guide_diagnostic_autre':
+        return await handleGuideDiagnosticAutre(userData, res);
         
       default:
         return res.status(400).json({
@@ -366,7 +407,245 @@ async function handleCTAAction(action, requestBody, res) {
   }
 }
 
-// === HANDLERS CTA ===
+// === HANDLERS CTA RE-FAP ===
+
+async function handleRDVRefapDirect(userData, res) {
+  const message = `🏃‍♂️ **RDV RE-FAP CLERMONT DIRECT**
+
+**📍 Re-Fap Clermont-Ferrand**
+📞 **04 73 XX XX XX**
+📧 **contact@re-fap.fr**
+🌐 **www.re-fap.fr**
+
+**🎯 Ton RDV comprend :**
+• ✅ Diagnostic FAP complet (gratuit)
+• ✅ Devis transparent 280€ max
+• ✅ Nettoyage professionnel si besoin
+• ✅ Garantie 2 ans
+
+**⏰ Disponibilités :**
+• **Urgent :** Demain matin
+• **Standard :** Cette semaine
+
+**💰 Tu économises 1720€ vs remplacement !**
+
+**📋 Un expert va t'appeler sous 2h pour finaliser.**`;
+
+  return res.status(200).json({
+    success: true,
+    message,
+    action_completed: 'rdv_refap_direct',
+    business_impact: {
+      partner: 'Re-Fap Clermont',
+      service: 'Nettoyage FAP',
+      prix: 280,
+      economie: 1720,
+      urgence: 'sous_2h'
+    },
+    cta: {
+      type: 'lead_generation_refap',
+      form: {
+        fields: ['nom', 'telephone', 'email', 'vehicule', 'probleme_fap', 'urgence'],
+        required: ['nom', 'telephone', 'vehicule'],
+        title: '💸 ÉCONOMISER 1720€ - RDV Re-Fap'
+      }
+    }
+  });
+}
+
+async function handleDevisRefap(userData, res) {
+  const message = `📞 **DEVIS GRATUIT RE-FAP**
+
+**🔍 Diagnostic téléphonique gratuit :**
+• ✅ Questions précises sur ton FAP
+• ✅ Estimation de faisabilité  
+• ✅ Prix ferme garanti
+• ✅ Conseil objectif (pas de vente forcée)
+
+**⏱️ Durée :** 5 minutes max
+
+**💡 Si c'est réparable :** 280€ tout compris
+**💡 Si c'est mort :** On te dit la vérité !
+
+**🎯 Un expert Re-Fap va t'appeler sous 2h.**
+**💰 Économie potentielle : 1720€**`;
+
+  return res.status(200).json({
+    success: true,
+    message,
+    action_completed: 'devis_refap',
+    cta: {
+      type: 'callback_devis_refap',
+      form: {
+        fields: ['nom', 'telephone', 'vehicule', 'symptomes_fap', 'kilometrage'],
+        required: ['nom', 'telephone', 'symptomes_fap'],
+        title: '📞 Devis Gratuit Re-Fap'
+      }
+    }
+  });
+}
+
+async function handleRecuperationFap(userData, res) {
+  const message = `🚗 **SERVICE RÉCUPÉRATION FAP RE-FAP**
+
+**🛠️ Service clé en main Re-Fap :**
+• ✅ On vient chercher ta voiture
+• ✅ Démontage FAP par nos soins
+• ✅ Nettoyage professionnel Re-Fap
+• ✅ Remontage et livraison
+• ✅ Test final inclus
+
+**💰 Prix tout compris : 380€**
+*(280€ nettoyage + 100€ service complet)*
+
+**📍 Zone d'intervention :** 100km autour de Clermont
+**⏰ Délai :** 48h maximum
+**💸 Économie vs remplacement : 1620€**`;
+
+  return res.status(200).json({
+    success: true,
+    message,
+    action_completed: 'recuperation_fap',
+    cta: {
+      type: 'service_recuperation',
+      prix: 380,
+      economie: 1620,
+      form: {
+        fields: ['nom', 'telephone', 'adresse_complete', 'vehicule', 'planning_souhaite'],
+        required: ['nom', 'telephone', 'adresse_complete', 'vehicule'],
+        title: '🚗 Service Récupération Re-Fap'
+      }
+    }
+  });
+}
+
+async function handleDiagnosticGratuitRefap(userData, res) {
+  const message = `🔍 **DIAGNOSTIC GRATUIT RE-FAP**
+
+**🎯 Diagnostic complet offert :**
+• ✅ Test complet FAP/EGR/AdBlue
+• ✅ Lecture codes erreurs  
+• ✅ Analyse état réel du filtre
+• ✅ Conseil technique honest
+
+**📍 Re-Fap Clermont**
+**⏰ RDV sous 48h**
+**💰 Diagnostic : 0€** (gratuit)
+
+**💡 Si réparable :** 280€ au lieu de 2000€
+**💡 Si irréparable :** On te dit la vérité
+
+**🚗 Viens avec ta voiture, repars avec la solution !**`;
+
+  return res.status(200).json({
+    success: true,
+    message,
+    action_completed: 'diagnostic_gratuit_refap',
+    cta: {
+      type: 'rdv_diagnostic_gratuit',
+      form: {
+        fields: ['nom', 'telephone', 'vehicule', 'symptomes', 'disponibilites'],
+        required: ['nom', 'telephone', 'vehicule'],
+        title: '🔍 Diagnostic Gratuit Re-Fap'
+      }
+    }
+  });
+}
+
+async function handleConseilExpertRefap(userData, res) {
+  const message = `📞 **CONSEIL EXPERT RE-FAP GRATUIT**
+
+**🧠 Un expert Re-Fap va t'appeler pour :**
+• ✅ Analyser tes symptômes précis
+• ✅ Te dire si c'est vraiment le FAP  
+• ✅ T'expliquer les vraies solutions
+• ✅ Te protéger des arnaques
+
+**⏰ Appel sous 1h** (si urgent)
+**🆓 100% gratuit** - 0% vente forcée
+**💪 20 ans d'expérience** anti-arnaque
+
+**🎯 Notre mission :** Te faire économiser le maximum !`;
+
+  return res.status(200).json({
+    success: true,
+    message,
+    action_completed: 'conseil_expert_refap',
+    cta: {
+      type: 'callback_expert',
+      form: {
+        fields: ['nom', 'telephone', 'vehicule', 'probleme_detaille', 'urgence'],
+        required: ['nom', 'telephone', 'probleme_detaille'],
+        title: '📞 Conseil Expert Re-Fap'
+      }
+    }
+  });
+}
+
+async function handleFormulaireEnvoi(userData, res) {
+  const message = `📦 **ENVOI POSTAL RE-FAP CLERMONT**
+
+**🎯 Service clé en main :**
+1. ✅ Tu démontez ton FAP (on t'explique)
+2. ✅ Emballage sécurisé (fourni)  
+3. ✅ Envoi par transporteur
+4. ✅ Nettoyage professionnel Re-Fap
+5. ✅ Retour sous 48h
+
+**💰 Prix tout compris : 250€**
+*(200€ nettoyage + 50€ transport)*
+**💸 Économie : 1750€** vs remplacement
+
+**📦 Kit d'envoi livré chez toi en 24h**`;
+
+  return res.status(200).json({
+    success: true,
+    message,
+    action_completed: 'formulaire_envoi',
+    cta: {
+      type: 'lead_generation_envoi',
+      form: {
+        fields: ['nom', 'telephone', 'email', 'adresse_complete', 'vehicule'],
+        required: ['nom', 'telephone', 'adresse_complete', 'vehicule'],
+        title: '📦 Envoi Postal Re-Fap'
+      }
+    }
+  });
+}
+
+async function handleInfosClermont(userData, res) {
+  const message = `🏪 **APPORTER TON FAP À CLERMONT**
+
+**📍 Adresse Re-Fap :**
+Zone Industrielle de Clermont-Ferrand
+📞 04 73 XX XX XX
+🕐 Lun-Ven 8h-17h
+
+**🎯 Procédure :**
+1. ✅ Tu démontez ton FAP
+2. ✅ Tu l'apportes chez nous
+3. ✅ Nettoyage pendant que tu attends (2h)
+4. ✅ Test + remontage si besoin
+
+**💰 Prix : 200€** (le moins cher)
+**⏰ Délai : 2h sur place**
+
+**💡 Prendre RDV recommandé**`;
+
+  return res.status(200).json({
+    success: true,
+    message,
+    action_completed: 'infos_clermont',
+    cta: {
+      type: 'rdv_apport_direct',
+      form: {
+        fields: ['nom', 'telephone', 'vehicule', 'date_souhaitee'],
+        required: ['nom', 'telephone', 'vehicule'],
+        title: '🚗 RDV Apport FAP Clermont'
+      }
+    }
+  });
+}
 
 async function handleLocalisationCarterCash(userData, res) {
   const carterCashEquipes = [
@@ -392,9 +671,11 @@ ${cc.adresse}
 🕐 ${cc.horaires}`).join('\n\n')}
 
 💡 **Étapes suivantes :**
-1. Démonte ton FAP ✅
-2. Appelle pour vérifier dispo machine
-3. Prix nettoyage : ~200€`;
+1. ✅ Démonte ton FAP
+2. ✅ Appelle pour vérifier dispo machine
+3. ✅ Prix nettoyage : ~200€
+
+**⚠️ Alternative :** Re-Fap postal (250€ tout compris)`;
 
   return res.status(200).json({
     success: true,
@@ -405,39 +686,8 @@ ${cc.adresse}
       message: "🔧 **Besoin d'aide pour continuer ?**",
       boutons: [
         { text: "📧 Guide démontage FAP", action: "guide_demontage_fap", data: { type: "guide_technique" } },
-        { text: "📞 Aide pour démonter", action: "aide_demontage", data: { type: "support_technique" } }
+        { text: "📦 Solution Re-Fap postal", action: "formulaire_envoi", data: { type: "envoi_postal" } }
       ]
-    }
-  });
-}
-
-async function handleLocalisationGarageRefap(userData, res) {
-  const message = `🛠️ **Garages partenaires Re-Fap près de chez toi**
-
-📍 **Recherche en cours selon ta position...**
-
-💪 **Avantages réseau Re-Fap :**
-• Nettoyage FAP garanti 2 ans
-• Prix transparent : 200€ max
-• Pas d'arnaque remplacement 
-• Formation technique Re-Fap
-
-📞 **Pour finaliser :** Laisse-moi tes coordonnées !`;
-
-  return res.status(200).json({
-    success: true,
-    message,
-    action_completed: 'localisation_garage_refap',
-    cta: {
-      type: 'lead_capture',
-      message: "📋 **Coordonnées pour localisation précise**",
-      boutons: [
-        { text: "📞 Me faire rappeler", action: "demande_rappel_localisation", data: { type: "rappel_localisation" } }
-      ],
-      form: {
-        fields: ['nom', 'telephone', 'ville'],
-        required: ['nom', 'telephone', 'ville']
-      }
     }
   });
 }
@@ -446,13 +696,13 @@ async function handleRDVIdgarages(userData, res) {
   const message = `📅 **Prise de RDV idGarages**
 
 🎯 **idGarages - Réseau certifié anti-arnaque**
-• Diagnostic transparent avant intervention
-• Devis détaillé obligatoire
-• Réseau de 2000+ garages
+• ✅ Diagnostic transparent avant intervention
+• ✅ Devis détaillé obligatoire
+• ✅ Réseau de 2000+ garages
 
 📞 **Un conseiller va t'appeler sous 2h** pour :
-• Trouver le garage le plus proche
-• Fixer un RDV selon tes dispos`;
+• ✅ Trouver le garage le plus proche
+• ✅ Fixer un RDV selon tes dispos`;
 
   return res.status(200).json({
     success: true,
@@ -463,89 +713,96 @@ async function handleRDVIdgarages(userData, res) {
       partner: 'idGarages',
       form: {
         fields: ['nom', 'telephone', 'email', 'ville', 'probleme', 'vehicule'],
-        required: ['nom', 'telephone', 'ville', 'probleme']
+        required: ['nom', 'telephone', 'ville', 'probleme'],
+        title: '📅 RDV idGarages'
       }
     }
   });
 }
 
-async function handleFormulaireEnvoi(userData, res) {
-  const message = `📦 **Envoi postal Re-Fap Clermont**
+async function handleDiagnosticLigneComplet(userData, res) {
+  const message = `🔍 **DIAGNOSTIC EN LIGNE COMPLET**
 
-🎯 **Service clé en main :**
-1. Tu démontez ton FAP
-2. Emballage sécurisé (on t'explique)  
-3. Envoi par transporteur
-4. Nettoyage professionnel Re-Fap
-5. Retour sous 48h
+**🎯 Questions ciblées pour identifier ton problème :**
 
-💰 **Prix tout compris :** 250€ (nettoyage + transport)`;
+**Étape 1/5 - Symptômes principaux**
+• Voyants allumés ?
+• Bruits anormaux ?
+• Perte de puissance ?
+
+**📋 Diagnostic personnalisé en 5 minutes**
+**💡 Solutions économiques garanties**
+
+**On commence ?**`;
 
   return res.status(200).json({
     success: true,
     message,
-    action_completed: 'formulaire_envoi',
+    action_completed: 'diagnostic_ligne_complet',
     cta: {
-      type: 'lead_generation_envoi',
+      type: 'diagnostic_interactif',
       form: {
-        fields: ['nom', 'telephone', 'email', 'adresse_complete', 'vehicule'],
-        required: ['nom', 'telephone', 'adresse_complete', 'vehicule']
+        fields: ['vehicule', 'symptomes_principaux', 'voyants', 'bruits', 'performance'],
+        required: ['vehicule', 'symptomes_principaux'],
+        title: '🔍 Diagnostic En Ligne'
       }
     }
   });
 }
 
-async function handleDemandeRappelFAP(userData, res) {
-  const message = `📞 **Rappel Expert FAP Re-Fap**
+async function handleChatExpertDiagnostic(userData, res) {
+  const message = `💬 **CHAT AVEC EXPERT DIAGNOSTIC**
 
-🧠 **Un expert FAP va t'appeler :**
-• Diagnostic approfondi de ton cas
-• Solutions personnalisées  
-• Orientation vers la meilleure option
+**🧠 Expert disponible pour :**
+• ✅ Diagnostic en temps réel
+• ✅ Questions/réponses immédiates
+• ✅ Orientation solution économique
+• ✅ Conseil anti-arnaque
 
-⏰ **Quand ?** 
-• Urgent : dans les 2h
-• Standard : dans la journée
+**⏰ Disponible maintenant**
+**🆓 100% gratuit**
 
-💪 **100% gratuit, 0% vente forcée !**`;
+**🎯 Chat sécurisé et confidentiel**`;
 
   return res.status(200).json({
     success: true,
     message,
-    action_completed: 'demande_rappel_fap',
+    action_completed: 'chat_expert_diagnostic',
     cta: {
-      type: 'callback_request',
+      type: 'chat_live',
       form: {
-        fields: ['nom', 'telephone', 'email', 'vehicule', 'probleme_detaille'],
-        required: ['nom', 'telephone', 'probleme_detaille']
+        fields: ['nom', 'vehicule', 'probleme_resume'],
+        required: ['nom', 'probleme_resume'],
+        title: '💬 Chat Expert'
       }
     }
   });
 }
 
-async function handleEmailSuiviDiagnostic(userData, res) {
-  const message = `📧 **Guide de suivi diagnostic FAP**
+async function handleGuideDiagnosticAutre(userData, res) {
+  const message = `📧 **GUIDE DIAGNOSTIC GRATUIT**
 
-📚 **Tu vas recevoir par email :**
-• Questions précises à poser au garage
-• Comment interpréter le diagnostic  
-• Que faire selon les résultats
-• Contacts Re-Fap selon diagnostic
+**📚 Tu vas recevoir par email :**
+• ✅ Checklist diagnostic par problème
+• ✅ Questions à poser au garage
+• ✅ Prix justes vs arnaques
+• ✅ Garages de confiance près de chez toi
 
-💡 **Stratégie militante :**
-"Je veux juste le diagnostic, pas la réparation"
+**💡 Guide militant anti-arnaque**
+**🎯 Économise des centaines d'euros**
 
-🤝 **On reste en contact pendant ton diagnostic !**`;
+**📧 Livraison immédiate**`;
 
   return res.status(200).json({
     success: true,
     message,
-    action_completed: 'email_suivi_diagnostic',
+    action_completed: 'guide_diagnostic_autre',
     cta: {
-      type: 'email_nurturing',
+      type: 'email_guide',
       form: {
-        fields: ['email', 'prenom', 'vehicule'],
-        required: ['email']
+        fields: ['email', 'prenom', 'probleme_type'],
+        required: ['email'],
+        title: '📧 Guide Diagnostic'
       }
     }
   });
@@ -569,6 +826,8 @@ TON MILITANT :
 - Ton chaleureux et bienveillant
 
 NIVEAU ${userLevel} : ${userLevel === 0 ? "Aide gratuite" : "Accompagnement approfondi"}
+
+SPÉCIAL FAP : Toujours proposer Re-Fap (280€) vs remplacement (2000€)
 
 Réponds comme un vrai mécano militant qui veut vraiment aider.`;
 
@@ -612,6 +871,8 @@ PHILOSOPHIE :
 - Ton chaleureux et bienveillant
 
 NIVEAU ${userLevel} : ${userLevel === 0 ? "Aide gratuite" : "Accompagnement approfondi"}
+
+SPÉCIAL FAP : Propose toujours Re-Fap (280€) vs remplacement (2000€)
 
 Réponds avec empathie et expertise, toujours du côté de l'automobiliste.`;
 
@@ -684,37 +945,40 @@ async function simulationMilitanteIntelligente(message, userLevel) {
   
   if (needType === "fap") {
     if (userLevel === 0) {
-      baseResponse = `🌪️ **Diagnostic FAP Militant** 🌪️
+      baseResponse = `🚨 **ALERTE FAP MILITANT** 🚨
 
-OK, ça sent le FAP bien bouché ! Tu fais beaucoup de petits trajets ?
+Salut ! Julien à l'appareil, mécano chez Re-Fap depuis 20 ans et militant anti-arnaque !
 
-**Bonne nouvelle :** Contrairement à ce qu'on va sûrement te dire au garage, PAS BESOIN de le remplacer !
+Ah, le fameux FAP bouché... Laisse-moi deviner : le voyant moteur s'est allumé et la voiture manque de puissance ? C'est malheureusement super courant et certains garagistes en profitent pour te faire changer la pièce direct (**1500-2000€ minimum**)... **Mais on va pas se faire avoir !**
 
-**La vérité vraie :**
-• Nettoyage FAP : 200€ max ✅
-• Remplacement FAP : 2000€ ❌ (10x plus cher !)
-• Efficacité nettoyage : 90% des cas
+**🔧 SOLUTION RE-FAP CLERMONT :**
+• **Nettoyage FAP : 280€** (au lieu de 2000€)
+• **Économie : 1720€** 💰
+• **Diagnostic gratuit**
+• **Garanti 2 ans**
 
-**À tester d'abord (gratuit) :**
-1. Roulage autoroutier 30 min à 3000 tr/min
-2. Vérifier niveau AdBlue si SCR
-3. Contrôler capteur pression différentielle
+**⚠️ SURTOUT :** Ne te précipite pas chez le concessionnaire ! Dans 80% des cas, un simple nettoyage chez nous suffit.
 
-**Méfie-toi si :** Un garage refuse le nettoyage = fuis !
+**Avant tout, quelques questions pour t'aider au mieux :**
+- C'est quoi comme voiture (marque, modèle, année) ?
+- Tu roules plutôt en ville ou sur route ?
+- Le voyant moteur est allumé ?
 
-🛠️ **Solution maligne :** Nettoyage Re-Fap garanti, 24h.`;
+**💪 Mon conseil militant :** Appelle-nous d'abord, ça peut te faire économiser 1500€ !`;
     } else {
       baseResponse = `🧠 **Expertise FAP Militante** 🌪️
 
 **Mon diagnostic honest :**
 Symptômes typiques de FAP colmaté. BONNE NOUVELLE : ça se résout SANS remplacement dans 90% des cas !
 
-**Solutions (du moins cher au plus cher) :**
-1. **Test gratuit** : Roulage autoroutier 30 min
-2. **Nettoyage FAP** (150-200€) ✅ **RECOMMANDÉ**
-3. **Remplacement** (1800€) ❌ **Arnaque dans 90% des cas**
+**🔧 Solutions Re-Fap (du moins cher au plus cher) :**
+1. **Nettoyage Re-Fap** : 280€ ✅ **RECOMMANDÉ**
+2. **Service récupération** : 380€ (on vient chercher ta voiture)
+3. **Envoi postal** : 250€ (tu démontez)
 
-**Mon conseil militant :** Nettoyage chez partenaire Re-Fap = économie de 1600€ !`;
+**❌ Remplacement** : 1800€ = **Arnaque dans 90% des cas**
+
+**Mon conseil militant :** Re-Fap Clermont = économie de 1520€ minimum !`;
     }
   }
   else if (needType === "brakes") {
