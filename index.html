@@ -220,7 +220,7 @@ window.resetInfluencerTracking = function() {
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const JulienDualBrainChatbot = () => {
+        const JulienRefapChatbot = () => {
             const [messages, setMessages] = useState([
                 {
                     type: 'bot',
@@ -246,11 +246,11 @@ window.resetInfluencerTracking = function() {
                 interactions: 0
             });
 
-            // États Dual Brain
+            // États Re-Fap
             const [userLevel, setUserLevel] = useState(0);
             const [aiMode, setAiMode] = useState('simulation');
             const [leadValue, setLeadValue] = useState(0);
-            const [conversionStrategy, setConversionStrategy] = useState(null);
+            const [currentCTA, setCurrentCTA] = useState(null);
 
             useEffect(() => {
                 trackEvent('session_start', { sessionId: leadData.sessionId });
@@ -269,60 +269,100 @@ window.resetInfluencerTracking = function() {
                 }]);
             };
 
-            // 🧠 FONCTION DUAL BRAIN PRINCIPALE
-            const getDualBrainResponse = async (userMsg) => {
+            // 🔧 FONCTION RE-FAP PRINCIPALE
+            const getRefapResponse = async (userMsg) => {
                 try {
-                    console.log('🧠 Dual Brain IA activé...');
+                    console.log('🔧 Re-Fap IA activé...');
                     
-                    // Appel au Dual Brain
-                    const response = await fetch('/api/chat-dual-brain', {
+                    // Appel au nouveau endpoint Re-Fap
+                    const response = await fetch('/api/chat-refap-v2', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             message: userMsg,
                             userData: userData,
-                            sessionId: leadData.sessionId
+                            sessionId: leadData.sessionId,
+                            historique: messages.map(m => m.content)
                         })
                     });
 
                     const data = await response.json();
                     
                     if (data.success && data.message) {
-                        console.log('✅ Dual Brain success:', data.metadata?.aiMode);
+                        console.log('✅ Re-Fap success:', data.metadata?.mode);
                         
-                        // Mise à jour des données business
-                        if (data.rewardSystem) {
-                            setUserLevel(data.rewardSystem.userLevel);
-                            setLeadValue(data.rewardSystem.leadValue);
-                            setConversionStrategy(data.rewardSystem.conversionStrategy);
+                        // Mise à jour des données Re-Fap
+                        if (data.metadata) {
+                            setUserLevel(data.metadata.userLevel || 0);
+                            setLeadValue(data.metadata.leadValue || 0);
+                            setAiMode(data.metadata.mode || 'refap');
                         }
                         
-                        setAiMode(data.metadata?.aiMode || 'dual_brain');
+                        // Gestion des CTA
+                        if (data.cta) {
+                            setCurrentCTA(data.cta);
+                        }
+                        
                         setLeadData(prev => ({ ...prev, interactions: prev.interactions + 1 }));
-                        
-                        // Proposition d'upgrade si strategy disponible
-                        if (data.rewardSystem?.conversionStrategy && userLevel === 0) {
-                            setTimeout(() => {
-                                setShowUpgradeForm(true);
-                            }, 2000);
-                        }
                         
                         return {
                             text: data.message,
-                            mode: data.metadata?.aiMode || 'dual_brain',
-                            score: data.score || 8.0
+                            mode: data.metadata?.mode || 'refap',
+                            cta: data.cta,
+                            score: data.metadata?.score || 8.0
                         };
                     } else {
-                        throw new Error(data.error || 'Erreur Dual Brain');
+                        throw new Error(data.error || 'Erreur Re-Fap');
                     }
                     
                 } catch (error) {
-                    console.error('❌ Erreur Dual Brain:', error);
+                    console.error('❌ Erreur Re-Fap:', error);
                     return {
-                        text: `Salut ! Décris-moi ton problème auto, je vais l'analyser ! 🔧\n\nErreur temporaire : ${error.message}`,
+                        text: `🔧 Assistant Re-Fap - Petit souci technique...\n\nDécris-moi ton problème FAP, je vais t'aider ! ${error.message}`,
                         mode: 'fallback',
+                        cta: null,
                         score: 5.0
                     };
+                }
+            };
+
+            // Gestion des CTA Re-Fap
+            const handleCTAClick = async (action, data = {}) => {
+                console.log('🎯 CTA clicked:', action, data);
+                
+                try {
+                    const response = await fetch('/api/chat-refap-v2', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: action,
+                            userData: userData,
+                            sessionId: leadData.sessionId,
+                            ctaData: data
+                        })
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        addMessage(result.message, 'bot', 'cta_result');
+                        
+                        // Redirection si nécessaire
+                        if (result.redirect_url) {
+                            setTimeout(() => {
+                                window.open(result.redirect_url, '_blank');
+                            }, 1000);
+                        }
+                        
+                        // Nouveau CTA si présent
+                        if (result.cta) {
+                            setCurrentCTA(result.cta);
+                        }
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ Erreur CTA:', error);
+                    addMessage(`❌ Erreur : ${error.message}`, 'bot');
                 }
             };
 
@@ -340,9 +380,15 @@ window.resetInfluencerTracking = function() {
                     userLevel
                 });
 
-                // Appel Dual Brain
-                const response = await getDualBrainResponse(userMsg);
+                // Appel Re-Fap
+                const response = await getRefapResponse(userMsg);
                 addMessage(response.text, 'bot', response.mode);
+                
+                // Gestion CTA
+                if (response.cta) {
+                    setCurrentCTA(response.cta);
+                }
+                
                 setIsTyping(false);
             };
 
@@ -362,54 +408,15 @@ window.resetInfluencerTracking = function() {
                         userLevel
                     });
                     
-                    // Compression d'image
-                    const compressImage = (file, maxWidth = 800, quality = 0.8) => {
-                        return new Promise((resolve) => {
-                            const canvas = document.createElement('canvas');
-                            const ctx = canvas.getContext('2d');
-                            const img = new Image();
-                            
-                            img.onload = () => {
-                                let { width, height } = img;
-                                if (width > maxWidth) {
-                                    height = (height * maxWidth) / width;
-                                    width = maxWidth;
-                                }
-                                
-                                canvas.width = width;
-                                canvas.height = height;
-                                ctx.drawImage(img, 0, 0, width, height);
-                                
-                                const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-                                resolve(compressedDataUrl);
-                            };
-                            
-                            const reader = new FileReader();
-                            reader.onload = (e) => {
-                                img.src = e.target.result;
-                            };
-                            reader.readAsDataURL(file);
-                        });
-                    };
-                    
                     try {
-                        let imageData;
-                        
-                        if (file.size > 1024 * 1024) {
-                            console.log('🗜️ Compression image...');
-                            imageData = await compressImage(file, 800, 0.8);
-                        } else {
-                            const reader = new FileReader();
-                            imageData = await new Promise((resolve) => {
-                                reader.onload = (e) => resolve(e.target.result);
-                                reader.readAsDataURL(file);
-                            });
-                        }
-
-                        // Analyse photo avec Dual Brain
+                        // Analyse photo avec Re-Fap
                         const photoPrompt = `Photo voyant tableau de bord - ${file.name}`;
-                        const response = await getDualBrainResponse(photoPrompt);
-                        addMessage(`📸 **ANALYSE PHOTO DUAL BRAIN** 🧠\n\n${response.text}`, 'bot', response.mode);
+                        const response = await getRefapResponse(photoPrompt);
+                        addMessage(`📸 **ANALYSE PHOTO RE-FAP** 🔧\n\n${response.text}`, 'bot', response.mode);
+                        
+                        if (response.cta) {
+                            setCurrentCTA(response.cta);
+                        }
                         
                     } catch (error) {
                         console.error('❌ Erreur upload:', error);
@@ -435,37 +442,6 @@ window.resetInfluencerTracking = function() {
                 }, 500);
             };
 
-            const handleUpgradeClick = () => {
-                setShowUpgradeForm(true);
-                trackEvent('upgrade_requested', { userLevel, leadValue });
-            };
-
-            const handleUpgradeSubmit = async (e) => {
-                e.preventDefault();
-                
-                if (!callbackData.email) {
-                    alert('Email obligatoire pour le diagnostic premium !');
-                    return;
-                }
-
-                // Mise à jour userData
-                const newUserData = {
-                    ...userData,
-                    email: callbackData.email,
-                    firstName: callbackData.nom,
-                    location: callbackData.vehicule
-                };
-                setUserData(newUserData);
-                setUserLevel(1);
-
-                addMessage(`✅ **Diagnostic Premium Activé !** 🎯\n\nMerci ${callbackData.nom} ! Ton niveau utilisateur a été upgraded. Pose-moi maintenant ta question pour une analyse premium !`, 'bot', 'upgrade_success');
-
-                setShowUpgradeForm(false);
-                setCallbackData({ nom: '', telephone: '', email: '', probleme: '', vehicule: '' });
-                
-                trackEvent('upgrade_completed', { newLevel: 1, email: callbackData.email });
-            };
-
             const handleCallbackSubmit = async (e) => {
                 e.preventDefault();
                 
@@ -486,29 +462,8 @@ window.resetInfluencerTracking = function() {
                 setUserLevel(2);
 
                 try {
-                    console.log('📧 Envoi lead Dual Brain...');
+                    console.log('📧 Envoi lead Re-Fap...');
                     
-                    // Création lead via Dual Brain
-                    try {
-                        const leadResponse = await fetch('/api/chat-dual-brain', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                action: 'CREATE_LEAD',
-                                userData: newUserData,
-                                sessionId: leadData.sessionId,
-                                message: `Lead rappel: ${callbackData.probleme}`
-                            })
-                        });
-
-                        const leadResult = await leadResponse.json();
-                        if (leadResult.success) {
-                            console.log('🗄️ Lead Dual Brain créé:', leadResult.leadInfo);
-                        }
-                    } catch (error) {
-                        console.warn('⚠️ Lead creation failed:', error.message);
-                    }
-
                     // Tracking de la conversion influenceur
                     if (window.trackInfluencerConversion) {
                         window.trackInfluencerConversion({
@@ -523,76 +478,10 @@ window.resetInfluencerTracking = function() {
                         });
                     }
 
-                    // Envoi email
-                    try {
-                        if (typeof emailjs === 'undefined') {
-                            console.log('📦 Chargement EmailJS...');
-                            await new Promise((resolve, reject) => {
-                                const script = document.createElement('script');
-                                script.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js';
-                                script.onload = resolve;
-                                script.onerror = reject;
-                                document.head.appendChild(script);
-                                setTimeout(reject, 5000);
-                            });
-                        }
+                    // Email avec les nouvelles infos Re-Fap
+                    const emailBody = `NOUVEAU LEAD RE-FAP - ${callbackData.nom}
 
-                        emailjs.init('mUrOzXIRFoYWzUmeW');
-
-                        const response = await emailjs.send(
-                            'service_mnjblro',
-                            'template_trg4q0n',
-                            {
-                                name: callbackData.nom,
-                                subject: `🧠 LEAD DUAL BRAIN IA - ${callbackData.nom}`,
-                                message: `NOUVEAU LEAD DUAL BRAIN IA - ${callbackData.nom}
-
-📋 INFORMATIONS CLIENT :
-• Nom/Prénom : ${callbackData.nom}
-• Téléphone : ${callbackData.telephone}
-• Email : ${callbackData.email || 'Non renseigné'}
-
-🚗 PROBLÈME VÉHICULE :
-• Véhicule : ${callbackData.vehicule || 'Non précisé'}
-• Problème : ${callbackData.probleme || 'Non précisé'}
-
-🧠 DONNÉES DUAL BRAIN IA :
-• Session ID : ${leadData.sessionId}
-• Interactions : ${leadData.interactions}
-• Mode IA : ${aiMode}
-• User Level : ${userLevel}
-• Lead Value : ${leadValue}€
-• Horodatage : ${new Date().toLocaleString('fr-FR')}
-
-⚡ ACTION REQUISE : Rappeler ${callbackData.nom} sous 2h !
-
-🎯 LEAD QUALIFIÉ PAR DUAL BRAIN IA (Claude + OpenAI)`
-                            }
-                        );
-
-                        console.log('✅ EmailJS succès:', response);
-
-                        addMessage(`✅ **Lead Dual Brain envoyé !**
-
-📧 **Email automatique envoyé à mgaume@re-fap.fr**
-🧠 **Analysé par Dual Brain IA (Claude + OpenAI)**
-💰 **Valeur lead : ${leadValue}€**
-
-📋 **Récapitulatif :**
-• Nom : ${callbackData.nom}
-• Téléphone : ${callbackData.telephone}
-• Level : Premium (${userLevel})
-
-📞 **Un expert va t'appeler sous 2h !**
-
-Continue à me poser des questions pour l'analyse premium ! 🔧`, 'bot', 'dual_brain_success');
-
-                    } catch (emailjsError) {
-                        console.log('📧 Fallback mailto...', emailjsError.message);
-                        
-                        const emailBody = `NOUVEAU LEAD DUAL BRAIN IA - ${callbackData.nom}
-
-🧠 DUAL BRAIN IA : Claude + OpenAI
+🔧 RE-FAP ASSISTANT IA
 💰 Valeur lead : ${leadValue}€
 📊 Level : ${userLevel}
 🎯 Interactions : ${leadData.interactions}
@@ -606,20 +495,19 @@ Continue à me poser des questions pour l'analyse premium ! 🔧`, 'bot', 'dual_
 
 Session: ${leadData.sessionId}`;
 
-                        const mailtoLink = `mailto:mgaume@re-fap.fr?subject=${encodeURIComponent('🧠 LEAD DUAL BRAIN IA - ' + callbackData.nom)}&body=${encodeURIComponent(emailBody)}`;
-                        
-                        window.open(mailtoLink, '_blank');
+                    const mailtoLink = `mailto:mgaume@re-fap.fr?subject=${encodeURIComponent('🔧 LEAD RE-FAP - ' + callbackData.nom)}&body=${encodeURIComponent(emailBody)}`;
+                    
+                    window.open(mailtoLink, '_blank');
 
-                        addMessage(`📧 **Email client ouvert !**
-🧠 **Lead Dual Brain généré (${leadValue}€)**
+                    addMessage(`📧 **Email client ouvert !**
+🔧 **Lead Re-Fap généré (${leadValue}€)**
 
 💬 **Instructions :**
 1. Email pré-rempli ouvert
 2. Clique "Envoyer"
 3. Rappel sous 2h garanti !
 
-🎯 **Ton niveau premium est activé !**`, 'bot', 'mailto_fallback');
-                    }
+🎯 **Ton niveau premium est activé !**`, 'bot', 'mailto_success');
 
                 } catch (error) {
                     console.error('Erreur callback:', error);
@@ -632,28 +520,26 @@ Session: ${leadData.sessionId}`;
 
             const getLevelName = () => {
                 const names = {
-                    0: 'Diagnostic de Base',
-                    1: 'Diagnostic Avancé', 
-                    2: 'Expertise Premium',
-                    3: 'Service VIP'
+                    0: 'Aide Gratuite',
+                    1: 'Accompagnement Re-Fap', 
+                    2: 'Support Expert'
                 };
-                return names[userLevel] || 'Inconnu';
+                return names[userLevel] || 'Assistant';
             };
 
             const getAiModeDisplay = () => {
                 const modes = {
-                    'dual_brain': '🧠 Dual Brain (Claude + OpenAI)',
-                    'claude_only': '🎯 Claude Expert',
-                    'airtable': '📚 Knowledge Base',
-                    'simulation': '⚡ Simulation',
+                    'dual_brain_refap': '🔧 Re-Fap Dual Brain',
+                    'claude_refap': '🎯 Claude Re-Fap',
+                    'simulation_refap': '⚡ Simulation Re-Fap',
                     'fallback': '🔄 Fallback'
                 };
-                return modes[aiMode] || '🤖 IA';
+                return modes[aiMode] || '🔧 Re-Fap';
             };
 
             return (
                 <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50">
-                    {/* Header avec stats Dual Brain */}
+                    {/* Header avec stats Re-Fap */}
                     <header className="bg-white shadow-sm border-b">
                         <div className="max-w-6xl mx-auto px-2 sm:px-4 py-3">
                             <div className="flex items-center justify-between">
@@ -664,7 +550,7 @@ Session: ${leadData.sessionId}`;
                                     <div className="min-w-0 flex-1">
                                         <h1 className="text-sm sm:text-lg font-bold text-gray-800 truncate">Julien - **Ton assistant auto de confiance**</h1>
                                         <p className="text-xs text-gray-600 hidden sm:block">
-                                            Aide Militante • Aide Gratuite • Anti-Arnaque 
+                                            Assistant Re-Fap • Nettoyage FAP • Solutions économiques
                                         </p>
                                     </div>
                                 </div>
@@ -672,16 +558,16 @@ Session: ${leadData.sessionId}`;
                                     onClick={() => window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank')}
                                     className="bg-orange-500 hover:bg-orange-600 text-white px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ml-2 whitespace-nowrap"
                                 >
-                                    <span className="hidden sm:inline">📞 Devis gratuit</span>
-                                    <span className="sm:hidden">📞</span>
+                                    <span className="hidden sm:inline">🔍 Garage partenaire</span>
+                                    <span className="sm:hidden">🔍</span>
                                 </button>
                             </div>
                         </div>
                         
-                        {/* Status Dual Brain */}
+                        {/* Status Re-Fap */}
                         <div className="text-xs text-center py-2 bg-gradient-to-r from-green-50 to-emerald-50">
                             <span className="text-green-600 font-medium">
-                                🧠 {getAiModeDisplay()} • Level {userLevel} • {leadData.interactions} interactions • {leadValue > 0 ? `${leadValue}€ lead` : 'Lead en cours'}
+                                🔧 {getAiModeDisplay()} • Level {userLevel} • {leadData.interactions} interactions • Re-Fap Solutions
                             </span>
                         </div>
                     </header>
@@ -695,12 +581,12 @@ Session: ${leadData.sessionId}`;
                                 <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white p-4">
                                     <div className="flex items-center">
                                         <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-3">
-                                            <span className="text-2xl">🏹</span>
+                                            <span className="text-2xl">🔧</span>
                                         </div>
                                         <div>
                                             <h2 className="text-xl font-bold">Julien - **Ton assistant auto de confiance**</h2>
                                             <p className="text-green-100 text-sm">
-                                                Anti-Arnaque • Aide Gratuite • fap_confirme
+                                                Assistant Re-Fap • Nettoyage FAP • Anti-remplacement
                                             </p>
                                         </div>
                                     </div>
@@ -713,9 +599,9 @@ Session: ${leadData.sessionId}`;
                                             <div className={`inline-block p-3 rounded-lg max-w-[85%] sm:max-w-md ${
                                                 message.type === 'user' 
                                                     ? 'bg-green-500 text-white' 
-                                                    : message.source === 'dual_brain'
+                                                    : message.source === 'dual_brain_refap'
                                                         ? 'bg-green-100 text-gray-800 border-l-4 border-green-500'
-                                                        : message.source === 'claude_only'
+                                                        : message.source === 'claude_refap'
                                                             ? 'bg-blue-100 text-gray-800 border-l-4 border-blue-500'
                                                             : 'bg-white text-gray-800 border border-gray-200'
                                             }`}>
@@ -730,26 +616,46 @@ Session: ${leadData.sessionId}`;
                                                 
                                                 {message.type === 'bot' && (
                                                     <div className="text-xs text-gray-400 mt-2">
-                                                        {message.source === 'dual_brain' ? '🧠 Dual Brain' : 
-                                                         message.source === 'claude_only' ? '🎯 Claude Expert' : 
-                                                         message.source === 'airtable' ? '📚 Knowledge' : 
-                                                         '⚡ Auto'} • {new Date(message.timestamp).toLocaleTimeString()}
+                                                        {message.source === 'dual_brain_refap' ? '🔧 Re-Fap Dual Brain' : 
+                                                         message.source === 'claude_refap' ? '🎯 Claude Re-Fap' : 
+                                                         message.source === 'cta_result' ? '🎯 CTA Re-Fap' : 
+                                                         '🔧 Re-Fap'} • {new Date(message.timestamp).toLocaleTimeString()}
                                                     </div>
                                                 )}
                                             </div>
                                         </div>
                                     ))}
                                     
+                                    {/* CTA Re-Fap */}
+                                    {currentCTA && currentCTA.boutons && (
+                                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                            <div className="text-sm font-medium text-blue-800 mb-2">
+                                                {currentCTA.message}
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {currentCTA.boutons.map((bouton, index) => (
+                                                    <button
+                                                        key={index}
+                                                        onClick={() => handleCTAClick(bouton.action, bouton.data)}
+                                                        className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                                                    >
+                                                        {bouton.text}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    
                                     {isTyping && (
                                         <div className="mb-4">
                                             <div className="inline-block bg-white p-3 rounded-lg border border-gray-200">
                                                 <div className="flex items-center space-x-2">
                                                     <div className="flex space-x-1">
-                                                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+                                                        <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce"></div>
                                                         <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
                                                         <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                                                     </div>
-                                                    <span className="text-sm text-gray-600">Dual Brain analyse... 🧠💎</span>
+                                                    <span className="text-sm text-gray-600">Assistant Re-Fap analyse... 🔧</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -795,26 +701,29 @@ Session: ${leadData.sessionId}`;
                                                 📸 <span className="hidden sm:inline">Photo de mon voyant</span><span className="sm:hidden">Photo</span>
                                             </label>
                                             <p className="text-xs text-gray-600 mt-2 px-2">
-                                                JPG/PNG max 5MB • Analyse Dual Brain ! 🧠
+                                                JPG/PNG max 5MB • Analyse Re-Fap ! 🔧
                                             </p>
                                         </div>
                                     </div>
 
-                                    {/* Quick options */}
+                                    {/* Quick options Re-Fap */}
                                     <div className="grid grid-cols-2 gap-1 sm:gap-2 mb-4 lg:mb-0">
                                         {[
-                                            { text: "🟡 Voyant FAP", textMobile: "🟡 FAP", msg: "Voyant FAP allumé" },
-                                            { text: "💨 Ça fume", textMobile: "💨 Fume", msg: "Ça pue et ça fume" },
-                                            { text: "⚡ Perte puissance", textMobile: "⚡ Puissance", msg: "Plus de puissance en ville" },
-                                            { text: "🔧 Je suis bricoleur", textMobile: "🔧 Bricoleur", msg: "Je démonte moi-même" }
+                                            { text: "🟡 Voyant FAP", textMobile: "🟡 FAP", msg: "Voyant FAP allumé plus de puissance" },
+                                            { text: "🔧 Je démonte", textMobile: "🔧 Démonte", msg: "Je peux démonter pour nettoyer" },
+                                            { text: "🏪 Garage partenaire", textMobile: "🏪 Garage", msg: "je vais où?" },
+                                            { text: "💰 Prix nettoyage", textMobile: "💰 Prix", msg: "Combien coûte nettoyage FAP?" }
                                         ].map((option, index) => (
                                             <button
                                                 key={index}
                                                 onClick={async () => {
                                                     addMessage(option.msg, 'user');
                                                     setIsTyping(true);
-                                                    const response = await getDualBrainResponse(option.msg);
+                                                    const response = await getRefapResponse(option.msg);
                                                     addMessage(response.text, 'bot', response.mode);
+                                                    if (response.cta) {
+                                                        setCurrentCTA(response.cta);
+                                                    }
                                                     setIsTyping(false);
                                                 }}
                                                 disabled={isTyping}
@@ -828,19 +737,19 @@ Session: ${leadData.sessionId}`;
 
                                     {/* CTA mobile */}
                                     <div className="lg:hidden p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
-                                        <h4 className="font-bold text-green-800 text-sm mb-2 text-center">🎯 Besoin d'aide ?</h4>
+                                        <h4 className="font-bold text-green-800 text-sm mb-2 text-center">🔧 Solutions Re-Fap</h4>
                                         <div className="grid grid-cols-1 gap-2">
                                             <button
                                                 onClick={handleGarageClick}
                                                 className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded text-sm font-medium transition-colors"
                                             >
-                                                🏪 Trouver un garage de confiance
+                                                🔍 Garage partenaire Re-Fap
                                             </button>
                                             <button
                                                 onClick={handleCallbackClick}
                                                 className="bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded text-sm font-medium transition-colors"
                                             >
-                                                📞 Être rappelé gratuitement (Lead {leadValue}€)
+                                                📞 Être rappelé (expert FAP)
                                             </button>
                                         </div>
                                     </div>
@@ -849,9 +758,9 @@ Session: ${leadData.sessionId}`;
 
                             {/* CTA Section - DESKTOP */}
                             <div className="hidden lg:block w-64 space-y-4">
-                                {/* Stats Dual Brain */}
+                                {/* Stats Re-Fap */}
                                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-3 text-center">
-                                    <h4 className="font-bold text-green-800 text-sm mb-1">🏹 Robin des Bois Stats</h4>
+                                    <h4 className="font-bold text-green-800 text-sm mb-1">🔧 Stats Re-Fap</h4>
                                     <div className="text-xs text-green-600 space-y-1">
                                         <div>Level: {getLevelName()}</div>
                                         <div>Mode: {getAiModeDisplay()}</div>
@@ -860,140 +769,59 @@ Session: ${leadData.sessionId}`;
                                     </div>
                                 </div>
 
-                                {/* Upgrade si niveau 0 */}
-                                {userLevel === 0 && conversionStrategy && (
-                                    <button
-                                        onClick={handleUpgradeClick}
-                                        className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
-                                    >
-                                        <div className="text-center">
-                                            <div className="text-2xl mb-2">🔓</div>
-                                            <div className="font-bold">Diagnostic Premium</div>
-                                            <div className="font-bold">GRATUIT</div>
-                                            <div className="text-xs mt-1 opacity-90">Robin des Bois activé !</div>
-                                        </div>
-                                    </button>
-                                )}
-
-                                {/* Bouton Garage */}
+                                {/* Bouton Garage Re-Fap */}
                                 <button
                                     onClick={handleGarageClick}
                                     className="w-full bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
                                 >
                                     <div className="text-center">
-                                        <div className="text-2xl mb-2">🏪</div>
-                                        <div className="font-bold">Trouver un garage</div>
-                                        <div className="font-bold">de confiance</div>
-                                        <div className="text-xs mt-1 opacity-90">Réseau Re-Fap</div>
+                                        <div className="text-2xl mb-2">🔍</div>
+                                        <div className="font-bold">Garage partenaire</div>
+                                        <div className="font-bold">Re-Fap</div>
+                                        <div className="text-xs mt-1 opacity-90">Nettoyage FAP professionnel</div>
                                     </div>
                                 </button>
 
-                                {/* Bouton Rappel */}
+                                {/* Bouton Rappel Re-Fap */}
                                 <button
                                     onClick={handleCallbackClick}
                                     className="w-full bg-green-500 hover:bg-green-600 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
                                 >
                                     <div className="text-center">
                                         <div className="text-2xl mb-2">📞</div>
-                                        <div className="font-bold">Être rappelé</div>
-                                        <div className="font-bold">gratuitement</div>
-                                        <div className="text-xs mt-1 opacity-90">Lead {leadValue}€ • Expert sous 2h</div>
+                                        <div className="font-bold">Expert FAP</div>
+                                        <div className="font-bold">sous 2h</div>
+                                        <div className="text-xs mt-1 opacity-90">Conseil gratuit nettoyage</div>
                                     </div>
                                 </button>
+
+                                {/* Liens Re-Fap */}
+                                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                                    <h4 className="font-bold text-gray-800 text-sm mb-2">🔗 Liens utiles</h4>
+                                    <div className="space-y-2 text-xs">
+                                        <a href="https://auto.re-fap.fr/carter-cash_machine_re-fap/" target="_blank" className="block text-blue-600 hover:underline">
+                                            🏪 Carter-Cash équipés
+                                        </a>
+                                        <a href="https://auto.re-fap.fr/" target="_blank" className="block text-blue-600 hover:underline">
+                                            📦 Service postal Re-Fap
+                                        </a>
+                                        <a href="https://www.idgarages.com/fr-fr/prestations/diagnostic-electronique?utm_source=re-fap" target="_blank" className="block text-blue-600 hover:underline">
+                                            🔍 Diagnostic idGarages
+                                        </a>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        {/* MODAL UPGRADE PREMIUM */}
-                        {showUpgradeForm && (
-                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-                                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto mx-2">
-                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-3 sm:p-4 rounded-t-xl">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex-1">
-                                                <h3 className="text-base sm:text-lg font-bold">🔓 Diagnostic Premium Gratuit</h3>
-                                                <p className="text-xs sm:text-sm opacity-90">Robin des Bois Claude + OpenAI</p>
-                                            </div>
-                                            <button 
-                                                onClick={() => setShowUpgradeForm(false)}
-                                                className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded ml-2"
-                                            >
-                                                ✕
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <form onSubmit={handleUpgradeSubmit} className="p-4 sm:p-6 space-y-4">
-                                        <div className="text-center mb-4">
-                                            <div className="text-2xl mb-2">🧠</div>
-                                            <p className="text-sm text-gray-600">
-                                                Débloquez l'analyse Dual Brain premium ! Fusion Claude (précision) + OpenAI (créativité) pour un diagnostic unique.
-                                            </p>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Email *
-                                            </label>
-                                            <input
-                                                type="email"
-                                                required
-                                                value={callbackData.email}
-                                                onChange={(e) => setCallbackData({...callbackData, email: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="votre@email.com"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Prénom
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={callbackData.nom}
-                                                onChange={(e) => setCallbackData({...callbackData, nom: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="Votre prénom"
-                                            />
-                                        </div>
-
-                                        <div className="bg-green-50 p-2 sm:p-3 rounded-lg text-xs text-green-700">
-                                            🎁 <strong>Vous obtenez :</strong>
-                                            <br />• Analyse Robin des Bois (Claude + OpenAI)
-                                            <br />• Diagnostic technique approfondi
-                                            <br />• Recommandations personnalisées
-                                            <br />• Estimation coûts précise
-                                        </div>
-
-                                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowUpgradeForm(false)}
-                                                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
-                                            >
-                                                Plus tard
-                                            </button>
-                                            <button
-                                                type="submit"
-                                                className="w-full bg-green-500 hover:bg-green-600 text-white py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
-                                            >
-                                                🔓 Activer Premium
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* MODAL RAPPEL */}
+                        {/* MODAL RAPPEL RE-FAP */}
                         {showCallbackForm && (
                             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
                                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto mx-2">
                                     <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-3 sm:p-4 rounded-t-xl">
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1">
-                                                <h3 className="text-base sm:text-lg font-bold">📞 Rappel Expert</h3>
-                                                <p className="text-xs sm:text-sm opacity-90">Lead {leadValue}€ • Robin des Bois</p>
+                                                <h3 className="text-base sm:text-lg font-bold">📞 Expert FAP Re-Fap</h3>
+                                                <p className="text-xs sm:text-sm opacity-90">Conseil gratuit nettoyage</p>
                                             </div>
                                             <button 
                                                 onClick={() => setShowCallbackForm(false)}
@@ -1005,6 +833,13 @@ Session: ${leadData.sessionId}`;
                                     </div>
 
                                     <form onSubmit={handleCallbackSubmit} className="p-4 sm:p-6 space-y-4">
+                                        <div className="text-center mb-4">
+                                            <div className="text-2xl mb-2">🔧</div>
+                                            <p className="text-sm text-gray-600">
+                                                Un expert Re-Fap va vous conseiller sur le nettoyage de votre FAP (80% d'économie vs remplacement).
+                                            </p>
+                                        </div>
+
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                                 Nom / Prénom *
@@ -1048,13 +883,13 @@ Session: ${leadData.sessionId}`;
 
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Résumé du problème
+                                                Problème FAP
                                             </label>
                                             <textarea
                                                 value={callbackData.probleme}
                                                 onChange={(e) => setCallbackData({...callbackData, probleme: e.target.value})}
                                                 className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="Voyants allumés, fumées..."
+                                                placeholder="Voyant FAP, perte puissance..."
                                                 rows="3"
                                             />
                                         </div>
@@ -1073,9 +908,10 @@ Session: ${leadData.sessionId}`;
                                         </div>
 
                                         <div className="bg-green-50 p-2 sm:p-3 rounded-lg text-xs text-green-700">
-                                            🏹 <strong>Lead Robin des Bois :</strong> {leadValue}€
-                                            <br />📊 Analysé par IA premium (Claude + OpenAI)
-                                            <br />✅ Données utilisées uniquement pour le rappel
+                                            🔧 <strong>Expert Re-Fap :</strong>
+                                            <br />• Conseil nettoyage FAP professionnel
+                                            <br />• 99-149€ vs 2000€ remplacement
+                                            <br />• Garantie 1 an, traitement 48h
                                         </div>
 
                                         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
@@ -1090,7 +926,7 @@ Session: ${leadData.sessionId}`;
                                                 type="submit"
                                                 className="w-full bg-green-500 hover:bg-green-600 text-white py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
                                             >
-                                                📞 Demander le rappel
+                                                📞 Expert Re-Fap
                                             </button>
                                         </div>
                                     </form>
@@ -1099,18 +935,18 @@ Session: ${leadData.sessionId}`;
                         )}
                     </div>
 
-                    {/* Footer */}
+                    {/* Footer Re-Fap */}
                     <footer className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 text-center text-xs sm:text-sm text-gray-600">
                         <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-6 mb-3">
-                            <span className="flex items-center"><span className="text-green-500 mr-1">🏹</span> Robin des Bois IA</span>
+                            <span className="flex items-center"><span className="text-green-500 mr-1">🔧</span> Assistant Re-Fap</span>
                             <span className="flex items-center"><span className="text-blue-500 mr-1">🎯</span> {getLevelName()}</span>
-                            <span className="flex items-center"><span className="text-green-500 mr-1">💰</span> {leadValue}€ lead</span>
+                            <span className="flex items-center"><span className="text-green-500 mr-1">💰</span> Économie 80%</span>
                             <span className="flex items-center"><span className="text-orange-500 mr-1">📊</span> {leadData.interactions} interactions</span>
                         </div>
                         <p className="text-xs px-2">
                             Powered by <a href="https://re-fap.fr" className="text-orange-600 hover:underline">Re-Fap</a> • 
-                            Robin des Bois IA (Claude + OpenAI) •
-                            <span className="hidden sm:inline"> Diagnostic premium •</span>
+                            Nettoyage FAP professionnel •
+                            <span className="hidden sm:inline"> 99-149€ vs 2000€ •</span>
                             <span className="block sm:inline"> Session: {leadData.sessionId}</span>
                         </p>
                     </footer>
@@ -1118,7 +954,7 @@ Session: ${leadData.sessionId}`;
             );
         };
 
-        ReactDOM.render(<JulienDualBrainChatbot />, document.getElementById('root'));
+        ReactDOM.render(<JulienRefapChatbot />, document.getElementById('root'));
     </script>
 </body>
 </html>
