@@ -118,7 +118,40 @@ export default async function handler(req, res) {
       emailPattern.test(msg.content)
     );
 
-    // === APPEL CLAUDE ===
+    // === APPEL VRAI CLAUDE SONNET ===
+    const claudeMessages = [];
+    
+    // Ajouter l'historique de conversation (6 derniers messages)
+    if (conversationHistory && conversationHistory.length > 0) {
+      conversationHistory.slice(-6).forEach(msg => {
+        claudeMessages.push({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        });
+      });
+    }
+
+    // Ajouter le message actuel avec contexte
+    claudeMessages.push({
+      role: 'user',
+      content: `Tu es Julien, mécano expert Re-Fap depuis 20 ans. Mécano authentique, direct, militant anti-arnaque.
+
+MESSAGE: ${message}
+
+CONTEXTE:
+- Email fourni: ${aDejaEmail ? 'OUI' : 'NON'}
+- Profil: ${contexte.profil}
+- Problème FAP: ${contexte.probleme_fap ? 'OUI' : 'NON'}
+- Demande orientation: ${contexte.demande_orientation ? 'OUI' : 'NON'}
+
+MISSION:
+- "voyant fap" → Solution nettoyage 99-149€ vs 2000€
+- "je vais où?" → Carter-Cash/Garage partenaire selon profil
+- Email fourni → Confirmation, pas redemander
+
+Réponds comme Julien : direct, technique, anti-arnaque, 150 mots max !`
+    });
+
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -127,36 +160,9 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 800,
-        messages: [
-          {
-            role: 'user',
-            content: `Tu es Julien, mécano expert Re-Fap depuis 20 ans. Ton rôle : conseiller sur les problèmes auto, spécialement FAP, avec un ton authentique de mécano militant anti-arnaque.
-
-CONTEXT UTILISATEUR:
-- Message: "${message}"
-- Email fourni: ${aDejaEmail ? 'OUI' : 'NON'}
-- Profil détecté: ${contexte.profil}
-- Problème FAP détecté: ${contexte.probleme_fap ? 'OUI' : 'NON'}
-- Demande orientation: ${contexte.demande_orientation ? 'OUI' : 'NON'}
-
-INSTRUCTIONS CRITIQUES:
-1. TON JULIEN MÉCANO: Authentique, direct, anti-arnaque, 20 ans d'expérience
-2. FOCUS RE-FAP: Si FAP détecté → Proposer nettoyage Re-Fap vs remplacement coûteux
-3. ARGUMENTS CLÉS: 99-149€ vs 2000€, écologique, garantie 1 an, 48h
-4. SI "où aller?" ou orientation → Répondre DIRECTEMENT avec solutions concrètes
-5. EMAIL: Si pas d'email fourni ET problème technique → Proposer accompagnement email
-6. RÉPONSE: 150-250 mots MAX, direct et actionnable
-
-EXEMPLES RÉPONSES:
-- FAP bouché: "Salut ! Julien, 20 ans chez Re-Fap. Ton voyant FAP + perte puissance = filtre encrassé classique. Avant qu'un garage te propose un remplacement à 2000€, on va d'abord essayer le nettoyage Re-Fap : 99-149€ vs 2000€, tu économises 1850€ ! Solution écologique, garantie 1 an."
-
-- "Où aller?": "Ça dépend si tu es bricoleur ou pas. Bricoleur → Carter-Cash équipé (99-149€). Sinon → Garage partenaire Re-Fap pour diagnostic complet + nettoyage. Les deux marchent parfaitement !"
-
-RÉPONDS EN MÉCANO EXPERT MAINTENANT:`
-          }
-        ]
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 600,
+        messages: claudeMessages
       })
     });
 
