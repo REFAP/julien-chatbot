@@ -144,12 +144,21 @@ CONTEXTE:
 - Problème FAP: ${contexte.probleme_fap ? 'OUI' : 'NON'}
 - Demande orientation: ${contexte.demande_orientation ? 'OUI' : 'NON'}
 
-MISSION:
-- "voyant fap" → Solution nettoyage 99-149€ vs 2000€
-- "je vais où?" → Carter-Cash/Garage partenaire selon profil
-- Email fourni → Confirmation, pas redemander
+RÈGLES CRITIQUES:
+1. Si EMAIL fourni → CONFIRMER + PROPOSER DIRECTEMENT les 3 solutions actionables:
+   - Carter-Cash équipé (99-149€)
+   - Garage partenaire Re-Fap
+   - Être rappelé par expert
+   
+2. Si "voyant fap" → Solution nettoyage 99-149€ vs 2000€
 
-Réponds comme Julien : direct, technique, anti-arnaque, 150 mots max !`
+3. Si "je vais où?" → Orientation concrète immédiate
+
+4. TOUJOURS finir par une PROPOSITION D'ACTION claire
+
+5. PAS de questions inutiles après email - LE CLIENT VEUT AGIR !
+
+Réponds comme Julien : direct, actionnable, 150 mots max !`
     });
 
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
@@ -182,15 +191,20 @@ Réponds comme Julien : direct, technique, anti-arnaque, 150 mots max !`
       emailCapture = `\n\n💡 **Accompagnement Re-Fap personnalisé :**\n📧 Laisse ton email pour :\n• Guide complet nettoyage FAP\n• Réseau garages partenaires\n• Conseils techniques anti-arnaque\n\n*Exemple : prenom.nom@gmail.com*`;
     }
 
-    // === GÉNÉRATION CTA ===
+    // === GÉNÉRATION CTA APRÈS EMAIL ===
     const cta = systemeCTA.genererCTA(contexte, aDejaEmail);
     let ctaHtml = '';
     
     if (cta.length > 0) {
-      ctaHtml = '\n\n🎯 **Solutions Re-Fap :**\n';
+      ctaHtml = '\n\n🎯 **TES 3 OPTIONS RE-FAP :**\n';
       cta.forEach(option => {
         ctaHtml += `\n**${option.emoji} ${option.titre}** (${option.prix})\n• ${option.description}\n`;
       });
+      
+      // Si email fourni, forcer l'action
+      if (aDejaEmail || emailDetecte) {
+        ctaHtml += '\n👆 **CLIQUE sur ton choix pour passer à l\'action !**';
+      }
     }
 
     // === RÉPONSE FINALE ===
