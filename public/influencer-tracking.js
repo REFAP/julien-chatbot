@@ -1,6 +1,7 @@
 // === SYSTÈME DE TRACKING INFLUENCEURS POUR JULIEN-CHATBOT ===
 // À intégrer dans https://julien-chatbot.vercel.app/
 
+
 class InfluencerTracker {
     constructor() {
         this.webhookUrl = 'https://hooks.airtable.com/workflows/v1/genericWebhook/appGeEstBq3KYfqcq/wflouM2MWSvqLNiWB/wtrqBfGa4RaTglY1w';
