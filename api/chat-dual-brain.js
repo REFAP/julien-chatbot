@@ -75,14 +75,13 @@ class SystemeCTAIntelligent {
   detecterProfilUtilisateur(message, historique, userData) {
     const contexte = (message + ' ' + historique.join(' ')).toLowerCase();
     
-    const indicateursBricoleur = ['demonte', 'bricoleur', 'repare moi', 'outillage', 'mecanique', 'fais moi meme', 'autonome'];
+    const indicateursBricoleur = ['demonte', 'bricoleur', 'repare moi', 'outillage', 'mecanique', 'fais moi meme', 'autonome', 'peux le demonter', 'demonter pour', 'faire nettoyer'];
     const indicateursParticulier = ['garage', 'mecanicien', 'reparateur', 'faire reparer', 'combien ca coute', 'devis', 'rdv'];
     
     const scoreBricoleur = indicateursBricoleur.filter(ind => contexte.includes(ind)).length;
     const scoreParticulier = indicateursParticulier.filter(ind => contexte.includes(ind)).length;
     
-    if (userData.interactions > 3 && scoreBricoleur > 0) return 'bricoleur_confirme';
-    if (scoreBricoleur > scoreParticulier) return 'bricoleur_potentiel';
+    if (scoreBricoleur > 0) return 'bricoleur_confirme';
     if (scoreParticulier > 0) return 'particulier_standard';
     return 'indetermine';
   }
@@ -90,10 +89,8 @@ class SystemeCTAIntelligent {
   // 🎯 SÉLECTION SOUS-PARCOURS
   selectionnerSousParcours(parcours, certitude, profil) {
     if (parcours === 'fap_confirme') {
-      if (certitude === 'elevee') {
-        if (profil === 'bricoleur_confirme' || profil === 'bricoleur_potentiel') return 'fap_bricoleur_carter_cash';
-        return 'fap_garage_partenaire_direct';
-      }
+      if (profil === 'bricoleur_confirme') return 'fap_bricoleur_carter_cash';
+      if (certitude === 'elevee') return 'fap_garage_partenaire_direct';
       if (certitude === 'faible') return 'fap_diagnostic_puis_refap';
       return 'fap_garage_partenaire_direct';
     }
@@ -129,19 +126,20 @@ class SystemeCTAIntelligent {
       },
 
       fap_bricoleur_carter_cash: {
-        type: 'conversion_bricoleur',
-        message: `🔧 **OPTION BRICOLEUR - CARTER CASH**
+        type: 'conversion_bricoleur_actionnable',
+        message: `🔧 **PARFAIT ! Solutions pour Bricoleur**
 
-**💰 Tu démontez ton FAP toi-même :**
-• **Carter-Cash équipé :** 99-149€ selon modèle
-• **Centres avec machine Re-Fap** disponibles
-• **Nettoyage cabine professionnel**
+**💰 Option 1 - Carter-Cash Équipé :**
+• **99-149€** selon ton modèle
+• Centres avec machine Re-Fap
+• Tu apportez, on nettoie, tu récupères
 
-**📦 Alternative :** Envoi postal via garage partenaire`,
+**📦 Option 2 - Envoi Postal :**
+• Service clé en main complet
+• Traitement 48h garanti`,
         boutons: [
-          { text: "🏪 Carter-Cash équipés", action: "carter_cash_equipes", data: { type: "carter_cash", url: "https://auto.re-fap.fr/carter-cash_machine_re-fap/" } },
-          { text: "📦 Nettoyage Re-Fap postal", action: "nettoyage_postal", data: { type: "postal", url: "https://auto.re-fap.fr/" } },
-          { text: "🔍 Garage partenaire", action: "garage_partenaire_refap", data: { type: "garage_partenaire" } }
+          { text: "🏪 Centres Carter-Cash équipés", action: "carter_cash_equipes", data: { type: "carter_cash", url: "https://auto.re-fap.fr/carter-cash_machine_re-fap/" } },
+          { text: "📦 Service postal Re-Fap", action: "nettoyage_postal", data: { type: "postal", url: "https://auto.re-fap.fr/" } }
         ]
       },
 
@@ -304,8 +302,9 @@ export default async function handler(req, res) {
 
     console.log('🎯 CTA Re-Fap généré:', ctaAnalyse.sousParcours);
 
-    // Ajout invitation email SEULEMENT si niveau 0 et pas d'email fourni
-    if (userLevel === 0 && !userData.email) {
+    // Ajout invitation email SEULEMENT si niveau 0 ET pas d'email ET pas d'email dans l'historique
+    const hasEmailInHistory = historique.some(msg => emailRegex.test(msg)) || userData.email;
+    if (userLevel === 0 && !hasEmailInHistory) {
       response += genererInvitationEmailBienveillante();
     }
 
@@ -674,54 +673,46 @@ async function simulationRefapIntelligente(message, userLevel) {
   
   if (needType === "fap") {
     if (userLevel === 0) {
-      baseResponse = `🔧 **Assistant Re-Fap - Spécialiste FAP**
+      baseResponse = `🔧 **Diagnostic Re-Fap - FAP Détecté**
 
-Symptômes FAP détectés ! Avant de penser "remplacement", parlons **nettoyage cabine Re-Fap**.
+Voyant FAP + perte puissance = FAP bouché confirmé !
 
-**🎯 Ta situation :**
-• Voyant FAP + perte puissance = FAP bouché probable
-• **STOP** au remplacement systématique !
-
-**💡 Solution Re-Fap :**
+**💡 Solution Re-Fap (STOP au remplacement) :**
 • **Nettoyage cabine professionnel** comme neuf
-• **Garantie 1 an** sur le nettoyage
-• **Jusqu'à 80% d'économie** vs remplacement
-• **Traitement 48h** maximum
+• **Jusqu'à 80% d'économie** vs remplacement 
+• **Garantie 1 an** - Traitement 48h
 
 **🔧 Tes options :**
-• **Bricoleur ?** → Carter-Cash équipé (99-149€)
-• **Garage ?** → Partenaire Re-Fap pour service complet
+• **Bricoleur ?** Carter-Cash équipé (99-149€)
+• **Garage ?** Partenaire Re-Fap service complet
 
-Questions pour t'orienter :
-- Combien de km ta voiture ?
-- Tu préfères démonter toi-même ou confier au garage ?`;
+Questions pour t'orienter précisément :
+- Marque/modèle de ta voiture ?
+- Tu peux démonter le FAP ou tu préfères confier au garage ?`;
     } else {
-      baseResponse = `🧠 **Expertise Re-Fap Personnalisée**
+      // Email confirmé - Plus direct et actionnable
+      baseResponse = `🔧 **Diagnostic Re-Fap Confirmé**
 
-**Diagnostic FAP confirmé :** Voyant + perte puissance = signature classique.
+**FAP bouché détecté :** Voyant + perte puissance = signature classique.
 
-**🎯 Process Re-Fap recommandé :**
-1. **Diagnostic précis** pour confirmer état FAP
-2. **Nettoyage cabine Re-Fap** au lieu de remplacement
-3. **Garantie 1 an** + solution écologique
+**Process Re-Fap optimal :**
+✅ **Nettoyage cabine** au lieu de remplacement
+✅ **80% d'économie garantie** 
+✅ **Traitement 48h + garantie 1 an**
 
-**💰 Options tarifaires :**
-• **Carter-Cash équipé :** 99-149€ (si démontage autonome)
+**Tes options immédiates :**
+• **Carter-Cash équipé :** 99-149€ (démontage autonome)
 • **Garage partenaire :** Service complet diagnostic → nettoyage → remontage
 
-**🌐 Réseau :** MIDAS, idGarages, garages indépendants formés
-
-Tu préfères quelle approche ?`;
+Tu peux démonter ton FAP ou tu préfères le service garage complet ?`;
     }
   }
   else if (needType === "brakes") {
     baseResponse = `🔧 **Diagnostic Freinage**
 
-Problème de freinage détecté. Pour ce type de problème, orientation vers **garage partenaire idGarages** pour diagnostic complet.
+Problème freinage = diagnostic professionnel obligatoire (sécurité).
 
-**🎯 Recommandation :**
-• Diagnostic professionnel obligatoire (sécurité)
-• Réseau idGarages pour transparence tarifs
+**Orientation :** Garage partenaire idGarages pour diagnostic transparent.
 
 Décris tes symptômes exacts ?`;
   }
@@ -730,20 +721,19 @@ Décris tes symptômes exacts ?`;
 
 Voyant moteur = diagnostic OBD nécessaire.
 
-**Si FAP/EGR détecté :** Orientation Re-Fap
-**Si autre problème :** Garage partenaire idGarages
+**Si FAP/EGR :** Orientation Re-Fap
+**Si autre :** Garage idGarages
 
-Veux-tu un diagnostic en ligne pour orienter ?`;
+Diagnostic en ligne pour t'orienter ?`;
   }
   else {
-    baseResponse = `🔧 **Assistant Technique Re-Fap**
+    baseResponse = `🔧 **Assistant Re-Fap**
 
-Spécialisé dans les problèmes FAP et orientation vers solutions économiques.
+Spécialisé FAP et solutions économiques vs remplacement.
 
-**Expertise :** Nettoyage Re-Fap vs remplacement
-**Réseau :** Garages partenaires formés
+**Expertise :** Nettoyage Re-Fap, réseau garages partenaires.
 
-Décris tes symptômes pour diagnostic personnalisé.`;
+Décris tes symptômes pour diagnostic personnalisé ?`;
   }
   
   return baseResponse;
