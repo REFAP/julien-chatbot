@@ -6,7 +6,7 @@
 // === SYSTÈME DE TRACKING INFLUENCEURS POUR JULIEN-CHATBOT ===
 class InfluencerTracker {
     constructor() {
-        this.webhookUrl = 'https://hooks.airtable.com/workflows/v1/genericWebhook/appGeEstBq3KYfqcq/wflouM2MWSvqLNiWB/wtrqBfGa4RaTglY1w';
+        this.webhookUrl = '/api/track-conversion';
         this.currentRef = null;
         this.sessionData = {};
         this.init();
@@ -507,6 +507,20 @@ window.resetInfluencerTracking = function() {
                         }
                     } catch (error) {
                         console.warn('⚠️ Lead creation failed:', error.message);
+                    }
+
+                    // Tracking de la conversion influenceur
+                    if (window.trackInfluencerConversion) {
+                        window.trackInfluencerConversion({
+                            nom: callbackData.nom,
+                            email: callbackData.email,
+                            telephone: callbackData.telephone,
+                            probleme: callbackData.probleme,
+                            vehicule: callbackData.vehicule,
+                            action: 'callback_requested',
+                            leadValue: leadValue,
+                            userLevel: userLevel
+                        });
                     }
 
                     // Envoi email
