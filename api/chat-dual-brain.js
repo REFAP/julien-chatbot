@@ -1,556 +1,429 @@
-// api/chat-dual-brain.js
-// Version Dual Brain + Lead Generation pour Julien Chatbot
+// api/chat-dual-brain.js - Backend avec CTA intelligents Re-Fap
 
-export default async function handler(req, res) {
-  // Configuration CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// Configuration CTA Re-Fap
+const CTA_CONFIG = {
+  refap: {
+    baseUrl: 'https://re-fap.fr',
+    carterCash: 'https://www.auto.re-fap.fr',
+    diagnostic: 'https://re-fap.fr/diagnostic-gratuit',
+    centres: 'https://re-fap.fr/centres',
+    garagePartner: 'https://re-fap.fr/trouver_garage_partenaire',
+    contact: 'mailto:support@re-fap.fr',
+    phone: 'tel:+33123456789'
+  },
+  prices: {
+    fapCatalyseur: 149,
+    fapSimple: 99,
+    diagnostic: 0
   }
-  
+};
+
+// Système de détection intelligent des problèmes
+class ProblemDetector {
+  static analyze(message) {
+    const text = message.toLowerCase();
+    
+    const patterns = {
+      fap_confirmed: [
+        'voyant fap', 'fap allumé', 'fap rouge', 'témoin fap',
+        'filtre à particules', 'fap bouché', 'fap colmaté',
+        'régénération fap', 'nettoyage fap'
+      ],
+      fap_probable: [
+        'fumée noire', 'fumées noires', 'fumée épaisse',
+        'perte de puissance', 'moteur bride', 'mode dégradé',
+        'à-coups moteur', 'ralenti instable'
+      ],
+      egr_adblu: [
+        'voyant egr', 'egr bouché', 'valve egr',
+        'adblue', 'ad blue', 'urée', 'scr',
+        'nox', 'dépollution'
+      ],
+      urgence: [
+        'moteur coupé', 'arrêt moteur', 'ne démarre plus',
+        'surchauffe', 'température rouge', 'huile rouge',
+        'bruit anormal', 'claquement moteur'
+      ],
+      autres: [
+        'freins', 'frein', 'embrayage', 'boite vitesse',
+        'direction', 'suspension', 'climatisation',
+        'électricité', 'batterie', 'alternateur'
+      ]
+    };
+
+    const scores = {};
+    
+    for (const [category, keywords] of Object.entries(patterns)) {
+      scores[category] = keywords.filter(keyword => 
+        text.includes(keyword)
+      ).length;
+    }
+
+    // Retourner la catégorie avec le score le plus élevé
+    const maxCategory = Object.keys(scores).reduce((a, b) => 
+      scores[a] > scores[b] ? a : b
+    );
+
+    return {
+      category: maxCategory,
+      confidence: scores[maxCategory],
+      allScores: scores
+    };
+  }
+
+  static detectTechnicalLevel(message) {
+    const text = message.toLowerCase();
+    
+    const indicators = {
+      bricoleur: [
+        'je démonte', 'démonter moi-même', 'bricoleur',
+        'j\'ai des outils', 'garage maison', 'mécano amateur'
+      ],
+      debutant: [
+        'je ne sais pas', 'débutant', 'première fois',
+        'jamais fait', 'pas doué', 'peur de casser'
+      ]
+    };
+
+    for (const [level, keywords] of Object.entries(indicators)) {
+      if (keywords.some(keyword => text.includes(keyword))) {
+        return level;
+      }
+    }
+
+    return 'intermediaire'; // niveau par défaut
+  }
+}
+
+// Générateur de CTA contextuels
+class CTAGenerator {
+  static generate(problemCategory, technicalLevel, confidence) {
+    switch (problemCategory) {
+      case 'fap_confirmed':
+        return this.generateFAPConfirmedCTA(technicalLevel);
+      
+      case 'fap_probable':
+        return this.generateFAPProbableCTA();
+      
+      case 'egr_adblu':
+        return this.generateEGRAdBlueCTA();
+      
+      case 'urgence':
+        return this.generateUrgenceCTA();
+      
+      case 'autres':
+        return this.generateAutresCTA();
+      
+      default:
+        return this.generateDiagnosticCTA();
+    }
+  }
+
+  static generateFAPConfirmedCTA(technicalLevel) {
+    switch (technicalLevel) {
+      case 'bricoleur':
+        return {
+          title: '🔧 Solution Bricoleur - Carter-Cash',
+          message: 'Tu peux démonter ton FAP ? Carter-Cash près de chez toi le nettoie pendant que tu attends !',
+          buttons: [
+            {
+              text: '🏪 Trouver Carter-Cash',
+              url: CTA_CONFIG.refap.carterCash,
+              type: 'primary'
+            },
+            {
+              text: '📱 Kit démontage Re-Fap',
+              url: CTA_CONFIG.refap.baseUrl + '/kit-demontage',
+              type: 'secondary'
+            }
+          ]
+        };
+
+      case 'debutant':
+        return {
+          title: '🏆 Service Complet - Garage Partenaire',
+          message: 'Pas de stress ! Nos garages partenaires s\'occupent de tout : dépose, nettoyage, repose.',
+          buttons: [
+            {
+              text: '🔍 Trouver un garage partenaire',
+              url: CTA_CONFIG.refap.garagePartner,
+              type: 'primary'
+            },
+            {
+              text: '💬 Aide personnalisée',
+              url: CTA_CONFIG.refap.contact,
+              type: 'info'
+            }
+          ]
+        };
+
+      default: // intermédiaire
+        return {
+          title: '⚡ Choix Optimal - Envoi Direct',
+          message: `Envoi direct chez Re-Fap : FAP simple ${CTA_CONFIG.prices.fapSimple}€, FAP catalyseur ${CTA_CONFIG.prices.fapCatalyseur}€ (hors port)`,
+          buttons: [
+            {
+              text: '📦 Organiser l\'envoi',
+              url: CTA_CONFIG.refap.baseUrl + '/envoi-direct',
+              type: 'primary'
+            },
+            {
+              text: '🏪 Ou Carter-Cash',
+              url: CTA_CONFIG.refap.carterCash,
+              type: 'secondary'
+            },
+            {
+              text: '🔧 Ou garage partenaire',
+              url: CTA_CONFIG.refap.garagePartner,
+              type: 'info'
+            }
+          ]
+        };
+    }
+  }
+
+  static generateFAPProbableCTA() {
+    return {
+      title: '🎯 Diagnostic Gratuit Recommandé',
+      message: 'Tes symptômes peuvent indiquer un problème FAP. Diagnostic gratuit pour confirmer avant de payer !',
+      buttons: [
+        {
+          text: '📅 Diagnostic gratuit',
+          url: CTA_CONFIG.refap.diagnostic,
+          type: 'primary'
+        },
+        {
+          text: '📍 Centres Re-Fap',
+          url: CTA_CONFIG.refap.centres,
+          type: 'secondary'
+        }
+      ]
+    };
+  }
+
+  static generateEGRAdBlueCTA() {
+    return {
+      title: '🛠️ Expertise EGR/AdBlue Re-Fap',
+      message: 'Spécialistes EGR et AdBlue ! Diagnostic précis et solutions adaptées à ton véhicule.',
+      buttons: [
+        {
+          text: '🔬 Diagnostic EGR/AdBlue',
+          url: CTA_CONFIG.refap.baseUrl + '/egr-adblue',
+          type: 'primary'
+        },
+        {
+          text: '📞 Expert au téléphone',
+          url: CTA_CONFIG.refap.phone,
+          type: 'secondary'
+        }
+      ]
+    };
+  }
+
+  static generateUrgenceCTA() {
+    return {
+      title: '🚨 Situation d\'Urgence',
+      message: 'ATTENTION : Arrête-toi en sécurité ! Contacte immédiatement un garage ou dépanneur.',
+      buttons: [
+        {
+          text: '🆘 Dépannage d\'urgence',
+          url: 'tel:15',
+          type: 'warning'
+        },
+        {
+          text: '📞 Support Re-Fap',
+          url: CTA_CONFIG.refap.phone,
+          type: 'info'
+        }
+      ]
+    };
+  }
+
+  static generateAutresCTA() {
+    return {
+      title: '🔧 Garage Partenaire Recommandé',
+      message: 'Ce problème sort de notre spécialité FAP/EGR/AdBlue. Nos garages partenaires peuvent t\'aider !',
+      buttons: [
+        {
+          text: '🏪 Trouver un garage',
+          url: CTA_CONFIG.refap.garagePartner,
+          type: 'primary'
+        },
+        {
+          text: '💬 Confirmer le diagnostic',
+          url: CTA_CONFIG.refap.contact,
+          type: 'secondary'
+        }
+      ]
+    };
+  }
+
+  static generateDiagnosticCTA() {
+    return {
+      title: '🔍 Diagnostic Personnalisé',
+      message: 'Pas sûr de ton problème ? Diagnostic gratuit pour identifier précisément la panne.',
+      buttons: [
+        {
+          text: '📅 Prendre RDV diagnostic',
+          url: CTA_CONFIG.refap.diagnostic,
+          type: 'primary'
+        },
+        {
+          text: '📱 Chat avec expert',
+          url: CTA_CONFIG.refap.contact,
+          type: 'secondary'
+        }
+      ]
+    };
+  }
+}
+
+// Prompts pour les deux cerveaux
+const PROMPTS = {
+  brain1: `Tu es un expert en diagnostic automobile, spécialisé dans les systèmes FAP, EGR et AdBlue.
+
+RÈGLES STRICTES :
+- Réponds UNIQUEMENT aux problèmes automobiles
+- Spécialise-toi en FAP/EGR/AdBlue mais aide aussi pour autres pannes
+- Sois précis, technique mais accessible
+- Propose des solutions concrètes
+- Reste professionnel et rassurant
+
+Si problème hors automobile : "Je suis spécialisé en diagnostic auto. Peux-tu me décrire ton problème de véhicule ?"`,
+
+  brain2: `Tu es un assistant commercial Re-Fap, expert en orientation client.
+
+MISSION :
+- Analyser le diagnostic technique du Brain 1
+- Orienter intelligemment vers les solutions Re-Fap
+- Adapter le niveau de conseil au profil client
+- Rassurer et guider vers l'action
+
+TONALITÉ :
+- Amical et professionnel
+- Orienté solution
+- Confiant en Re-Fap
+- Pédagogue`
+};
+
+// Fonction principale de chat
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Méthode non autorisée' });
   }
 
   try {
-    const { message, userData = {}, sessionId, action } = req.body;
-    
-    if (!message && action !== 'CREATE_LEAD') {
+    const { message } = req.body;
+
+    if (!message || message.trim().length === 0) {
       return res.status(400).json({ error: 'Message requis' });
     }
 
-    // === GESTION SPÉCIALE CRÉATION DE LEAD ===
-    if (action === 'CREATE_LEAD') {
-      return await handleLeadCreation(req, res);
-    }
+    // Étape 1 : Analyse du problème
+    const problemAnalysis = ProblemDetector.analyze(message);
+    const technicalLevel = ProblemDetector.detectTechnicalLevel(message);
 
-    // === DÉTECTION EMAIL AUTOMATIQUE ===
-    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-    const detectedEmail = message.match(emailRegex)?.[0];
-    
-    if (detectedEmail) {
-      // Email détecté = activation premium + création lead
-      const leadResult = await createLeadFromEmail(detectedEmail, message, sessionId);
-      
-      return res.status(200).json({
-        success: true,
-        message: `🎉 **EMAIL CONFIRMÉ : ${detectedEmail}** 🎉\n\n` +
-          `✅ **DIAGNOSTIC PREMIUM GRATUIT ACTIVÉ !**\n\n` +
-          `📧 **Votre rapport détaillé sera envoyé dans 2 minutes à :**\n` +
-          `${detectedEmail}\n\n` +
-          `🚀 **Diagnostic en cours de génération...**\n` +
-          `• Analyse technique approfondie par Dual Brain IA\n` +
-          `• Estimation précise des coûts (pièces + main d'œuvre)\n` +
-          `• Guide de réparation avec photos étape par étape\n` +
-          `• Liste de garages partenaires Re-Fap dans votre région\n` +
-          `• Conseils anti-arnaque pour négocier\n\n` +
-          `📱 **Vérifiez votre boîte mail dans 2 minutes !**\n` +
-          `*Pensez à vérifier vos spams si besoin*\n\n` +
-          `🎁 **BONUS :** Vous recevrez aussi nos alertes rappels constructeurs !`,
-        metadata: {
-          aiMode: "🎁 Email Premium Activé",
-          userLevel: 1,
-          leadValue: leadResult.leadValue || 85,
-          email: detectedEmail,
-          leadCreated: leadResult.success,
-          timestamp: new Date().toISOString()
-        },
-        rewardSystem: {
-          userLevel: 1,
-          leadValue: leadResult.leadValue || 85,
-          conversionStrategy: null // Plus besoin de conversion
+    console.log('Analyse:', { problemAnalysis, technicalLevel });
+
+    // Étape 2 : Brain 1 - Diagnostic technique
+    const brain1Response = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        { role: "system", content: PROMPTS.brain1 },
+        { role: "user", content: message }
+      ],
+      max_tokens: 300,
+      temperature: 0.3
+    });
+
+    const technicalDiagnosis = brain1Response.choices[0].message.content;
+
+    // Étape 3 : Brain 2 - Conseil commercial
+    const brain2Response = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        { role: "system", content: PROMPTS.brain2 },
+        { 
+          role: "user", 
+          content: `DIAGNOSTIC TECHNIQUE: ${technicalDiagnosis}
+          
+          MESSAGE CLIENT: ${message}
+          
+          CONTEXTE:
+          - Problème détecté: ${problemAnalysis.category}
+          - Niveau technique: ${technicalLevel}
+          - Confiance: ${problemAnalysis.confidence}/5
+          
+          Donne une réponse commerciale orientée Re-Fap basée sur ce diagnostic.`
         }
-      });
-    }
-
-    // === DÉTECTION NIVEAU UTILISATEUR ===
-    let userLevel = 0;
-    if (userData.email) userLevel = 1;
-    if (userData.phone) userLevel = 2;
-    if (userData.vehicleInfo) userLevel = 3;
-
-    // === APPEL DUAL BRAIN ===
-    const dualBrainResponse = await callDualBrain(message, userLevel);
-    
-    // === ANALYSE BUSINESS ===
-    const businessAnalysis = analyzeBusiness(message, dualBrainResponse, userLevel);
-    
-    // === LOGGING AIRTABLE ===
-    await logToAirtable({
-      message,
-      response: dualBrainResponse.content,
-      userLevel,
-      leadValue: businessAnalysis.leadValue,
-      mode: dualBrainResponse.mode,
-      needType: businessAnalysis.needType,
-      sessionId
+      ],
+      max_tokens: 250,
+      temperature: 0.7
     });
 
-    // === RÉPONSE FINALE ===
+    const commercialAdvice = brain2Response.choices[0].message.content;
+
+    // Étape 4 : Génération du CTA approprié
+    const cta = CTAGenerator.generate(
+      problemAnalysis.category, 
+      technicalLevel, 
+      problemAnalysis.confidence
+    );
+
+    // Étape 5 : Fusion des réponses
+    const finalResponse = `${technicalDiagnosis}
+
+${commercialAdvice}`;
+
+    // Log pour analytics
+    console.log('Conversion tracking:', {
+      problemCategory: problemAnalysis.category,
+      technicalLevel,
+      ctaType: cta.title,
+      timestamp: new Date().toISOString()
+    });
+
     return res.status(200).json({
-      success: true,
-      message: dualBrainResponse.content,
+      message: finalResponse,
+      cta: cta,
       metadata: {
-        aiMode: dualBrainResponse.mode,
-        userLevel,
-        levelName: getLevelName(userLevel),
-        needType: businessAnalysis.needType,
-        leadValue: businessAnalysis.leadValue,
-        score: dualBrainResponse.score,
-        partner: getOptimalPartner(businessAnalysis.needType),
-        timestamp: new Date().toISOString()
-      },
-      rewardSystem: {
-        userLevel,
-        leadValue: businessAnalysis.leadValue,
-        conversionStrategy: userLevel === 0 ? generateConversionStrategy(businessAnalysis) : null
+        problemCategory: problemAnalysis.category,
+        technicalLevel,
+        confidence: problemAnalysis.confidence
       }
     });
 
   } catch (error) {
-    console.error('💥 Erreur chat-dual-brain:', error);
-    return res.status(500).json({ 
-      error: 'Erreur serveur',
-      fallback: "Désolé, problème technique temporaire. Peux-tu reformuler ta question ?"
-    });
-  }
-}
-
-// === FONCTION DUAL BRAIN PRINCIPALE ===
-async function callDualBrain(message, userLevel) {
-  const startTime = Date.now();
-  
-  try {
-    // Appels parallèles Claude + OpenAI
-    const [claudeResult, openaiResult] = await Promise.allSettled([
-      callClaude(message, userLevel),
-      callOpenAI(message, userLevel)
-    ]);
+    console.error('Erreur chat dual brain:', error);
     
-    const claudeResponse = claudeResult.status === 'fulfilled' ? claudeResult.value : null;
-    const openaiResponse = openaiResult.status === 'fulfilled' ? openaiResult.value : null;
-    
-    // FUSION INTELLIGENTE
-    if (claudeResponse && openaiResponse) {
-      const fusedContent = await fuseDualBrain(message, claudeResponse, openaiResponse, userLevel);
-      return {
-        content: fusedContent,
-        mode: "🧠 Dual Brain (Claude + OpenAI)",
-        score: 9.2,
-        processingTime: Date.now() - startTime
-      };
-    } 
-    else if (claudeResponse) {
-      return {
-        content: await formatSingleAI(message, claudeResponse, userLevel, 'Claude'),
-        mode: "🎯 Claude Expert",
-        score: 8.8,
-        processingTime: Date.now() - startTime
-      };
-    }
-    else if (openaiResponse) {
-      return {
-        content: await formatSingleAI(message, openaiResponse, userLevel, 'OpenAI'),
-        mode: "🤖 OpenAI Enhanced",
-        score: 8.5,
-        processingTime: Date.now() - startTime
-      };
-    }
-    
-  } catch (error) {
-    console.error('❌ Erreur Dual Brain:', error);
-  }
-  
-  // FALLBACK INTELLIGENT
-  const intelligentFallback = await generateIntelligentFallback(message, userLevel);
-  return {
-    content: intelligentFallback,
-    mode: "⚡ Simulation Expert",
-    score: 8.0,
-    processingTime: Date.now() - startTime
-  };
-}
-
-// === APPELS IA INDIVIDUELS ===
-async function callClaude(message, userLevel) {
-  try {
-    const claudeKey = process.env.CLAUDE_API_KEY;
-    if (!claudeKey) return null;
-
-    const systemPrompt = buildClaudePrompt(userLevel);
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': claudeKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 1000,
-        messages: [
-          { role: 'user', content: `${systemPrompt}\n\nQuestion: ${message}` }
-        ]
-      })
-    });
-
-    if (!response.ok) return null;
-    const data = await response.json();
-    return data.content[0].text;
-  } catch (error) {
-    console.error('❌ Erreur Claude:', error);
-    return null;
-  }
-}
-
-async function callOpenAI(message, userLevel) {
-  try {
-    const openaiKey = process.env.CLE_API_OPENAI;
-    if (!openaiKey) return null;
-
-    const systemPrompt = buildOpenAIPrompt(userLevel);
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        max_tokens: 1000,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message }
-        ]
-      })
-    });
-
-    if (!response.ok) return null;
-    const data = await response.json();
-    return data.choices[0].message.content;
-  } catch (error) {
-    console.error('❌ Erreur OpenAI:', error);
-    return null;
-  }
-}
-
-// === CONSTRUCTION DES PROMPTS ===
-function buildClaudePrompt(userLevel) {
-  return `Tu es Julien, expert automobile FAP/EGR/AdBlue depuis 20 ans chez Re-Fap.
-
-NIVEAU UTILISATEUR: ${userLevel}
-- Niveau 0: Diagnostic de base + encourager email pour premium
-- Niveau 1+: Diagnostic technique complet avec estimations précises
-
-STYLE JULIEN:
-- Direct, expert, rassurant
-- Questions pertinentes pour approfondir
-- Estimations de coûts réalistes
-- Conseils sécurité prioritaires
-
-SPÉCIALITÉS:
-- FAP/EGR/AdBlue (ton expertise principale)
-- Diagnostic précis des pannes
-- Solutions économiques vs remplacement
-- Garages partenaires Re-Fap
-
-Réponds avec expertise technique et bienveillance.`;
-}
-
-function buildOpenAIPrompt(userLevel) {
-  return `Tu es un assistant conversationnel expert en automobile, spécialisé dans l'engagement client.
-
-NIVEAU UTILISATEUR: ${userLevel}
-- Niveau 0: Encourage vivement à donner email pour diagnostic complet
-- Niveau 1+: Sois très détaillé, rassurant et expert
-
-FORCES:
-- Ton engageant et rassurant
-- Excellente capacité à expliquer simplement
-- Persuasion naturelle pour conversion
-- Empathie avec les problèmes clients
-
-OBJECTIF: Créer une expérience client exceptionnelle qui donne envie de revenir.`;
-}
-
-// === FUSION DUAL BRAIN ===
-async function fuseDualBrain(message, claudeResponse, openaiResponse, userLevel) {
-  const needType = detectNeedType(message);
-  
-  if (userLevel === 0) {
-    return `🧠 **Diagnostic Dual Brain Activé** 🔧\n\n` +
-      `**Analyse technique (Claude):**\n${claudeResponse}\n\n` +
-      `**Expertise complémentaire (OpenAI):**\n${openaiResponse}\n\n` +
-      `🎯 **DIAGNOSTIC COMPLET GRATUIT** 🎯\n` +
-      `📧 **Tapez votre email pour recevoir :**\n` +
-      `• Rapport technique détaillé\n` +
-      `• Estimation précise des coûts\n` +
-      `• Guide de réparation photos\n` +
-      `• Garages partenaires recommandés\n\n` +
-      `⚡ **Réponse automatique en 2 minutes !**`;
-  } else {
-    return `🧠 **Analyse Dual Brain Premium** 🔧\n\n` +
-      `**Diagnostic Expert (Claude):**\n${claudeResponse}\n\n` +
-      `**Analyse Complémentaire (OpenAI):**\n${openaiResponse}\n\n` +
-      `✅ **Diagnostic complet terminé !**`;
-  }
-}
-
-async function formatSingleAI(message, response, userLevel, aiName) {
-  const icon = aiName === 'Claude' ? '🎯' : '🤖';
-  
-  if (userLevel === 0) {
-    return `${icon} **Diagnostic ${aiName} Activé** \n\n${response}\n\n` +
-      `🎯 **POUR VOTRE DIAGNOSTIC COMPLET :**\n` +
-      `📧 **Tapez votre email dans le chat** ⬇️`;
-  } else {
-    return `${icon} **Analyse ${aiName} Premium** 🔧\n\n${response}`;
-  }
-}
-
-// === FALLBACK INTELLIGENT ===
-async function generateIntelligentFallback(message, userLevel) {
-  const needType = detectNeedType(message);
-  const responses = getFallbackResponses(needType, userLevel);
-  
-  // Sélection intelligente selon le contexte
-  return responses[Math.floor(Math.random() * responses.length)];
-}
-
-function getFallbackResponses(needType, userLevel) {
-  const base = userLevel === 0 ? "Diagnostic de base" : "Analyse premium";
-  const cta = userLevel === 0 ? 
-    "\n\n🎯 **DIAGNOSTIC COMPLET GRATUIT :**\n📧 **Tapez votre email dans le chat** ⬇️" : 
-    "\n\n✅ **Diagnostic personnalisé activé !**";
-
-  const responses = {
-    brakes: [
-      `🔧 **${base}** - Problème de freinage détecté.\n\nD'après tes symptômes, je suspecte un problème de plaquettes ou disques. Questions importantes : Le bruit apparaît au freinage ? Vibrations ressenties ? Le frein tire d'un côté ?\n\n⚠️ **Sécurité prioritaire** - Contrôle urgent recommandé !${cta}`,
-      
-      `🔧 **${base}** - Freinage à analyser.\n\nTes symptômes correspondent à plusieurs causes possibles. Pour un diagnostic précis, j'ai besoin de savoir : À quel moment ça arrive ? Type de bruit ? Pédale molle ou dure ?\n\n🎯 **Mon expertise freinage** à ton service !${cta}`
-    ],
-    
-    engine: [
-      `🔧 **${base}** - Problème moteur identifié.\n\nD'après ta description, plusieurs pistes : voyant allumé ? Perte de puissance ? Fumées ? Mon expérience me dit qu'il faut agir vite pour éviter la casse moteur.\n\n⚡ **Diagnostic rapide recommandé** !${cta}`,
-      
-      `🔧 **${base}** - Moteur à surveiller.\n\nTes symptômes m'interpellent. Pour cibler le problème : Quand ça arrive ? À froid ou chaud ? Voyants tableau de bord ? J'ai 20 ans d'expérience sur ces pannes !\n\n🎯 **Expertise moteur** activée !${cta}`
-    ],
-    
-    general: [
-      `🔧 **${base}** - Problème auto détecté.\n\nD'après tes symptômes, j'ai besoin de plus d'infos pour un diagnostic précis : Quand ça arrive ? Voyants allumés ? Bruits particuliers ? 20 ans d'expérience à ton service !\n\n🎯 **Expert automobile** prêt !${cta}`,
-      
-      `🔧 **${base}** - Analyse en cours.\n\nJe vois que tu as un souci auto. Mon expertise me dit qu'il faut creuser : Symptômes exacts ? Fréquence ? Contexte d'apparition ? Je vais t'aider à résoudre ça !\n\n⚡ **Diagnostic expert** !${cta}`
-    ]
-  };
-
-  return responses[needType] || responses.general;
-}
-
-// === GESTION DES LEADS ===
-async function createLeadFromEmail(email, message, sessionId) {
-  try {
-    const leadData = {
-      email,
-      message_context: message.substring(0, 200),
-      session_id: sessionId,
-      source: 'email_detection',
-      timestamp: new Date().toISOString(),
-      lead_value: 85,
-      status: 'premium_activated'
+    // CTA de fallback en cas d'erreur
+    const fallbackCTA = {
+      title: '🆘 Support Re-Fap Direct',
+      message: 'Une erreur est survenue. Notre équipe est là pour vous aider !',
+      buttons: [
+        {
+          text: '📧 Contacter le support',
+          url: CTA_CONFIG.refap.contact,
+          type: 'primary'
+        },
+        {
+          text: '📞 Appeler maintenant',
+          url: CTA_CONFIG.refap.phone,
+          type: 'secondary'
+        }
+      ]
     };
 
-    // Sauvegarde Airtable
-    await logToAirtable({
-      ...leadData,
-      type: 'lead_creation'
-    });
-
-    return {
-      success: true,
-      leadValue: 85,
-      leadId: `lead_${Date.now()}`
-    };
-  } catch (error) {
-    console.error('❌ Erreur création lead:', error);
-    return { success: false, leadValue: 0 };
-  }
-}
-
-async function handleLeadCreation(req, res) {
-  try {
-    const { userData, sessionId, message } = req.body;
-    
-    const leadData = {
-      nom: userData.firstName || userData.nom,
-      email: userData.email,
-      telephone: userData.phone || userData.telephone,
-      ville: userData.location || userData.ville,
-      probleme: message || userData.besoin_auto || 'Non précisé',
-      vehicule: userData.vehicleModel || userData.vehicule || 'Non précisé',
-      session_id: sessionId,
-      source: 'form_submission',
-      timestamp: new Date().toISOString(),
-      lead_value: calculateLeadValue(userData),
-      user_level: getUserLevel(userData)
-    };
-
-    // Sauvegarde Airtable
-    const airtableResult = await logToAirtable({
-      ...leadData,
-      type: 'lead_creation'
-    });
-
-    return res.status(200).json({
-      success: true,
-      leadId: `lead_${Date.now()}`,
-      leadValue: leadData.lead_value,
-      message: 'Lead créé avec succès',
-      airtableResult
-    });
-
-  } catch (error) {
-    console.error('❌ Erreur handleLeadCreation:', error);
     return res.status(500).json({
-      success: false,
-      error: 'Erreur création lead'
+      message: 'Désolé, une erreur est survenue. Notre équipe support va vous aider à résoudre votre problème automobile.',
+      cta: fallbackCTA,
+      error: true
     });
   }
-}
-
-// === ANALYSE BUSINESS ===
-function analyzeBusiness(message, response, userLevel) {
-  const needType = detectNeedType(message);
-  const urgency = detectUrgency(message);
-  const leadValue = calculateLeadValue({ userLevel, needType, urgency });
-  
-  return {
-    needType,
-    urgency,
-    leadValue,
-    partner: getOptimalPartner(needType),
-    conversionPotential: userLevel === 0 ? 0.8 : 0.3
-  };
-}
-
-function detectNeedType(message) {
-  const lower = message.toLowerCase();
-  if (lower.includes('frein') || lower.includes('brake')) return "brakes";
-  if (lower.includes('moteur') || lower.includes('voyant') || lower.includes('fap') || lower.includes('egr')) return "engine";
-  if (lower.includes('puissance') || lower.includes('acceler') || lower.includes('turbo')) return "power";
-  if (lower.includes('fumee') || lower.includes('fumée')) return "smoke";
-  return "general";
-}
-
-function detectUrgency(message) {
-  const urgentWords = ['urgent', 'vite', 'rapidement', 'panne', 'ne démarre plus', 'danger'];
-  const lower = message.toLowerCase();
-  return urgentWords.some(word => lower.includes(word)) ? 'high' : 'normal';
-}
-
-function calculateLeadValue(params) {
-  const baseValues = { brakes: 40, engine: 35, power: 30, smoke: 45, general: 25 };
-  const levelMultipliers = { 0: 1, 1: 1.5, 2: 1.8, 3: 2.2 };
-  const urgencyBonus = params.urgency === 'high' ? 1.3 : 1.0;
-  
-  const baseValue = baseValues[params.needType] || 25;
-  const levelMultiplier = levelMultipliers[params.userLevel] || 1;
-  
-  return Math.round(baseValue * levelMultiplier * urgencyBonus);
-}
-
-function getOptimalPartner(needType) {
-  const partners = {
-    brakes: "MIDAS",
-    engine: "IDGARAGES", 
-    power: "IDGARAGES",
-    smoke: "IDGARAGES",
-    general: "MIDAS"
-  };
-  
-  return partners[needType] || "MIDAS";
-}
-
-function generateConversionStrategy(businessAnalysis) {
-  if (businessAnalysis.conversionPotential > 0.7) {
-    return {
-      trigger: "🔓 Pour un diagnostic complet, laissez votre email !",
-      required: ["email"],
-      reward: "diagnostic premium gratuit",
-      estimatedValue: businessAnalysis.leadValue
-    };
-  }
-  return null;
-}
-
-// === LOGGING AIRTABLE ===
-async function logToAirtable(data) {
-  try {
-    const AIRTABLE_TOKEN = 'patf3ZGIrQfnBsg8a.ab3b4eb79a58c1fbc413fe1ed37948fce5faaa1297a760fbaadf99ebca9341b2';
-    const BASE_ID = 'appKdP1OPj7KiSmS0';
-    const TABLE_ID = 'tblmdV7eYHqgFaKaX'; // Table LEADS
-
-    const recordData = {
-      fields: {
-        'Nom': data.nom || 'Utilisateur Chat',
-        'Email': data.email || '',
-        'Telephone': data.telephone || '',
-        'Session_ID': data.sessionId || data.session_id,
-        'Date_Contact': new Date().toISOString(),
-        'Probleme_Initial': data.message || data.probleme || '',
-        'Vehicule': data.vehicule || '',
-        'Statut_Lead': data.type === 'lead_creation' ? 'Nouveau' : 'Chat',
-        'Source_Lead': data.source || 'Dual Brain Chat',
-        'Lead_Value': data.leadValue || data.lead_value || 0,
-        'User_Level': data.userLevel || 0,
-        'AI_Mode': data.mode || 'Dual Brain',
-        'Need_Type': data.needType || 'general'
-      }
-    };
-
-    const response = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(recordData)
-    });
-
-    if (response.ok) {
-      const result = await response.json();
-      console.log('✅ Airtable log:', result.id);
-      return { success: true, id: result.id };
-    } else {
-      console.error('❌ Erreur Airtable:', response.status);
-      return { success: false, error: response.status };
-    }
-
-  } catch (error) {
-    console.error('❌ Erreur logToAirtable:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// === UTILITAIRES ===
-function getLevelName(level) {
-  const names = {
-    0: "Diagnostic de Base",
-    1: "Diagnostic Avancé", 
-    2: "Expertise Premium",
-    3: "Service VIP"
-  };
-  return names[level] || "Inconnu";
-}
-
-function getUserLevel(userData) {
-  let level = 0;
-  if (userData.email) level = 1;
-  if (userData.phone || userData.telephone) level = 2;
-  if (userData.vehicleModel || userData.vehicleInfo) level = 3;
-  return level;
 }
