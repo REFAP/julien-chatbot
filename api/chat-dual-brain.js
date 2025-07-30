@@ -23,33 +23,52 @@ const CTA_CONFIG = {
     diagnostic: 0
   }
 };
+// 🎯 DÉTECTION AMÉLIORÉE - Symptômes spécifiques
 
-// Système de détection intelligent des problèmes
 class ProblemDetector {
   static analyze(message) {
     const text = message.toLowerCase();
     
     const patterns = {
+      egr_fap_combined: [
+        // Voyants spécifiques EGR/FAP
+        'voyant préchauffage clignotant', 'voyant préchauffage qui clignote',
+        'préchauffage clignote', 'témoin préchauffage clignotant',
+        'voyant bougie de préchauffage', 'témoin bougie préchauffage',
+        
+        // Symptômes EGR + perte puissance
+        'perte de puissance voyant', 'plus de puissance voyant',
+        'bridé voyant', 'mode dégradé voyant',
+        
+        // Combinaisons spécifiques Golf TDI
+        'golf tdi perte puissance', 'golf tdi voyant',
+        'tdi 140 perte puissance', 'tdi voyant préchauffage'
+      ],
+      
       fap_confirmed: [
         'voyant fap', 'fap allumé', 'fap rouge', 'témoin fap',
         'filtre à particules', 'fap bouché', 'fap colmaté',
         'régénération fap', 'nettoyage fap'
       ],
-      fap_probable: [
-        'fumée noire', 'fumées noires', 'fumée épaisse',
-        'perte de puissance', 'moteur bride', 'mode dégradé',
-        'à-coups moteur', 'ralenti instable'
-      ],
+      
       egr_adblu: [
         'voyant egr', 'egr bouché', 'valve egr',
         'adblue', 'ad blue', 'urée', 'scr',
         'nox', 'dépollution'
       ],
+      
+      fap_probable: [
+        'fumée noire', 'fumées noires', 'fumée épaisse',
+        'perte de puissance', 'moteur bride', 'mode dégradé',
+        'à-coups moteur', 'ralenti instable'
+      ],
+      
       urgence: [
         'moteur coupé', 'arrêt moteur', 'ne démarre plus',
         'surchauffe', 'température rouge', 'huile rouge',
         'bruit anormal', 'claquement moteur'
       ],
+      
       autres: [
         'freins', 'frein', 'embrayage', 'boite vitesse',
         'direction', 'suspension', 'climatisation',
@@ -77,6 +96,136 @@ class ProblemDetector {
     };
   }
 
+  // Nouvelle fonction pour détecter les modèles de véhicules
+  static detectVehicleInfo(message) {
+    const text = message.toLowerCase();
+    
+    const vehiclePatterns = {
+      golf_tdi: ['golf tdi', 'golf 2.0 tdi', 'golf tdi 140'],
+      audi_tdi: ['audi tdi', 'a3 tdi', 'a4 tdi', 'q5 tdi'],
+      bmw_diesel: ['bmw diesel', '320d', '520d', 'x3 diesel'],
+      mercedes_diesel: ['mercedes diesel', 'c220d', 'e220d'],
+      peugeot_diesel: ['peugeot diesel', '308 diesel', '508 diesel'],
+      renault_diesel: ['renault diesel', 'megane diesel', 'scenic diesel']
+    };
+
+    for (const [brand, patterns] of Object.entries(vehiclePatterns)) {
+      if (patterns.some(pattern => text.includes(pattern))) {
+        return brand;
+      }
+    }
+
+    return 'unknown';
+  }
+}
+
+// 🎯 CTA SPÉCIALISÉ pour EGR/FAP combiné
+class CTAGenerator {
+  // Nouvelle fonction pour EGR + FAP combiné
+  static generateEGRFAPCombinedCTA() {
+    return {
+      title: '🔬 Diagnostic EGR/FAP Spécialisé',
+      message: 'Voyant préchauffage clignotant = problème EGR/capteurs. Diagnostic gratuit Re-Fap pour identifier la cause exacte !',
+      buttons: [
+        {
+          text: '📅 Diagnostic gratuit EGR/FAP',
+          url: CTA_CONFIG.refap.diagnostic,
+          type: 'primary'
+        },
+        {
+          text: '🔬 Expertise capteurs',
+          url: CTA_CONFIG.refap.baseUrl + '/diagnostic-capteurs',
+          type: 'secondary'
+        },
+        {
+          text: '📞 Expert EGR immédiat',
+          url: CTA_CONFIG.refap.phone,
+          type: 'info'
+        }
+      ]
+    };
+  }
+
+  static generate(problemCategory, technicalLevel, confidence, vehicleInfo) {
+    switch (problemCategory) {
+      case 'egr_fap_combined':
+        return this.generateEGRFAPCombinedCTA();
+      
+      case 'fap_confirmed':
+        return this.generateFAPConfirmedCTA(technicalLevel);
+      
+      case 'fap_probable':
+        return this.generateFAPProbableCTA();
+      
+      case 'egr_adblu':
+        return this.generateEGRAdBlueCTA();
+      
+      case 'urgence':
+        return this.generateUrgenceCTA();
+      
+      case 'autres':
+        return this.generateAutresCTA();
+      
+      default:
+        return this.generateDiagnosticCTA();
+    }
+  }
+}
+
+// 🎯 PROMPTS AMÉLIORÉS avec expertise spécifique
+const ENHANCED_PROMPTS = {
+  brain1: `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap.
+
+EXPERTISE SPÉCIFIQUE :
+- Voyant préchauffage clignotant = souvent EGR/capteurs, PAS turbo
+- Golf TDI 140 2008 = problèmes EGR fréquents
+- Perte puissance + voyant préchauffage = EGR/FAP à diagnostiquer
+- Capteurs pression différentielle FAP souvent défaillants
+
+RÈGLES :
+- Diagnostic PRÉCIS basé sur l'expertise Re-Fap
+- Si voyant préchauffage clignotant → suspecter EGR/capteurs
+- Réponse max 30 mots
+- Orienté spécialité Re-Fap
+
+EXEMPLE CORRECT pour "Golf TDI perte puissance voyant préchauffage" :
+"Voyant préchauffage clignotant Golf TDI = souvent EGR/capteurs. Diagnostic Re-Fap spécialisé nécessaire."`,
+
+  brain2: `Tu es l'assistant commercial Re-Fap, expert en closing.
+
+ARGUMENTS COMMERCIAUX SPÉCIFIQUES :
+- Diagnostic gratuit Re-Fap = identification précise
+- EGR/capteurs = spécialité Re-Fap, pas garage généraliste
+- Économies vs remplacement complet
+- Expertise constructeur sur Golf TDI
+
+RÈGLES :
+- Push vers diagnostic gratuit Re-Fap
+- Mettre en avant l'expertise spécialisée
+- Max 25 mots
+- Urgence d'agir avant aggravation
+
+EXEMPLE pour problème EGR :
+"Diagnostic gratuit Re-Fap = expertise EGR. Évitez garage généraliste, choisissez spécialiste."`
+};
+
+// 🎯 FONCTION PRINCIPALE MODIFIÉE
+function getEnhancedPrompts(problemCategory, technicalLevel, vehicleInfo) {
+  let contextSpecifique = '';
+  
+  if (problemCategory === 'egr_fap_combined') {
+    contextSpecifique = `
+CONTEXTE SPÉCIFIQUE : Voyant préchauffage clignotant + perte puissance
+VÉHICULE : ${vehicleInfo}
+DIAGNOSTIC : Probable EGR/capteurs, pas turbo/injecteurs
+ORIENTATION : Diagnostic gratuit Re-Fap spécialisé EGR/FAP`;
+  }
+
+  return {
+    brain1: `${ENHANCED_PROMPTS.brain1}${contextSpecifique}`,
+    brain2: `${ENHANCED_PROMPTS.brain2}${contextSpecifique}`
+  };
+}
   static detectTechnicalLevel(message) {
     const text = message.toLowerCase();
     
