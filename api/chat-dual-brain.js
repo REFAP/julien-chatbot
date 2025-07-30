@@ -1,4 +1,4 @@
-// api/chat-dual-brain.js - Backend optimisé avec réponses directes + CTA intelligents
+// api/chat-dual-brain.js - Backend complet avec expertise spécialisée EGR/FAP
 
 import OpenAI from 'openai';
 
@@ -23,8 +23,8 @@ const CTA_CONFIG = {
     diagnostic: 0
   }
 };
-// 🎯 DÉTECTION AMÉLIORÉE - Symptômes spécifiques
 
+// 🎯 SYSTÈME DE DÉTECTION AMÉLIORÉ avec expertise spécialisée
 class ProblemDetector {
   static analyze(message) {
     const text = message.toLowerCase();
@@ -35,38 +35,43 @@ class ProblemDetector {
         'voyant préchauffage clignotant', 'voyant préchauffage qui clignote',
         'préchauffage clignote', 'témoin préchauffage clignotant',
         'voyant bougie de préchauffage', 'témoin bougie préchauffage',
+        'voyant préchauffage allumé', 'préchauffage qui reste allumé',
         
         // Symptômes EGR + perte puissance
         'perte de puissance voyant', 'plus de puissance voyant',
-        'bridé voyant', 'mode dégradé voyant',
+        'bridé voyant', 'mode dégradé voyant', 'puissance réduite voyant',
         
-        // Combinaisons spécifiques Golf TDI
-        'golf tdi perte puissance', 'golf tdi voyant',
-        'tdi 140 perte puissance', 'tdi voyant préchauffage'
+        // Combinaisons spécifiques véhicules diesel
+        'golf tdi perte puissance', 'golf tdi voyant', 'golf tdi bridé',
+        'tdi 140 perte puissance', 'tdi voyant préchauffage',
+        'audi tdi voyant', 'bmw diesel voyant', 'mercedes diesel voyant',
+        
+        // Symptômes EGR spécifiques
+        'egr voyant préchauffage', 'valve egr voyant', 'capteur egr voyant'
       ],
       
       fap_confirmed: [
         'voyant fap', 'fap allumé', 'fap rouge', 'témoin fap',
         'filtre à particules', 'fap bouché', 'fap colmaté',
-        'régénération fap', 'nettoyage fap'
+        'régénération fap', 'nettoyage fap', 'fap défaillant'
       ],
       
       egr_adblu: [
-        'voyant egr', 'egr bouché', 'valve egr',
-        'adblue', 'ad blue', 'urée', 'scr',
-        'nox', 'dépollution'
+        'voyant egr', 'egr bouché', 'valve egr', 'egr défaillante',
+        'adblue', 'ad blue', 'urée', 'scr', 'réservoir adblue',
+        'nox', 'dépollution', 'système dépollution'
       ],
       
       fap_probable: [
         'fumée noire', 'fumées noires', 'fumée épaisse',
         'perte de puissance', 'moteur bride', 'mode dégradé',
-        'à-coups moteur', 'ralenti instable'
+        'à-coups moteur', 'ralenti instable', 'surconsommation'
       ],
       
       urgence: [
         'moteur coupé', 'arrêt moteur', 'ne démarre plus',
         'surchauffe', 'température rouge', 'huile rouge',
-        'bruit anormal', 'claquement moteur'
+        'bruit anormal', 'claquement moteur', 'moteur en sécurité'
       ],
       
       autres: [
@@ -96,17 +101,46 @@ class ProblemDetector {
     };
   }
 
-  // Nouvelle fonction pour détecter les modèles de véhicules
+  static detectTechnicalLevel(message) {
+    const text = message.toLowerCase();
+    
+    const indicators = {
+      bricoleur: [
+        'je démonte', 'démonter moi-même', 'bricoleur',
+        'j\'ai des outils', 'garage maison', 'mécano amateur',
+        'je peux démonter', 'je sais faire', 'avec mes outils',
+        'je connais', 'j\'ai l\'habitude'
+      ],
+      debutant: [
+        'je ne sais pas', 'débutant', 'première fois',
+        'jamais fait', 'pas doué', 'peur de casser',
+        'aucune idée', 'connais rien', 'pas sûr',
+        'quoi faire', 'que faire', 'comment faire'
+      ]
+    };
+
+    for (const [level, keywords] of Object.entries(indicators)) {
+      if (keywords.some(keyword => text.includes(keyword))) {
+        return level;
+      }
+    }
+
+    return 'intermediaire'; // niveau par défaut
+  }
+
+  // 🎯 NOUVELLE FONCTION - Détection véhicules
   static detectVehicleInfo(message) {
     const text = message.toLowerCase();
     
     const vehiclePatterns = {
-      golf_tdi: ['golf tdi', 'golf 2.0 tdi', 'golf tdi 140'],
-      audi_tdi: ['audi tdi', 'a3 tdi', 'a4 tdi', 'q5 tdi'],
-      bmw_diesel: ['bmw diesel', '320d', '520d', 'x3 diesel'],
-      mercedes_diesel: ['mercedes diesel', 'c220d', 'e220d'],
-      peugeot_diesel: ['peugeot diesel', '308 diesel', '508 diesel'],
-      renault_diesel: ['renault diesel', 'megane diesel', 'scenic diesel']
+      golf_tdi: ['golf tdi', 'golf 2.0 tdi', 'golf tdi 140', 'golf diesel'],
+      audi_tdi: ['audi tdi', 'a3 tdi', 'a4 tdi', 'a6 tdi', 'q5 tdi', 'audi diesel'],
+      bmw_diesel: ['bmw diesel', '320d', '520d', 'x3 diesel', 'bmw d'],
+      mercedes_diesel: ['mercedes diesel', 'c220d', 'e220d', 'mercedes cdi'],
+      peugeot_diesel: ['peugeot diesel', '308 diesel', '508 diesel', 'peugeot hdi'],
+      renault_diesel: ['renault diesel', 'megane diesel', 'scenic diesel', 'renault dci'],
+      citroen_diesel: ['citroen diesel', 'c4 diesel', 'c5 diesel', 'citroen hdi'],
+      ford_diesel: ['ford diesel', 'focus diesel', 'mondeo diesel', 'ford tdci']
     };
 
     for (const [brand, patterns] of Object.entries(vehiclePatterns)) {
@@ -117,15 +151,52 @@ class ProblemDetector {
 
     return 'unknown';
   }
+
+  // 🎯 NOUVELLE FONCTION - Détection année véhicule
+  static detectVehicleYear(message) {
+    const yearMatch = message.match(/20\d{2}|19\d{2}/);
+    return yearMatch ? parseInt(yearMatch[0]) : null;
+  }
 }
 
-// 🎯 CTA SPÉCIALISÉ pour EGR/FAP combiné
+// 🎯 GÉNÉRATEUR DE CTA AMÉLIORÉ
 class CTAGenerator {
-  // Nouvelle fonction pour EGR + FAP combiné
-  static generateEGRFAPCombinedCTA() {
+  static generate(problemCategory, technicalLevel, confidence, vehicleInfo) {
+    switch (problemCategory) {
+      case 'egr_fap_combined':
+        return this.generateEGRFAPCombinedCTA(vehicleInfo);
+      
+      case 'fap_confirmed':
+        return this.generateFAPConfirmedCTA(technicalLevel);
+      
+      case 'fap_probable':
+        return this.generateFAPProbableCTA();
+      
+      case 'egr_adblu':
+        return this.generateEGRAdBlueCTA();
+      
+      case 'urgence':
+        return this.generateUrgenceCTA();
+      
+      case 'autres':
+        return this.generateAutresCTA();
+      
+      default:
+        return this.generateDiagnosticCTA();
+    }
+  }
+
+  // 🎯 NOUVEAU CTA - EGR/FAP combiné
+  static generateEGRFAPCombinedCTA(vehicleInfo) {
+    let message = 'Voyant préchauffage clignotant = problème EGR/capteurs. Diagnostic gratuit Re-Fap pour identifier la cause exacte !';
+    
+    if (vehicleInfo === 'golf_tdi') {
+      message = 'Golf TDI + voyant préchauffage = souvent EGR/capteurs défaillants. Diagnostic gratuit Re-Fap spécialisé !';
+    }
+    
     return {
       title: '🔬 Diagnostic EGR/FAP Spécialisé',
-      message: 'Voyant préchauffage clignotant = problème EGR/capteurs. Diagnostic gratuit Re-Fap pour identifier la cause exacte !',
+      message: message,
       buttons: [
         {
           text: '📅 Diagnostic gratuit EGR/FAP',
@@ -144,136 +215,6 @@ class CTAGenerator {
         }
       ]
     };
-  }
-
-  static generate(problemCategory, technicalLevel, confidence, vehicleInfo) {
-    switch (problemCategory) {
-      case 'egr_fap_combined':
-        return this.generateEGRFAPCombinedCTA();
-      
-      case 'fap_confirmed':
-        return this.generateFAPConfirmedCTA(technicalLevel);
-      
-      case 'fap_probable':
-        return this.generateFAPProbableCTA();
-      
-      case 'egr_adblu':
-        return this.generateEGRAdBlueCTA();
-      
-      case 'urgence':
-        return this.generateUrgenceCTA();
-      
-      case 'autres':
-        return this.generateAutresCTA();
-      
-      default:
-        return this.generateDiagnosticCTA();
-    }
-  }
-}
-
-// 🎯 PROMPTS AMÉLIORÉS avec expertise spécifique
-const ENHANCED_PROMPTS = {
-  brain1: `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap.
-
-EXPERTISE SPÉCIFIQUE :
-- Voyant préchauffage clignotant = souvent EGR/capteurs, PAS turbo
-- Golf TDI 140 2008 = problèmes EGR fréquents
-- Perte puissance + voyant préchauffage = EGR/FAP à diagnostiquer
-- Capteurs pression différentielle FAP souvent défaillants
-
-RÈGLES :
-- Diagnostic PRÉCIS basé sur l'expertise Re-Fap
-- Si voyant préchauffage clignotant → suspecter EGR/capteurs
-- Réponse max 30 mots
-- Orienté spécialité Re-Fap
-
-EXEMPLE CORRECT pour "Golf TDI perte puissance voyant préchauffage" :
-"Voyant préchauffage clignotant Golf TDI = souvent EGR/capteurs. Diagnostic Re-Fap spécialisé nécessaire."`,
-
-  brain2: `Tu es l'assistant commercial Re-Fap, expert en closing.
-
-ARGUMENTS COMMERCIAUX SPÉCIFIQUES :
-- Diagnostic gratuit Re-Fap = identification précise
-- EGR/capteurs = spécialité Re-Fap, pas garage généraliste
-- Économies vs remplacement complet
-- Expertise constructeur sur Golf TDI
-
-RÈGLES :
-- Push vers diagnostic gratuit Re-Fap
-- Mettre en avant l'expertise spécialisée
-- Max 25 mots
-- Urgence d'agir avant aggravation
-
-EXEMPLE pour problème EGR :
-"Diagnostic gratuit Re-Fap = expertise EGR. Évitez garage généraliste, choisissez spécialiste."`
-};
-
-// 🎯 FONCTION PRINCIPALE MODIFIÉE
-function getEnhancedPrompts(problemCategory, technicalLevel, vehicleInfo) {
-  let contextSpecifique = '';
-  
-  if (problemCategory === 'egr_fap_combined') {
-    contextSpecifique = `
-CONTEXTE SPÉCIFIQUE : Voyant préchauffage clignotant + perte puissance
-VÉHICULE : ${vehicleInfo}
-DIAGNOSTIC : Probable EGR/capteurs, pas turbo/injecteurs
-ORIENTATION : Diagnostic gratuit Re-Fap spécialisé EGR/FAP`;
-  }
-
-  return {
-    brain1: `${ENHANCED_PROMPTS.brain1}${contextSpecifique}`,
-    brain2: `${ENHANCED_PROMPTS.brain2}${contextSpecifique}`
-  };
-}
-  static detectTechnicalLevel(message) {
-    const text = message.toLowerCase();
-    
-    const indicators = {
-      bricoleur: [
-        'je démonte', 'démonter moi-même', 'bricoleur',
-        'j\'ai des outils', 'garage maison', 'mécano amateur',
-        'je peux démonter', 'je sais faire', 'avec mes outils'
-      ],
-      debutant: [
-        'je ne sais pas', 'débutant', 'première fois',
-        'jamais fait', 'pas doué', 'peur de casser',
-        'aucune idée', 'connais rien', 'pas sûr'
-      ]
-    };
-
-    for (const [level, keywords] of Object.entries(indicators)) {
-      if (keywords.some(keyword => text.includes(keyword))) {
-        return level;
-      }
-    }
-
-    return 'intermediaire'; // niveau par défaut
-  }
-}
-
-// Générateur de CTA contextuels
-class CTAGenerator {
-  static generate(problemCategory, technicalLevel, confidence) {
-    switch (problemCategory) {
-      case 'fap_confirmed':
-        return this.generateFAPConfirmedCTA(technicalLevel);
-      
-      case 'fap_probable':
-        return this.generateFAPProbableCTA();
-      
-      case 'egr_adblu':
-        return this.generateEGRAdBlueCTA();
-      
-      case 'urgence':
-        return this.generateUrgenceCTA();
-      
-      case 'autres':
-        return this.generateAutresCTA();
-      
-      default:
-        return this.generateDiagnosticCTA();
-    }
   }
 
   static generateFAPConfirmedCTA(technicalLevel) {
@@ -435,60 +376,69 @@ class CTAGenerator {
   }
 }
 
-// 🎯 PROMPTS OPTIMISÉS - ULTRA DIRECTS
+// 🎯 PROMPTS AMÉLIORÉS avec expertise spécialisée
 const PROMPTS = {
   brain1: `Tu es Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap.
 
+EXPERTISE SPÉCIALISÉE RE-FAP :
+- Voyant préchauffage clignotant = souvent EGR/capteurs défaillants, PAS turbo/injecteurs
+- Golf TDI 140 2008 = problèmes EGR très fréquents (valve, capteurs)
+- Perte puissance + voyant préchauffage = EGR/FAP à diagnostiquer en priorité
+- Capteurs pression différentielle FAP souvent défaillants sur TDI
+- Valve EGR encrassée = symptôme typique diesel urbain
+
 RÈGLES STRICTES :
-- Réponse ULTRA COURTE (max 30 mots)
-- Diagnostic DIRECT et PRÉCIS
-- PAS de questions multiples
-- PAS de longs développements
-- Focus sur le PROBLÈME + SOLUTION
-- Ton expert et confiant
+- Diagnostic PRÉCIS basé sur l'expertise Re-Fap (20 ans d'expérience)
+- Si voyant préchauffage clignotant → toujours suspecter EGR/capteurs
+- Golf TDI = expertise spécifique Re-Fap
+- Réponse max 30 mots
+- Orienté spécialité Re-Fap, pas garage généraliste
 
-EXEMPLES :
-"FAP bouché confirmé. Carter-Cash optimal pour bricoleurs."
-"Symptômes FAP probable. Diagnostic gratuit Re-Fap recommandé."
-"EGR défaillant. Expertise Re-Fap nécessaire."
-
-TONALITÉ : Expert direct, pas de blabla.`,
+EXEMPLES CORRECTS :
+"Voyant préchauffage clignotant Golf TDI = souvent EGR/capteurs. Diagnostic Re-Fap spécialisé nécessaire."
+"FAP bouché confirmé. Carter-Cash optimal pour bricoleurs."`,
 
   brain2: `Tu es l'assistant commercial Re-Fap, expert en closing.
 
+ARGUMENTS COMMERCIAUX SPÉCIALISÉS :
+- Diagnostic gratuit Re-Fap = identification précise vs garage généraliste
+- EGR/capteurs = spécialité Re-Fap depuis 20 ans
+- Éviter garage généraliste pour problèmes dépollution
+- Économies vs remplacement complet constructeur
+- Expertise spécifique par marque (Golf TDI, Audi TDI, etc.)
+
 RÈGLES STRICTES :
-- Réponse ULTRA COURTE (max 25 mots)
-- PUSH immédiat vers les solutions Re-Fap
-- Mettre en avant les BÉNÉFICES économiques
-- Créer l'URGENCE d'agir
-- Langage COMMERCIAL et PERCUTANT
+- Push vers diagnostic gratuit Re-Fap spécialisé
+- Mettre en avant l'expertise Re-Fap vs concurrence
+- Créer urgence avant aggravation
+- Max 25 mots
+- Commercial direct et percutant
 
 EXEMPLES :
-"Nettoyage 99€ vs remplacement 2000€+. Économie garantie."
-"Carter-Cash + Re-Fap = combo parfait bricoleurs."
-"Diagnostic gratuit = zéro risque financier."
-
-TONALITÉ : Commercial direct, orienté action immédiate.`
+"Diagnostic gratuit Re-Fap = expertise EGR. Évitez garage généraliste, choisissez spécialiste."
+"Nettoyage 99€ vs remplacement 2000€+. Économie garantie Re-Fap."`
 };
 
-// Fonction pour obtenir des prompts spécialisés selon le contexte
-function getOptimizedPrompts(problemCategory, technicalLevel) {
-  const specializedPrompts = {
-    brain1: `${PROMPTS.brain1}
+// Fonction pour obtenir des prompts contextualisés
+function getEnhancedPrompts(problemCategory, technicalLevel, vehicleInfo) {
+  let contextSpecifique = '';
+  
+  if (problemCategory === 'egr_fap_combined') {
+    contextSpecifique = `
+    
+CONTEXTE SPÉCIFIQUE : Voyant préchauffage clignotant + perte puissance
+VÉHICULE : ${vehicleInfo}
+DIAGNOSTIC EXPERT : Probable EGR/capteurs défaillants, PAS turbo/injecteurs
+ORIENTATION : Diagnostic gratuit Re-Fap spécialisé EGR/FAP obligatoire`;
+  }
 
-CONTEXTE SPÉCIFIQUE : ${problemCategory}, niveau ${technicalLevel}
-Réponse directe et solution immédiate en 30 mots max.`,
-
-    brain2: `${PROMPTS.brain2}
-
-CONTEXTE COMMERCIAL : Push vers solution Re-Fap pour ${problemCategory}
-Bénéfices économiques en 25 mots max.`
+  return {
+    brain1: `${PROMPTS.brain1}${contextSpecifique}`,
+    brain2: `${PROMPTS.brain2}${contextSpecifique}`
   };
-
-  return specializedPrompts;
 }
 
-// Fonction principale de chat
+// 🎯 FONCTION PRINCIPALE DE CHAT
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Méthode non autorisée' });
@@ -501,58 +451,66 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Message requis' });
     }
 
-    // Étape 1 : Analyse du problème
+    // Étape 1 : Analyse complète du problème
     const problemAnalysis = ProblemDetector.analyze(message);
     const technicalLevel = ProblemDetector.detectTechnicalLevel(message);
+    const vehicleInfo = ProblemDetector.detectVehicleInfo(message);
+    const vehicleYear = ProblemDetector.detectVehicleYear(message);
 
-    console.log('🔍 Analyse:', { problemAnalysis, technicalLevel });
+    console.log('🔍 Analyse complète:', { 
+      problemAnalysis, 
+      technicalLevel, 
+      vehicleInfo, 
+      vehicleYear 
+    });
 
-    // Étape 2 : Obtenir les prompts optimisés
-    const optimizedPrompts = getOptimizedPrompts(problemAnalysis.category, technicalLevel);
+    // Étape 2 : Obtenir les prompts contextualisés
+    const enhancedPrompts = getEnhancedPrompts(problemAnalysis.category, technicalLevel, vehicleInfo);
 
-    // Étape 3 : Brain 1 - Diagnostic technique Julien (OPTIMISÉ)
+    // Étape 3 : Brain 1 - Diagnostic technique Julien expert
     const brain1Response = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [
-        { role: "system", content: optimizedPrompts.brain1 },
+        { role: "system", content: enhancedPrompts.brain1 },
         { role: "user", content: message }
       ],
-      max_tokens: 60,  // ✅ COURT ET DIRECT
-      temperature: 0.1  // ✅ PLUS PRÉVISIBLE
+      max_tokens: 60,
+      temperature: 0.1
     });
 
     const technicalDiagnosis = brain1Response.choices[0].message.content;
 
-    // Étape 4 : Brain 2 - Conseil commercial Re-Fap (OPTIMISÉ)
+    // Étape 4 : Brain 2 - Conseil commercial Re-Fap expert
     const brain2Response = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [
-        { role: "system", content: optimizedPrompts.brain2 },
+        { role: "system", content: enhancedPrompts.brain2 },
         { 
           role: "user", 
           content: `DIAGNOSTIC JULIEN: ${technicalDiagnosis}
           
           MESSAGE CLIENT: ${message}
           
-          CONTEXTE: ${problemAnalysis.category}, niveau ${technicalLevel}
+          CONTEXTE: ${problemAnalysis.category}, niveau ${technicalLevel}, véhicule ${vehicleInfo}
           
           Réponse commerciale Re-Fap ultra-directe en 25 mots max.`
         }
       ],
-      max_tokens: 50,   // ✅ ENCORE PLUS COURT
-      temperature: 0.1  // ✅ PRÉVISIBLE
+      max_tokens: 50,
+      temperature: 0.1
     });
 
     const commercialAdvice = brain2Response.choices[0].message.content;
 
-    // Étape 5 : Génération du CTA approprié
+    // Étape 5 : Génération du CTA approprié avec contexte véhicule
     const cta = CTAGenerator.generate(
       problemAnalysis.category, 
       technicalLevel, 
-      problemAnalysis.confidence
+      problemAnalysis.confidence,
+      vehicleInfo
     );
 
-    // Étape 6 : Fusion des réponses OPTIMISÉE
+    // Étape 6 : Fusion des réponses optimisée
     const finalResponse = `🧠 **Diagnostic Re-Fap Express** ⚡
 
 ✅ **Julien :** ${technicalDiagnosis}
@@ -561,25 +519,29 @@ export default async function handler(req, res) {
 
 🎯 **Ta solution :** ⬇️`;
 
-    // Log pour analytics
+    // Log pour analytics avec info véhicule
     console.log('🎯 Conversion tracking:', {
       problemCategory: problemAnalysis.category,
       technicalLevel,
+      vehicleInfo,
+      vehicleYear,
       ctaType: cta.title,
       timestamp: new Date().toISOString()
     });
 
-    // ✅ RÉPONSE OPTIMISÉE avec CTA
+    // ✅ RÉPONSE AMÉLIORÉE avec expertise spécialisée
     return res.status(200).json({
       message: finalResponse,
       cta: cta,
       metadata: {
         problemCategory: problemAnalysis.category,
         technicalLevel,
+        vehicleInfo,
+        vehicleYear,
         confidence: problemAnalysis.confidence,
-        aiMode: "🧠 Dual Brain Express",
+        aiMode: "🧠 Dual Brain Expert",
         userLevel: 1,
-        levelName: "Diagnostic Avancé",
+        levelName: "Diagnostic Spécialisé",
         leadValue: 53
       }
     });
