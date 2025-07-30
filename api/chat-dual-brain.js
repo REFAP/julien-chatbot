@@ -1,228 +1,8 @@
-// api/chat-dual-brain.js - Version Re-Fap Correcte Business Optimisée
+// api/chat-dual-brain.js
+// Version Dual Brain + Lead Generation pour Julien Chatbot
 
-// 🚨 DEBUG - NOUVEAU CODE RE-FAP ACTIF
-console.log('🔥🔥🔥 NOUVEAU CODE RE-FAP DÉPLOYÉ - VERSION CORRIGÉE 🔥🔥🔥');
-
-// === SYSTÈME CTA INTELLIGENT RE-FAP ===
-class SystemeCTAIntelligent {
-  constructor() {
-    this.parcoursUtilisateur = new Map();
-    this.historiqueCTA = new Map();
-  }
-
-  // 🎯 ANALYSE ET ORIENTATION PRINCIPALE
-  analyserEtOrienter(message, historique, userData = {}) {
-    console.log('🎯 Analyse CTA Re-Fap pour:', message.substring(0, 50));
-    
-    const parcoursDetecte = this.detecterParcoursPrincipal(message, historique);
-    const niveauCertitude = this.analyserCertitude(message, historique);
-    const profilUtilisateur = this.detecterProfilUtilisateur(message, historique, userData);
-    const sousParcours = this.selectionnerSousParcours(parcoursDetecte, niveauCertitude, profilUtilisateur);
-    const ctaPersonnalise = this.genererCTA(sousParcours, {
-      parcours: parcoursDetecte,
-      certitude: niveauCertitude,
-      profil: profilUtilisateur,
-      userData,
-      historique
-    });
-
-    return {
-      parcours: parcoursDetecte,
-      sousParcours: sousParcours,
-      certitude: niveauCertitude,
-      profil: profilUtilisateur,
-      cta: ctaPersonnalise,
-      tracking: {
-        sessionId: userData.sessionId,
-        timestamp: new Date().toISOString(),
-        conversion_path: `${parcoursDetecte}_${sousParcours}`
-      }
-    };
-  }
-
-  // 🔍 DÉTECTION PARCOURS PRINCIPAL
-  detecterParcoursPrincipal(message, historique) {
-    const messageLower = message.toLowerCase();
-    const contexteComplet = (historique.join(' ') + ' ' + message).toLowerCase();
-    
-    const motsFAP = ['fap', 'filtre particule', 'antipollution', 'egr', 'adblue', 'p2002', 'p2463', 'fumee noire', 'perte puissance ville', 'voyant fap'];
-    const scoreFAP = motsFAP.filter(mot => contexteComplet.includes(mot)).length;
-    
-    const motsAutres = ['frein', 'embrayage', 'courroie', 'alternateur', 'demarrage', 'direction', 'suspension'];
-    const scoreAutres = motsAutres.filter(mot => contexteComplet.includes(mot)).length;
-    
-    const motsIncertains = ['voyant', 'bruit', 'vibration', 'pas sur', 'sais pas', 'probleme', 'panne'];
-    const scoreIncertain = motsIncertains.filter(mot => contexteComplet.includes(mot)).length;
-    
-    if (scoreFAP > 0) return 'fap_confirme';
-    if (scoreAutres > scoreIncertain) return 'autre_probleme';
-    return 'diagnostic_necessaire';
-  }
-
-  // 📊 ANALYSE NIVEAU DE CERTITUDE
-  analyserCertitude(message, historique) {
-    const contexte = (message + ' ' + historique.join(' ')).toLowerCase();
-    
-    const indicateursCertains = ['code erreur', 'diagnostic fait', 'garage dit', 'confirme', 'sur que', 'certain', 'voyant fap', 'plus de puissance'];
-    const indicateursIncertains = ['peut etre', 'sais pas', 'pas sur', 'bizarre', 'etrange', 'jamais vu'];
-    
-    const certains = indicateursCertains.filter(ind => contexte.includes(ind)).length;
-    const incertains = indicateursIncertains.filter(ind => contexte.includes(ind)).length;
-    
-    if (certains > incertains) return 'elevee';
-    if (incertains > 2) return 'faible';
-    return 'moyenne';
-  }
-
-  // 👤 DÉTECTION PROFIL UTILISATEUR
-  detecterProfilUtilisateur(message, historique, userData) {
-    const contexte = (message + ' ' + historique.join(' ')).toLowerCase();
-    
-    const indicateursBricoleur = ['demonte', 'bricoleur', 'repare moi', 'outillage', 'mecanique', 'fais moi meme', 'autonome', 'peux le demonter', 'demonter pour', 'faire nettoyer'];
-    const indicateursParticulier = ['garage', 'mecanicien', 'reparateur', 'faire reparer', 'combien ca coute', 'devis', 'rdv'];
-    
-    const scoreBricoleur = indicateursBricoleur.filter(ind => contexte.includes(ind)).length;
-    const scoreParticulier = indicateursParticulier.filter(ind => contexte.includes(ind)).length;
-    
-    if (scoreBricoleur > 0) return 'bricoleur_confirme';
-    if (scoreParticulier > 0) return 'particulier_standard';
-    return 'indetermine';
-  }
-
-  // 🎯 SÉLECTION SOUS-PARCOURS
-  selectionnerSousParcours(parcours, certitude, profil) {
-    if (parcours === 'fap_confirme') {
-      if (profil === 'bricoleur_confirme') return 'fap_bricoleur_carter_cash';
-      if (certitude === 'elevee') return 'fap_garage_partenaire_direct';
-      if (certitude === 'faible') return 'fap_diagnostic_puis_refap';
-      return 'fap_garage_partenaire_direct';
-    }
-    
-    if (parcours === 'autre_probleme') {
-      if (certitude === 'elevee') return 'autre_idgarages_direct';
-      return 'autre_diagnostic_ligne_puis_rdv';
-    }
-    
-    return 'diagnostic_qualification_complete';
-  }
-
-  // 💎 GÉNÉRATION CTA RE-FAP
-  genererCTA(sousParcours, contexte) {
-    const configs = {
-      fap_garage_partenaire_direct: {
-        type: 'conversion_refap_garage',
-        message: `🔧 **SOLUTION RE-FAP - NETTOYAGE CABINE**
-
-**💡 FAP bouché = Nettoyage en cabine Re-Fap**
-• ✅ **Jusqu'à 80% d'économie** vs remplacement
-• ✅ **Garantie 1 an** sur le nettoyage
-• ✅ **Traitement sous 48h**
-• ✅ **Solution écologique**
-
-**🛠️ Process :** Garage partenaire → diagnostic → dépôt → nettoyage cabine → remontage
-
-**STOP au remplacement systématique !**`,
-        boutons: [
-          { text: "🔍 Trouver garage partenaire", action: "garage_partenaire_refap", data: { type: "garage_partenaire", url: "https://re-fap.fr/trouver_garage_partenaire/" } },
-          { text: "📞 Diagnostic idGarages", action: "diagnostic_idgarages", data: { type: "diagnostic", url: "https://www.idgarages.com/fr-fr/prestations/diagnostic-electronique?utm_source=re-fap&utm_medium=partenariat&utm_campaign=diagnostic-electronique&ept-publisher=re-fap&ept-name=re-fap-diagnostic-electronique" } }
-        ]
-      },
-
-      fap_bricoleur_carter_cash: {
-        type: 'conversion_bricoleur_actionnable',
-        message: `🔧 **PARFAIT ! Solutions pour Bricoleur**
-
-**💰 Option 1 - Carter-Cash Équipé :**
-• **99-149€** selon ton modèle
-• Centres avec machine Re-Fap
-• Tu apportez, on nettoie, tu récupères
-
-**📦 Option 2 - Envoi Postal :**
-• Service clé en main complet
-• Traitement 48h garanti`,
-        boutons: [
-          { text: "🏪 Centres Carter-Cash équipés", action: "carter_cash_equipes", data: { type: "carter_cash", url: "https://auto.re-fap.fr/carter-cash_machine_re-fap/" } },
-          { text: "📦 Service postal Re-Fap", action: "nettoyage_postal", data: { type: "postal", url: "https://auto.re-fap.fr/" } }
-        ]
-      },
-
-      fap_diagnostic_puis_refap: {
-        type: 'diagnostic_refap',
-        message: `🔍 **DIAGNOSTIC PUIS NETTOYAGE RE-FAP**
-
-**🎯 Étapes recommandées :**
-1. Diagnostic pour confirmer FAP bouché
-2. Orientation vers nettoyage cabine Re-Fap
-3. Économie jusqu'à 80% vs remplacement
-
-**Garages partenaires formés Re-Fap**`,
-        boutons: [
-          { text: "📞 Diagnostic idGarages", action: "diagnostic_idgarages", data: { type: "diagnostic" } },
-          { text: "🔍 Garage partenaire Re-Fap", action: "garage_partenaire_refap", data: { type: "garage_partenaire" } }
-        ]
-      },
-
-      autre_idgarages_direct: {
-        type: 'conversion_idgarages',
-        message: `🔧 **DIAGNOSTIC PROFESSIONNEL idGarages**
-
-**🎯 Réseau partenaire Re-Fap :**
-• Diagnostic électronique complet
-• Orientation vers solution économique
-• Transparence des tarifs`,
-        boutons: [
-          { text: "📞 Diagnostic idGarages", action: "diagnostic_idgarages", data: { type: "diagnostic" } }
-        ]
-      },
-
-      autre_diagnostic_ligne_puis_rdv: {
-        type: 'diagnostic_orientation',
-        message: `🔍 **DIAGNOSTIC EN LIGNE PUIS ORIENTATION**
-
-**Processus :**
-• Questions ciblées sur tes symptômes
-• Orientation vers solution adaptée
-• Garage partenaire si nécessaire`,
-        boutons: [
-          { text: "🔍 Diagnostic en ligne", action: "diagnostic_ligne_complet", data: { type: "diagnostic_ligne" } },
-          { text: "📞 Diagnostic idGarages", action: "diagnostic_idgarages", data: { type: "diagnostic" } }
-        ]
-      },
-
-      diagnostic_qualification_complete: {
-        type: 'qualification_generale',
-        message: `❓ **DIAGNOSTIC PERSONNALISÉ**
-
-**Aide pour identifier ton problème :**
-• Questions ciblées selon symptômes
-• Solutions économiques prioritaires
-• Orientation Re-Fap si FAP détecté`,
-        boutons: [
-          { text: "🔍 Diagnostic complet", action: "diagnostic_ligne_complet", data: { type: "diagnostic_ligne" } }
-        ]
-      }
-    };
-
-    const config = configs[sousParcours] || {
-      type: 'orientation_generale',
-      message: `🔧 **Assistance Technique Re-Fap**`,
-      boutons: [
-        { text: "🔍 Diagnostic", action: "diagnostic_general", data: { type: "diagnostic_general" } }
-      ]
-    };
-
-    return config;
-  }
-}
-
-// Instance globale
-const ctaSystem = new SystemeCTAIntelligent();
-
-// === API HANDLER PRINCIPAL ===
 export default async function handler(req, res) {
-  // 🚨 DEBUG - NOUVEAU CODE RE-FAP ACTIF
-  console.log('🔥🔥🔥 NOUVEAU CODE RE-FAP DÉPLOYÉ - VERSION CORRIGÉE 🔥🔥🔥');
-  
+  // Configuration CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -232,340 +12,175 @@ export default async function handler(req, res) {
   }
   
   if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, error: 'Méthode non autorisée' });
+    return res.status(405).json({ error: 'Méthode non autorisée' });
   }
 
   try {
-    const { message, userData = {}, sessionId, historique = [], action } = req.body;
-
-    console.log('🔧 API Re-Fap NOUVEAU:', { message: message?.substring(0, 50), action });
-
-    // GESTION DES ACTIONS CTA
-    if (action) {
-      return await handleCTAAction(action, req.body, res);
-    }
-
-    if (!message) {
-      return res.status(400).json({ success: false, error: 'Message requis' });
-    }
-
-    // Détection email automatique
-    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-    const userEmail = message.match(emailRegex)?.[0];
+    const { message, userData = {}, sessionId, action } = req.body;
     
-    if (userEmail) {
+    if (!message && action !== 'CREATE_LEAD') {
+      return res.status(400).json({ error: 'Message requis' });
+    }
+
+    // === GESTION SPÉCIALE CRÉATION DE LEAD ===
+    if (action === 'CREATE_LEAD') {
+      return await handleLeadCreation(req, res);
+    }
+
+    // === DÉTECTION EMAIL AUTOMATIQUE ===
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+    const detectedEmail = message.match(emailRegex)?.[0];
+    
+    if (detectedEmail) {
+      // Email détecté = activation premium + création lead
+      const leadResult = await createLeadFromEmail(detectedEmail, message, sessionId);
+      
       return res.status(200).json({
         success: true,
-        message: genererReponseEmailConfirme(userEmail),
-        cta: genererCTAEmailConfirme(),
+        message: `🎉 **EMAIL CONFIRMÉ : ${detectedEmail}** 🎉\n\n` +
+          `✅ **DIAGNOSTIC PREMIUM GRATUIT ACTIVÉ !**\n\n` +
+          `📧 **Votre rapport détaillé sera envoyé dans 2 minutes à :**\n` +
+          `${detectedEmail}\n\n` +
+          `🚀 **Diagnostic en cours de génération...**\n` +
+          `• Analyse technique approfondie par Dual Brain IA\n` +
+          `• Estimation précise des coûts (pièces + main d'œuvre)\n` +
+          `• Guide de réparation avec photos étape par étape\n` +
+          `• Liste de garages partenaires Re-Fap dans votre région\n` +
+          `• Conseils anti-arnaque pour négocier\n\n` +
+          `📱 **Vérifiez votre boîte mail dans 2 minutes !**\n` +
+          `*Pensez à vérifier vos spams si besoin*\n\n` +
+          `🎁 **BONUS :** Vous recevrez aussi nos alertes rappels constructeurs !`,
         metadata: {
-          mode: "🔧 Accompagnement Re-Fap",
+          aiMode: "🎁 Email Premium Activé",
           userLevel: 1,
-          email: userEmail,
-          refap: true,
+          leadValue: leadResult.leadValue || 85,
+          email: detectedEmail,
+          leadCreated: leadResult.success,
           timestamp: new Date().toISOString()
+        },
+        rewardSystem: {
+          userLevel: 1,
+          leadValue: leadResult.leadValue || 85,
+          conversionStrategy: null // Plus besoin de conversion
         }
       });
     }
 
-    // Détection niveau utilisateur
+    // === DÉTECTION NIVEAU UTILISATEUR ===
     let userLevel = 0;
     if (userData.email) userLevel = 1;
     if (userData.phone) userLevel = 2;
+    if (userData.vehicleInfo) userLevel = 3;
 
-    // Appel IA pour réponse
-    let response = "";
-    let mode = "simulation_refap";
-    let economicValue = 150;
+    // === APPEL DUAL BRAIN ===
+    const dualBrainResponse = await callDualBrain(message, userLevel);
     
-    try {
-      const claudeResponse = await callClaudeRefap(message, userLevel);
-      const openaiResponse = await callOpenAIRefap(message, userLevel);
-      
-      if (claudeResponse && openaiResponse) {
-        response = await fusionRefap(message, claudeResponse, openaiResponse, userLevel);
-        mode = "dual_brain_refap";
-        economicValue = 200;
-      } else if (claudeResponse) {
-        response = formatClaudeRefap(claudeResponse, userLevel);
-        mode = "claude_refap";
-        economicValue = 180;
-      } else {
-        response = await simulationRefapIntelligente(message, userLevel);
-        mode = "simulation_refap";
-      }
-    } catch (error) {
-      response = await simulationRefapIntelligente(message, userLevel);
-      mode = "simulation_refap";
-    }
+    // === ANALYSE BUSINESS ===
+    const businessAnalysis = analyzeBusiness(message, dualBrainResponse, userLevel);
+    
+    // === LOGGING AIRTABLE ===
+    await logToAirtable({
+      message,
+      response: dualBrainResponse.content,
+      userLevel,
+      leadValue: businessAnalysis.leadValue,
+      mode: dualBrainResponse.mode,
+      needType: businessAnalysis.needType,
+      sessionId
+    });
 
-    // 🎯 GÉNÉRATION CTA INTELLIGENT
-    const ctaAnalyse = ctaSystem.analyserEtOrienter(
-      message, 
-      historique, 
-      { ...userData, sessionId, interactions: historique.length }
-    );
-
-    console.log('🎯 CTA Re-Fap généré:', ctaAnalyse.sousParcours);
-
-    // Ajout invitation email SEULEMENT si niveau 0 ET pas d'email ET pas d'email dans l'historique
-    const hasEmailInHistory = historique.some(msg => emailRegex.test(msg)) || userData.email;
-    if (userLevel === 0 && !hasEmailInHistory) {
-      response += genererInvitationEmailBienveillante();
-    }
-
-    const needType = detectNeedType(message);
-    const baseScore = calculateRefapScore(needType, mode);
-    const leadValue = Math.round(economicValue * 0.20); // 20% pour Re-Fap
-
+    // === RÉPONSE FINALE ===
     return res.status(200).json({
       success: true,
-      message: response,
-      cta: ctaAnalyse.cta,
-      parcours: {
-        type: ctaAnalyse.parcours,
-        sous_parcours: ctaAnalyse.sousParcours,
-        certitude: ctaAnalyse.certitude,
-        profil: ctaAnalyse.profil
-      },
+      message: dualBrainResponse.content,
       metadata: {
-        mode,
+        aiMode: dualBrainResponse.mode,
         userLevel,
         levelName: getLevelName(userLevel),
-        needType,
-        leadValue,
-        economicValue,
-        score: baseScore,
-        partner: "Re-Fap",
-        refap: true,
-        timestamp: new Date().toISOString(),
-        cta_tracking: ctaAnalyse.tracking
+        needType: businessAnalysis.needType,
+        leadValue: businessAnalysis.leadValue,
+        score: dualBrainResponse.score,
+        partner: getOptimalPartner(businessAnalysis.needType),
+        timestamp: new Date().toISOString()
+      },
+      rewardSystem: {
+        userLevel,
+        leadValue: businessAnalysis.leadValue,
+        conversionStrategy: userLevel === 0 ? generateConversionStrategy(businessAnalysis) : null
       }
     });
 
   } catch (error) {
-    console.error('💥 Erreur API Re-Fap:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erreur serveur temporaire',
-      fallback: "🔥 NOUVEAU CODE RE-FAP ACTIF ! Décris ton problème FAP... 🔧",
-      debug: "VERSION CORRIGÉE DÉPLOYÉE"
+    console.error('💥 Erreur chat-dual-brain:', error);
+    return res.status(500).json({ 
+      error: 'Erreur serveur',
+      fallback: "Désolé, problème technique temporaire. Peux-tu reformuler ta question ?"
     });
   }
 }
 
-// === GESTION ACTIONS CTA ===
-async function handleCTAAction(action, requestBody, res) {
-  const { userData = {}, sessionId, ctaData = {} } = requestBody;
+// === FONCTION DUAL BRAIN PRINCIPALE ===
+async function callDualBrain(message, userLevel) {
+  const startTime = Date.now();
   
-  console.log('🎯 Action CTA Re-Fap:', action, ctaData);
-
   try {
-    switch (action) {
-      case 'garage_partenaire_refap':
-        return await handleGaragePartenaireRefap(userData, res);
-        
-      case 'diagnostic_idgarages':
-        return await handleDiagnosticIdgarages(userData, res);
-        
-      case 'carter_cash_equipes':
-        return await handleCarterCashEquipes(userData, res);
-        
-      case 'nettoyage_postal':
-        return await handleNettoyagePostal(userData, res);
-        
-      case 'diagnostic_ligne_complet':
-        return await handleDiagnosticLigneComplet(userData, res);
-        
-      default:
-        return res.status(400).json({
-          success: false,
-          error: 'Action CTA non reconnue'
-        });
+    // Appels parallèles Claude + OpenAI
+    const [claudeResult, openaiResult] = await Promise.allSettled([
+      callClaude(message, userLevel),
+      callOpenAI(message, userLevel)
+    ]);
+    
+    const claudeResponse = claudeResult.status === 'fulfilled' ? claudeResult.value : null;
+    const openaiResponse = openaiResult.status === 'fulfilled' ? openaiResult.value : null;
+    
+    // FUSION INTELLIGENTE
+    if (claudeResponse && openaiResponse) {
+      const fusedContent = await fuseDualBrain(message, claudeResponse, openaiResponse, userLevel);
+      return {
+        content: fusedContent,
+        mode: "🧠 Dual Brain (Claude + OpenAI)",
+        score: 9.2,
+        processingTime: Date.now() - startTime
+      };
+    } 
+    else if (claudeResponse) {
+      return {
+        content: await formatSingleAI(message, claudeResponse, userLevel, 'Claude'),
+        mode: "🎯 Claude Expert",
+        score: 8.8,
+        processingTime: Date.now() - startTime
+      };
     }
+    else if (openaiResponse) {
+      return {
+        content: await formatSingleAI(message, openaiResponse, userLevel, 'OpenAI'),
+        mode: "🤖 OpenAI Enhanced",
+        score: 8.5,
+        processingTime: Date.now() - startTime
+      };
+    }
+    
   } catch (error) {
-    console.error('❌ Erreur action CTA Re-Fap:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erreur traitement CTA'
-    });
+    console.error('❌ Erreur Dual Brain:', error);
   }
+  
+  // FALLBACK INTELLIGENT
+  const intelligentFallback = await generateIntelligentFallback(message, userLevel);
+  return {
+    content: intelligentFallback,
+    mode: "⚡ Simulation Expert",
+    score: 8.0,
+    processingTime: Date.now() - startTime
+  };
 }
 
-// === HANDLERS CTA RE-FAP ===
-
-async function handleGaragePartenaireRefap(userData, res) {
-  const message = `🔍 **TROUVER UN GARAGE PARTENAIRE RE-FAP**
-
-**🎯 Avantages réseau partenaire :**
-• ✅ Formés au process Re-Fap
-• ✅ Diagnostic → dépôt → nettoyage cabine → remontage
-• ✅ Tarifs transparents
-• ✅ Garantie 1 an sur nettoyage
-
-**🌐 Trouve le garage le plus proche :**
-👉 **https://re-fap.fr/trouver_garage_partenaire/**
-
-**💡 Réseau MIDAS et garages indépendants partenaires**
-**🔧 Solution écologique et économique garantie**`;
-
-  return res.status(200).json({
-    success: true,
-    message,
-    action_completed: 'garage_partenaire_refap',
-    redirect_url: 'https://re-fap.fr/trouver_garage_partenaire/',
-    cta: {
-      type: 'redirect_garage_partenaire',
-      message: "🔍 **Prêt à trouver ton garage ?**",
-      boutons: [
-        { text: "🌐 Ouvrir la carte", action: "open_garage_map", data: { url: "https://re-fap.fr/trouver_garage_partenaire/" } }
-      ]
-    }
-  });
-}
-
-async function handleDiagnosticIdgarages(userData, res) {
-  const message = `📞 **DIAGNOSTIC ÉLECTRONIQUE idGarages**
-
-**🎯 Partenaire officiel Re-Fap :**
-• ✅ Diagnostic électronique complet
-• ✅ Identification précise problème FAP
-• ✅ Orientation vers nettoyage Re-Fap
-• ✅ Réseau national 2000+ centres
-
-**🌐 Prendre RDV diagnostic :**
-👉 **https://www.idgarages.com/fr-fr/prestations/diagnostic-electronique?utm_source=re-fap&utm_medium=partenariat&utm_campaign=diagnostic-electronique&ept-publisher=re-fap&ept-name=re-fap-diagnostic-electronique**
-
-**💡 Tarif diagnostic transparent**
-**🔧 Orientation Re-Fap après confirmation**`;
-
-  return res.status(200).json({
-    success: true,
-    message,
-    action_completed: 'diagnostic_idgarages',
-    redirect_url: 'https://www.idgarages.com/fr-fr/prestations/diagnostic-electronique?utm_source=re-fap&utm_medium=partenariat&utm_campaign=diagnostic-electronique&ept-publisher=re-fap&ept-name=re-fap-diagnostic-electronique',
-    cta: {
-      type: 'redirect_idgarages',
-      message: "📞 **Prendre RDV diagnostic ?**",
-      boutons: [
-        { text: "🌐 RDV idGarages", action: "open_idgarages", data: { url: "diagnostic_idgarages" } }
-      ]
-    }
-  });
-}
-
-async function handleCarterCashEquipes(userData, res) {
-  const message = `🏪 **CARTER-CASH ÉQUIPÉS MACHINE RE-FAP**
-
-**🔧 Pour les bricoleurs :**
-• ✅ **Prix : 99-149€** selon modèle véhicule
-• ✅ Tu démontez ton FAP toi-même
-• ✅ Nettoyage cabine professionnel
-• ✅ Centres équipés de la machine Re-Fap
-
-**🌐 Centres Carter-Cash équipés :**
-👉 **https://auto.re-fap.fr/carter-cash_machine_re-fap/**
-
-**⚠️ Vérifier disponibilité machine avant déplacement**
-**🔧 Process : démontage → apport → nettoyage → récupération**`;
-
-  return res.status(200).json({
-    success: true,
-    message,
-    action_completed: 'carter_cash_equipes',
-    redirect_url: 'https://auto.re-fap.fr/carter-cash_machine_re-fap/',
-    prix_range: '99-149€',
-    cta: {
-      type: 'redirect_carter_cash',
-      message: "🏪 **Voir les centres équipés ?**",
-      boutons: [
-        { text: "🌐 Carter-Cash équipés", action: "open_carter_cash", data: { url: "carter_cash_equipes" } }
-      ]
-    }
-  });
-}
-
-async function handleNettoyagePostal(userData, res) {
-  const message = `📦 **NETTOYAGE FAP RE-FAP - ENVOI POSTAL**
-
-**🎯 Service clé en main :**
-• ✅ Démontage par garage partenaire
-• ✅ Envoi postal sécurisé
-• ✅ Nettoyage cabine Re-Fap
-• ✅ Retour sous 48h
-
-**🌐 Informations et tarifs :**
-👉 **https://auto.re-fap.fr/**
-
-**💡 Solution pour tous les garages**
-**🔧 Process complet géré par Re-Fap**`;
-
-  return res.status(200).json({
-    success: true,
-    message,
-    action_completed: 'nettoyage_postal',
-    redirect_url: 'https://auto.re-fap.fr/',
-    cta: {
-      type: 'redirect_postal',
-      message: "📦 **En savoir plus ?**",
-      boutons: [
-        { text: "🌐 Service postal", action: "open_postal", data: { url: "nettoyage_postal" } }
-      ]
-    }
-  });
-}
-
-async function handleDiagnosticLigneComplet(userData, res) {
-  const message = `🔍 **DIAGNOSTIC EN LIGNE PERSONNALISÉ**
-
-**🎯 Questions ciblées pour identifier :**
-• Type de problème (FAP, moteur, autres)
-• Urgence de l'intervention
-• Orientation vers solution adaptée
-
-**💡 Si FAP détecté → Orientation Re-Fap**
-**🔧 Diagnostic gratuit et conseil expert**`;
-
-  return res.status(200).json({
-    success: true,
-    message,
-    action_completed: 'diagnostic_ligne_complet',
-    cta: {
-      type: 'diagnostic_interactif',
-      form: {
-        fields: ['vehicule', 'symptomes_principaux', 'voyants_allumes', 'perte_puissance'],
-        required: ['vehicule', 'symptomes_principaux'],
-        title: '🔍 Diagnostic Personnalisé'
-      }
-    }
-  });
-}
-
-// === APPELS IA RE-FAP ===
-
-async function callClaudeRefap(message, userLevel) {
+// === APPELS IA INDIVIDUELS ===
+async function callClaude(message, userLevel) {
   try {
     const claudeKey = process.env.CLAUDE_API_KEY;
     if (!claudeKey) return null;
 
-    const refapPrompt = `Tu es un assistant IA spécialisé en mécanique auto, partenaire de Re-Fap.
-
-MISSION : Proposer systématiquement le nettoyage FAP Re-Fap plutôt que le remplacement.
-
-LOGIQUE RE-FAP :
-- Si symptôme FAP confirmé → orienter vers Re-Fap ou garage partenaire
-- Si bricoleur → Carter-Cash équipé (99-149€) ou envoi postal
-- Sinon → garage partenaire (MIDAS, idGarages) pour diagnostic + nettoyage + remontage
-
-ARGUMENTS CLÉS :
-- Solution écologique et économique
-- Garantie 1 an sur nettoyage
-- Jusqu'à 80% d'économie vs remplacement
-- Traitement sous 48h
-
-NIVEAU ${userLevel} : ${userLevel === 0 ? "Aide gratuite" : "Accompagnement personnalisé"}
-
-Reste technique, précis et orienté Re-Fap.`;
+    const systemPrompt = buildClaudePrompt(userLevel);
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -576,9 +191,9 @@ Reste technique, précis et orienté Re-Fap.`;
       },
       body: JSON.stringify({
         model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 800,
+        max_tokens: 1000,
         messages: [
-          { role: 'user', content: `${refapPrompt}\n\nProblème auto: ${message}` }
+          { role: 'user', content: `${systemPrompt}\n\nQuestion: ${message}` }
         ]
       })
     });
@@ -586,34 +201,18 @@ Reste technique, précis et orienté Re-Fap.`;
     if (!response.ok) return null;
     const data = await response.json();
     return data.content[0].text;
-
   } catch (error) {
-    console.error('❌ Erreur Claude Re-Fap:', error.message);
+    console.error('❌ Erreur Claude:', error);
     return null;
   }
 }
 
-async function callOpenAIRefap(message, userLevel) {
+async function callOpenAI(message, userLevel) {
   try {
     const openaiKey = process.env.CLE_API_OPENAI;
     if (!openaiKey) return null;
 
-    const refapPrompt = `Tu es un assistant spécialisé Re-Fap. 
-
-MISSION : Orienter vers nettoyage FAP Re-Fap au lieu de remplacement.
-
-PROCESS :
-- Diagnostic FAP → nettoyage cabine Re-Fap
-- Bricoleur → Carter-Cash équipé (99-149€)
-- Particulier → garage partenaire
-
-ARGUMENTS :
-- Écologique, économique, garanti 1 an
-- 80% d'économie, traitement 48h
-
-NIVEAU ${userLevel} : ${userLevel === 0 ? "Aide gratuite" : "Accompagnement expert"}
-
-Sois technique et orienté solution Re-Fap.`;
+    const systemPrompt = buildOpenAIPrompt(userLevel);
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -623,9 +222,9 @@ Sois technique et orienté solution Re-Fap.`;
       },
       body: JSON.stringify({
         model: 'gpt-4o',
-        max_tokens: 800,
+        max_tokens: 1000,
         messages: [
-          { role: 'system', content: refapPrompt },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
         ]
       })
@@ -634,164 +233,324 @@ Sois technique et orienté solution Re-Fap.`;
     if (!response.ok) return null;
     const data = await response.json();
     return data.choices[0].message.content;
-
   } catch (error) {
-    console.error('❌ Erreur OpenAI Re-Fap:', error.message);
+    console.error('❌ Erreur OpenAI:', error);
     return null;
   }
 }
 
-// === FUSIONS ET FORMATAGE ===
+// === CONSTRUCTION DES PROMPTS ===
+function buildClaudePrompt(userLevel) {
+  return `Tu es Julien, expert automobile FAP/EGR/AdBlue depuis 20 ans chez Re-Fap.
 
-async function fusionRefap(message, claudeResponse, openaiResponse, userLevel) {
-  if (userLevel === 0) {
-    return `🔧 **Diagnostic Re-Fap Dual Brain** 🔧
+NIVEAU UTILISATEUR: ${userLevel}
+- Niveau 0: Diagnostic de base + encourager email pour premium
+- Niveau 1+: Diagnostic technique complet avec estimations précises
 
-${claudeResponse}
+STYLE JULIEN:
+- Direct, expert, rassurant
+- Questions pertinentes pour approfondir
+- Estimations de coûts réalistes
+- Conseils sécurité prioritaires
 
-💡 **Perspective complémentaire :**
-${openaiResponse}`;
-  } else {
-    return `🧠 **Expertise Re-Fap Dual Brain** 🔧
+SPÉCIALITÉS:
+- FAP/EGR/AdBlue (ton expertise principale)
+- Diagnostic précis des pannes
+- Solutions économiques vs remplacement
+- Garages partenaires Re-Fap
 
-**🎯 Analyse Technique :**
-${claudeResponse}
-
-**💡 Approche Solution :**
-${openaiResponse}`;
-  }
+Réponds avec expertise technique et bienveillance.`;
 }
 
-function formatClaudeRefap(claudeResponse, userLevel) {
-  if (userLevel === 0) {
-    return `🔧 **Diagnostic Re-Fap** 🔧\n\n${claudeResponse}`;
-  } else {
-    return `🧠 **Expertise Re-Fap** 🔧\n\n${claudeResponse}`;
-  }
+function buildOpenAIPrompt(userLevel) {
+  return `Tu es un assistant conversationnel expert en automobile, spécialisé dans l'engagement client.
+
+NIVEAU UTILISATEUR: ${userLevel}
+- Niveau 0: Encourage vivement à donner email pour diagnostic complet
+- Niveau 1+: Sois très détaillé, rassurant et expert
+
+FORCES:
+- Ton engageant et rassurant
+- Excellente capacité à expliquer simplement
+- Persuasion naturelle pour conversion
+- Empathie avec les problèmes clients
+
+OBJECTIF: Créer une expérience client exceptionnelle qui donne envie de revenir.`;
 }
 
-// === SIMULATION RE-FAP ===
-
-async function simulationRefapIntelligente(message, userLevel) {
+// === FUSION DUAL BRAIN ===
+async function fuseDualBrain(message, claudeResponse, openaiResponse, userLevel) {
   const needType = detectNeedType(message);
-  const lowerMessage = message.toLowerCase();
   
-  let baseResponse = "";
-  
-  if (needType === "fap") {
-    if (userLevel === 0) {
-      baseResponse = `🔧 **Diagnostic Re-Fap - FAP Détecté**
-
-Voyant FAP + perte puissance = FAP bouché confirmé !
-
-**💡 Solution Re-Fap (STOP au remplacement) :**
-• **Nettoyage cabine professionnel** comme neuf
-• **Jusqu'à 80% d'économie** vs remplacement 
-• **Garantie 1 an** - Traitement 48h
-
-**🔧 Tes options :**
-• **Bricoleur ?** Carter-Cash équipé (99-149€)
-• **Garage ?** Partenaire Re-Fap service complet
-
-Questions pour t'orienter précisément :
-- Marque/modèle de ta voiture ?
-- Tu peux démonter le FAP ou tu préfères confier au garage ?`;
-    } else {
-      // Email confirmé - Plus direct et actionnable
-      baseResponse = `🔧 **Diagnostic Re-Fap Confirmé**
-
-**FAP bouché détecté :** Voyant + perte puissance = signature classique.
-
-**Process Re-Fap optimal :**
-✅ **Nettoyage cabine** au lieu de remplacement
-✅ **80% d'économie garantie** 
-✅ **Traitement 48h + garantie 1 an**
-
-**Tes options immédiates :**
-• **Carter-Cash équipé :** 99-149€ (démontage autonome)
-• **Garage partenaire :** Service complet diagnostic → nettoyage → remontage
-
-Tu peux démonter ton FAP ou tu préfères le service garage complet ?`;
-    }
+  if (userLevel === 0) {
+    return `🧠 **Diagnostic Dual Brain Activé** 🔧\n\n` +
+      `**Analyse technique (Claude):**\n${claudeResponse}\n\n` +
+      `**Expertise complémentaire (OpenAI):**\n${openaiResponse}\n\n` +
+      `🎯 **DIAGNOSTIC COMPLET GRATUIT** 🎯\n` +
+      `📧 **Tapez votre email pour recevoir :**\n` +
+      `• Rapport technique détaillé\n` +
+      `• Estimation précise des coûts\n` +
+      `• Guide de réparation photos\n` +
+      `• Garages partenaires recommandés\n\n` +
+      `⚡ **Réponse automatique en 2 minutes !**`;
+  } else {
+    return `🧠 **Analyse Dual Brain Premium** 🔧\n\n` +
+      `**Diagnostic Expert (Claude):**\n${claudeResponse}\n\n` +
+      `**Analyse Complémentaire (OpenAI):**\n${openaiResponse}\n\n` +
+      `✅ **Diagnostic complet terminé !**`;
   }
-  else if (needType === "brakes") {
-    baseResponse = `🔧 **Diagnostic Freinage**
-
-Problème freinage = diagnostic professionnel obligatoire (sécurité).
-
-**Orientation :** Garage partenaire idGarages pour diagnostic transparent.
-
-Décris tes symptômes exacts ?`;
-  }
-  else if (needType === "engine") {
-    baseResponse = `🔧 **Diagnostic Voyant Moteur**
-
-Voyant moteur = diagnostic OBD nécessaire.
-
-**Si FAP/EGR :** Orientation Re-Fap
-**Si autre :** Garage idGarages
-
-Diagnostic en ligne pour t'orienter ?`;
-  }
-  else {
-    baseResponse = `🔧 **Assistant Re-Fap**
-
-Spécialisé FAP et solutions économiques vs remplacement.
-
-**Expertise :** Nettoyage Re-Fap, réseau garages partenaires.
-
-Décris tes symptômes pour diagnostic personnalisé ?`;
-  }
-  
-  return baseResponse;
 }
 
-// === UTILITAIRES ===
-
-function genererReponseEmailConfirme(email) {
-  const prenom = email.split('@')[0].split('.')[0];
-  return `🎉 **Merci ${prenom} !** 📧
-
-✅ **Email confirmé → Accompagnement Re-Fap personnalisé**
-
-📋 **Tu vas recevoir :**
-• Guide nettoyage FAP vs remplacement
-• Réseau garages partenaires Re-Fap
-• Conseils techniques anti-arnaque
-
-🔧 **Continue à me parler pour ton diagnostic !**`;
+async function formatSingleAI(message, response, userLevel, aiName) {
+  const icon = aiName === 'Claude' ? '🎯' : '🤖';
+  
+  if (userLevel === 0) {
+    return `${icon} **Diagnostic ${aiName} Activé** \n\n${response}\n\n` +
+      `🎯 **POUR VOTRE DIAGNOSTIC COMPLET :**\n` +
+      `📧 **Tapez votre email dans le chat** ⬇️`;
+  } else {
+    return `${icon} **Analyse ${aiName} Premium** 🔧\n\n${response}`;
+  }
 }
 
-function genererCTAEmailConfirme() {
-  return {
-    type: 'email_confirmed',
-    message: "🎉 **Email confirmé ! Tu peux maintenant :**",
-    boutons: [
-      { text: "🔧 Continuer diagnostic", action: "continuer_diagnostic", data: { email_confirmed: true } }
+// === FALLBACK INTELLIGENT ===
+async function generateIntelligentFallback(message, userLevel) {
+  const needType = detectNeedType(message);
+  const responses = getFallbackResponses(needType, userLevel);
+  
+  // Sélection intelligente selon le contexte
+  return responses[Math.floor(Math.random() * responses.length)];
+}
+
+function getFallbackResponses(needType, userLevel) {
+  const base = userLevel === 0 ? "Diagnostic de base" : "Analyse premium";
+  const cta = userLevel === 0 ? 
+    "\n\n🎯 **DIAGNOSTIC COMPLET GRATUIT :**\n📧 **Tapez votre email dans le chat** ⬇️" : 
+    "\n\n✅ **Diagnostic personnalisé activé !**";
+
+  const responses = {
+    brakes: [
+      `🔧 **${base}** - Problème de freinage détecté.\n\nD'après tes symptômes, je suspecte un problème de plaquettes ou disques. Questions importantes : Le bruit apparaît au freinage ? Vibrations ressenties ? Le frein tire d'un côté ?\n\n⚠️ **Sécurité prioritaire** - Contrôle urgent recommandé !${cta}`,
+      
+      `🔧 **${base}** - Freinage à analyser.\n\nTes symptômes correspondent à plusieurs causes possibles. Pour un diagnostic précis, j'ai besoin de savoir : À quel moment ça arrive ? Type de bruit ? Pédale molle ou dure ?\n\n🎯 **Mon expertise freinage** à ton service !${cta}`
+    ],
+    
+    engine: [
+      `🔧 **${base}** - Problème moteur identifié.\n\nD'après ta description, plusieurs pistes : voyant allumé ? Perte de puissance ? Fumées ? Mon expérience me dit qu'il faut agir vite pour éviter la casse moteur.\n\n⚡ **Diagnostic rapide recommandé** !${cta}`,
+      
+      `🔧 **${base}** - Moteur à surveiller.\n\nTes symptômes m'interpellent. Pour cibler le problème : Quand ça arrive ? À froid ou chaud ? Voyants tableau de bord ? J'ai 20 ans d'expérience sur ces pannes !\n\n🎯 **Expertise moteur** activée !${cta}`
+    ],
+    
+    general: [
+      `🔧 **${base}** - Problème auto détecté.\n\nD'après tes symptômes, j'ai besoin de plus d'infos pour un diagnostic précis : Quand ça arrive ? Voyants allumés ? Bruits particuliers ? 20 ans d'expérience à ton service !\n\n🎯 **Expert automobile** prêt !${cta}`,
+      
+      `🔧 **${base}** - Analyse en cours.\n\nJe vois que tu as un souci auto. Mon expertise me dit qu'il faut creuser : Symptômes exacts ? Fréquence ? Contexte d'apparition ? Je vais t'aider à résoudre ça !\n\n⚡ **Diagnostic expert** !${cta}`
     ]
   };
+
+  return responses[needType] || responses.general;
 }
 
-function genererInvitationEmailBienveillante() {
-  return `\n\n💡 **Pour aller plus loin :**\nLaisse ton email pour :\n• Guide Re-Fap complet\n• Réseau garages partenaires\n• Conseils techniques personnalisés\n\n📧 **Email** ⬇️ *(pas de spam)*\n*Exemple : prenom.nom@gmail.com*`;
+// === GESTION DES LEADS ===
+async function createLeadFromEmail(email, message, sessionId) {
+  try {
+    const leadData = {
+      email,
+      message_context: message.substring(0, 200),
+      session_id: sessionId,
+      source: 'email_detection',
+      timestamp: new Date().toISOString(),
+      lead_value: 85,
+      status: 'premium_activated'
+    };
+
+    // Sauvegarde Airtable
+    await logToAirtable({
+      ...leadData,
+      type: 'lead_creation'
+    });
+
+    return {
+      success: true,
+      leadValue: 85,
+      leadId: `lead_${Date.now()}`
+    };
+  } catch (error) {
+    console.error('❌ Erreur création lead:', error);
+    return { success: false, leadValue: 0 };
+  }
+}
+
+async function handleLeadCreation(req, res) {
+  try {
+    const { userData, sessionId, message } = req.body;
+    
+    const leadData = {
+      nom: userData.firstName || userData.nom,
+      email: userData.email,
+      telephone: userData.phone || userData.telephone,
+      ville: userData.location || userData.ville,
+      probleme: message || userData.besoin_auto || 'Non précisé',
+      vehicule: userData.vehicleModel || userData.vehicule || 'Non précisé',
+      session_id: sessionId,
+      source: 'form_submission',
+      timestamp: new Date().toISOString(),
+      lead_value: calculateLeadValue(userData),
+      user_level: getUserLevel(userData)
+    };
+
+    // Sauvegarde Airtable
+    const airtableResult = await logToAirtable({
+      ...leadData,
+      type: 'lead_creation'
+    });
+
+    return res.status(200).json({
+      success: true,
+      leadId: `lead_${Date.now()}`,
+      leadValue: leadData.lead_value,
+      message: 'Lead créé avec succès',
+      airtableResult
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur handleLeadCreation:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erreur création lead'
+    });
+  }
+}
+
+// === ANALYSE BUSINESS ===
+function analyzeBusiness(message, response, userLevel) {
+  const needType = detectNeedType(message);
+  const urgency = detectUrgency(message);
+  const leadValue = calculateLeadValue({ userLevel, needType, urgency });
+  
+  return {
+    needType,
+    urgency,
+    leadValue,
+    partner: getOptimalPartner(needType),
+    conversionPotential: userLevel === 0 ? 0.8 : 0.3
+  };
 }
 
 function detectNeedType(message) {
   const lower = message.toLowerCase();
-  if (lower.includes('fap') || lower.includes('egr') || lower.includes('adblue') || 
-      lower.includes('antipollution') || lower.includes('particul') || lower.includes('voyant fap')) return "fap";
-  if (lower.includes('frein') || lower.includes('brake') || lower.includes('plaquette')) return "brakes";
-  if (lower.includes('moteur') || lower.includes('voyant')) return "engine";
+  if (lower.includes('frein') || lower.includes('brake')) return "brakes";
+  if (lower.includes('moteur') || lower.includes('voyant') || lower.includes('fap') || lower.includes('egr')) return "engine";
+  if (lower.includes('puissance') || lower.includes('acceler') || lower.includes('turbo')) return "power";
+  if (lower.includes('fumee') || lower.includes('fumée')) return "smoke";
   return "general";
 }
 
-function calculateRefapScore(needType, mode) {
-  const refapScores = { fap: 9.5, brakes: 7.0, engine: 8.0, general: 7.5 };
-  const modeMultipliers = { dual_brain_refap: 1.2, claude_refap: 1.1, openai_refap: 1.0, simulation_refap: 0.95 };
-  return Math.min(10, (refapScores[needType] || 7.5) * (modeMultipliers[mode] || 1.0));
+function detectUrgency(message) {
+  const urgentWords = ['urgent', 'vite', 'rapidement', 'panne', 'ne démarre plus', 'danger'];
+  const lower = message.toLowerCase();
+  return urgentWords.some(word => lower.includes(word)) ? 'high' : 'normal';
 }
 
-function getLevelName(userLevel) {
-  const names = { 0: "Aide Gratuite", 1: "Accompagnement Re-Fap", 2: "Support Expert" };
-  return names[userLevel] || "Assistant";
+function calculateLeadValue(params) {
+  const baseValues = { brakes: 40, engine: 35, power: 30, smoke: 45, general: 25 };
+  const levelMultipliers = { 0: 1, 1: 1.5, 2: 1.8, 3: 2.2 };
+  const urgencyBonus = params.urgency === 'high' ? 1.3 : 1.0;
+  
+  const baseValue = baseValues[params.needType] || 25;
+  const levelMultiplier = levelMultipliers[params.userLevel] || 1;
+  
+  return Math.round(baseValue * levelMultiplier * urgencyBonus);
+}
+
+function getOptimalPartner(needType) {
+  const partners = {
+    brakes: "MIDAS",
+    engine: "IDGARAGES", 
+    power: "IDGARAGES",
+    smoke: "IDGARAGES",
+    general: "MIDAS"
+  };
+  
+  return partners[needType] || "MIDAS";
+}
+
+function generateConversionStrategy(businessAnalysis) {
+  if (businessAnalysis.conversionPotential > 0.7) {
+    return {
+      trigger: "🔓 Pour un diagnostic complet, laissez votre email !",
+      required: ["email"],
+      reward: "diagnostic premium gratuit",
+      estimatedValue: businessAnalysis.leadValue
+    };
+  }
+  return null;
+}
+
+// === LOGGING AIRTABLE ===
+async function logToAirtable(data) {
+  try {
+    const AIRTABLE_TOKEN = 'patf3ZGIrQfnBsg8a.ab3b4eb79a58c1fbc413fe1ed37948fce5faaa1297a760fbaadf99ebca9341b2';
+    const BASE_ID = 'appKdP1OPj7KiSmS0';
+    const TABLE_ID = 'tblmdV7eYHqgFaKaX'; // Table LEADS
+
+    const recordData = {
+      fields: {
+        'Nom': data.nom || 'Utilisateur Chat',
+        'Email': data.email || '',
+        'Telephone': data.telephone || '',
+        'Session_ID': data.sessionId || data.session_id,
+        'Date_Contact': new Date().toISOString(),
+        'Probleme_Initial': data.message || data.probleme || '',
+        'Vehicule': data.vehicule || '',
+        'Statut_Lead': data.type === 'lead_creation' ? 'Nouveau' : 'Chat',
+        'Source_Lead': data.source || 'Dual Brain Chat',
+        'Lead_Value': data.leadValue || data.lead_value || 0,
+        'User_Level': data.userLevel || 0,
+        'AI_Mode': data.mode || 'Dual Brain',
+        'Need_Type': data.needType || 'general'
+      }
+    };
+
+    const response = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(recordData)
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log('✅ Airtable log:', result.id);
+      return { success: true, id: result.id };
+    } else {
+      console.error('❌ Erreur Airtable:', response.status);
+      return { success: false, error: response.status };
+    }
+
+  } catch (error) {
+    console.error('❌ Erreur logToAirtable:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// === UTILITAIRES ===
+function getLevelName(level) {
+  const names = {
+    0: "Diagnostic de Base",
+    1: "Diagnostic Avancé", 
+    2: "Expertise Premium",
+    3: "Service VIP"
+  };
+  return names[level] || "Inconnu";
+}
+
+function getUserLevel(userData) {
+  let level = 0;
+  if (userData.email) level = 1;
+  if (userData.phone || userData.telephone) level = 2;
+  if (userData.vehicleModel || userData.vehicleInfo) level = 3;
+  return level;
 }
