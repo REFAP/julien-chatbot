@@ -3,900 +3,533 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Julien - Expert FAP Re-Fap | Diagnostic Dual Brain IA</title>
-    <meta name="description" content="Diagnostic gratuit FAP/EGR/AdBlue avec Julien, expert IA Dual Brain. Claude+OpenAI pour solutions premium.">
-    
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-50 overflow-x-hidden">
-    <div id="root"></div>
+    <title>Assistant Auto Re-Fap - Diagnostic Intelligent</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
 
-        const JulienDualBrainChatbot = () => {
-            const [messages, setMessages] = useState([
-                {
-                    type: 'bot',
-                    content: "Salut ! 👋 Moi c'est Julien, expert FAP/EGR/AdBlue depuis 20 ans chez Re-Fap.\n\n🧠 **Mon IA Dual Brain (Claude + OpenAI)** va diagnostiquer ton problème GRATUITEMENT !\n\nDécris-moi ton souci ou envoie une photo 📸",
-                    timestamp: new Date(),
-                    source: 'intro'
-                }
-            ]);
-            const [inputMessage, setInputMessage] = useState('');
-            const [isTyping, setIsTyping] = useState(false);
-            const [showCallbackForm, setShowCallbackForm] = useState(false);
-            const [showUpgradeForm, setShowUpgradeForm] = useState(false);
-            const [userData, setUserData] = useState({});
-            const [callbackData, setCallbackData] = useState({
-                nom: '',
-                telephone: '',
-                email: '',
-                probleme: '',
-                vehicule: ''
-            });
-            const [leadData, setLeadData] = useState({
-                sessionId: Math.random().toString(36).substr(2, 9),
-                startTime: new Date(),
-                interactions: 0
-            });
+        .chat-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 800px;
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
 
-            // États Dual Brain
-            const [userLevel, setUserLevel] = useState(0);
-            const [aiMode, setAiMode] = useState('⚡ Simulation');
-            const [leadValue, setLeadValue] = useState(0);
-            const [conversionStrategy, setConversionStrategy] = useState(null);
+        .chat-header {
+            background: linear-gradient(135deg, #ff6b6b, #ff8e8e);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 20px 20px 0 0;
+        }
+
+        .chat-header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+
+        .chat-header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            text-align: right;
+        }
+
+        .message.bot {
+            text-align: left;
+        }
+
+        .message-bubble {
+            display: inline-block;
+            max-width: 80%;
+            padding: 15px 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .message.user .message-bubble {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.bot .message-bubble {
+            background: white;
+            color: #333;
+            border-bottom-left-radius: 5px;
+            border: 1px solid #e9ecef;
+        }
+
+        .cta-container {
+            margin-top: 15px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border: 2px solid #e9ecef;
+        }
+
+        .cta-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+
+        .cta-message {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+
+        .cta-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .cta-button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 25px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .cta-button.primary {
+            background: linear-gradient(135deg, #ff6b6b, #ff8e8e);
+            color: white;
+        }
+
+        .cta-button.secondary {
+            background: linear-gradient(135deg, #4ecdc4, #44a08d);
+            color: white;
+        }
+
+        .cta-button.info {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .cta-button.warning {
+            background: linear-gradient(135deg, #ffa726, #ff7043);
+            color: white;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+            border-radius: 0 0 20px 20px;
+        }
+
+        .chat-input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            outline: none;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .chat-input:focus {
+            border-color: #667eea;
+        }
+
+        .send-button {
+            padding: 15px 25px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .send-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .send-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            color: #666;
+            font-style: italic;
+            margin-top: 10px;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #667eea;
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes typing {
+            0%, 80%, 100% {
+                transform: scale(0);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .quick-actions {
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .quick-action {
+            padding: 8px 15px;
+            background: #e9ecef;
+            color: #666;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+
+        .quick-action:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .chat-container {
+                height: 100vh;
+                border-radius: 0;
+            }
             
-            // Ref pour scroll automatique
-            const messagesEndRef = useRef(null);
-
-            const scrollToBottom = () => {
-                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-            };
-
-            useEffect(() => {
-                scrollToBottom();
-            }, [messages]);
-
-            useEffect(() => {
-                trackEvent('session_start', { sessionId: leadData.sessionId });
-            }, []);
-
-            const trackEvent = (event, data = {}) => {
-                console.log('📊 Event tracked:', event, data);
-            };
-
-            const addMessage = (content, type = 'bot', source = 'auto') => {
-                setMessages(prev => [...prev, {
-                    type,
-                    content,
-                    timestamp: new Date(),
-                    source
-                }]);
-            };
-
-            // 🧠 FONCTION DUAL BRAIN PRINCIPALE
-            const getDualBrainResponse = async (userMsg) => {
-                try {
-                    console.log('🧠 Dual Brain IA activé...');
-                    
-                    // Appel au Dual Brain amélioré
-                    const response = await fetch('/api/chat-dual-brain', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            message: userMsg,
-                            userData: userData,
-                            sessionId: leadData.sessionId
-                        })
-                    });
-
-                    const data = await response.json();
-                    
-                    if (data.success && data.message) {
-                        console.log('✅ Dual Brain success:', data.metadata?.aiMode);
-                        
-                        // Mise à jour des données business
-                        if (data.rewardSystem) {
-                            setUserLevel(data.rewardSystem.userLevel);
-                            setLeadValue(data.rewardSystem.leadValue);
-                            setConversionStrategy(data.rewardSystem.conversionStrategy);
-                        }
-                        
-                        if (data.metadata) {
-                            setAiMode(data.metadata.aiMode || 'Dual Brain');
-                            setLeadData(prev => ({ ...prev, interactions: prev.interactions + 1 }));
-                            
-                            // Si email détecté, mise à jour userData
-                            if (data.metadata.email) {
-                                setUserData(prev => ({ ...prev, email: data.metadata.email }));
-                                setUserLevel(1);
-                            }
-                        }
-                        
-                        // Proposition d'upgrade si strategy disponible
-                        if (data.rewardSystem?.conversionStrategy && userLevel === 0) {
-                            setTimeout(() => {
-                                setShowUpgradeForm(true);
-                            }, 3000);
-                        }
-                        
-                        return {
-                            text: data.message,
-                            mode: data.metadata?.aiMode || 'Dual Brain',
-                            score: data.metadata?.score || 8.0
-                        };
-                    } else {
-                        throw new Error(data.error || 'Erreur Dual Brain');
-                    }
-                    
-                } catch (error) {
-                    console.error('❌ Erreur Dual Brain:', error);
-                    return {
-                        text: `Salut ! Décris-moi ton problème auto, je vais l'analyser ! 🔧\n\nErreur temporaire : ${error.message}`,
-                        mode: 'Fallback',
-                        score: 5.0
-                    };
-                }
-            };
-
-            const handleSendMessage = async (e) => {
-                e.preventDefault();
-                if (!inputMessage.trim()) return;
-                
-                const userMsg = inputMessage.trim();
-                addMessage(userMsg, 'user');
-                setInputMessage('');
-                setIsTyping(true);
-
-                trackEvent('message_sent', { 
-                    message: userMsg.substring(0, 50),
-                    userLevel
-                });
-
-                // Appel Dual Brain
-                const response = await getDualBrainResponse(userMsg);
-                addMessage(response.text, 'bot', response.mode);
-                setIsTyping(false);
-            };
-
-            const handleImageUpload = async (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    if (!file.type.startsWith('image/')) {
-                        alert('📸 Merci d\'envoyer une image (JPG, PNG...)');
-                        return;
-                    }
-                    
-                    addMessage(`📸 Photo envoyée : ${file.name}`, 'user');
-                    setIsTyping(true);
-                    trackEvent('photo_uploaded', { 
-                        fileName: file.name, 
-                        fileSize: file.size,
-                        userLevel
-                    });
-                    
-                    try {
-                        // Compression d'image
-                        const compressImage = (file, maxWidth = 800, quality = 0.8) => {
-                            return new Promise((resolve) => {
-                                const canvas = document.createElement('canvas');
-                                const ctx = canvas.getContext('2d');
-                                const img = new Image();
-                                
-                                img.onload = () => {
-                                    let { width, height } = img;
-                                    if (width > maxWidth) {
-                                        height = (height * maxWidth) / width;
-                                        width = maxWidth;
-                                    }
-                                    
-                                    canvas.width = width;
-                                    canvas.height = height;
-                                    ctx.drawImage(img, 0, 0, width, height);
-                                    
-                                    const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-                                    resolve(compressedDataUrl);
-                                };
-                                
-                                const reader = new FileReader();
-                                reader.onload = (e) => {
-                                    img.src = e.target.result;
-                                };
-                                reader.readAsDataURL(file);
-                            });
-                        };
-                        
-                        let imageData;
-                        
-                        if (file.size > 1024 * 1024) {
-                            console.log('🗜️ Compression image...');
-                            imageData = await compressImage(file, 800, 0.8);
-                        } else {
-                            const reader = new FileReader();
-                            imageData = await new Promise((resolve) => {
-                                reader.onload = (e) => resolve(e.target.result);
-                                reader.readAsDataURL(file);
-                            });
-                        }
-
-                        // Analyse photo avec IA
-                        const photoResponse = await fetch('/api/analyze-image', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                image: imageData,
-                                prompt: `Analyse cette photo de voyant/problème auto comme Julien expert Re-Fap`
-                            })
-                        });
-
-                        const photoData = await photoResponse.json();
-                        
-                        if (photoData.success) {
-                            addMessage(`📸 **ANALYSE PHOTO DUAL BRAIN** 🧠\n\n${photoData.analysis}`, 'bot', '📸 Vision IA');
-                        } else {
-                            addMessage(`📸 **Analyse photo** : ${photoData.fallback || 'Erreur analyse image'}`, 'bot', '📸 Fallback');
-                        }
-                        
-                    } catch (error) {
-                        console.error('❌ Erreur upload:', error);
-                        addMessage(`❌ Erreur analyse : ${error.message}`, 'bot');
-                    }
-                    
-                    setIsTyping(false);
-                    event.target.value = '';
-                }
-            };
-
-            const handleGarageClick = () => {
-                trackEvent('garage_redirect', { sessionId: leadData.sessionId, userLevel });
-                window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank');
-            };
-
-            const handleCallbackClick = () => {
-                trackEvent('callback_requested', { sessionId: leadData.sessionId, userLevel });
-                setShowCallbackForm(true);
-                addMessage("Je souhaite être rappelé gratuitement", 'user');
-                setTimeout(() => {
-                    addMessage("📞 **Formulaire de rappel activé !**\n\nRemplis le formulaire pour être recontacté par un expert Re-Fap ! 🎯", 'bot', 'form');
-                }, 500);
-            };
-
-            const handleUpgradeClick = () => {
-                setShowUpgradeForm(true);
-                trackEvent('upgrade_requested', { userLevel, leadValue });
-            };
-
-            const handleUpgradeSubmit = async (e) => {
-                e.preventDefault();
-                
-                if (!callbackData.email) {
-                    alert('Email obligatoire pour le diagnostic premium !');
-                    return;
-                }
-
-                try {
-                    // Création du lead via API
-                    const leadResponse = await fetch('/api/chat-dual-brain', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'CREATE_LEAD',
-                            userData: {
-                                email: callbackData.email,
-                                firstName: callbackData.nom,
-                                location: callbackData.vehicule
-                            },
-                            sessionId: leadData.sessionId,
-                            message: `Upgrade premium: ${callbackData.nom}`
-                        })
-                    });
-
-                    const leadResult = await leadResponse.json();
-
-                    // Mise à jour userData
-                    const newUserData = {
-                        ...userData,
-                        email: callbackData.email,
-                        firstName: callbackData.nom,
-                        location: callbackData.vehicule
-                    };
-                    setUserData(newUserData);
-                    setUserLevel(1);
-
-                    addMessage(`✅ **Diagnostic Premium Activé !** 🎯\n\nMerci ${callbackData.nom} ! Ton niveau utilisateur a été upgradé vers premium.\n\n🧠 **Dual Brain Claude + OpenAI** maintenant disponible !\n\nPose-moi maintenant ta question pour une analyse premium !`, 'bot', 'upgrade_success');
-
-                    setShowUpgradeForm(false);
-                    setCallbackData({ nom: '', telephone: '', email: '', probleme: '', vehicule: '' });
-                    
-                    trackEvent('upgrade_completed', { newLevel: 1, email: callbackData.email });
-
-                } catch (error) {
-                    console.error('Erreur upgrade:', error);
-                    addMessage(`❌ Erreur upgrade : ${error.message}`, 'bot');
-                }
-            };
-
-            const handleCallbackSubmit = async (e) => {
-                e.preventDefault();
-                
-                if (!callbackData.nom || !callbackData.telephone) {
-                    alert('Nom et téléphone obligatoires !');
-                    return;
-                }
-
-                try {
-                    // Mise à jour userData pour niveau 2
-                    const newUserData = {
-                        ...userData,
-                        email: callbackData.email,
-                        phone: callbackData.telephone,
-                        firstName: callbackData.nom,
-                        vehicleModel: callbackData.vehicule
-                    };
-                    setUserData(newUserData);
-                    setUserLevel(2);
-
-                    // Création du lead
-                    const leadResponse = await fetch('/api/chat-dual-brain', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'CREATE_LEAD',
-                            userData: newUserData,
-                            sessionId: leadData.sessionId,
-                            message: `Lead rappel: ${callbackData.probleme}`
-                        })
-                    });
-
-                    const leadResult = await leadResponse.json();
-
-                    // Envoi email via API callback
-                    const emailResponse = await fetch('/api/send-callback', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            nom: callbackData.nom,
-                            telephone: callbackData.telephone,
-                            email: callbackData.email || 'Non renseigné',
-                            probleme: callbackData.probleme || 'Non précisé',
-                            vehicule: callbackData.vehicule || 'Non précisé',
-                            sessionId: leadData.sessionId,
-                            chatUrl: window.location.href
-                        })
-                    });
-
-                    const emailResult = await emailResponse.json();
-
-                    if (emailResult.success) {
-                        addMessage(`✅ **Lead Dual Brain envoyé !**\n\n📧 **Email automatique envoyé à mgaume@re-fap.fr**\n🧠 **Analysé par Dual Brain IA (Claude + OpenAI)**\n💰 **Valeur lead : ${leadValue}€**\n\n📋 **Récapitulatif :**\n• Nom : ${callbackData.nom}\n• Téléphone : ${callbackData.telephone}\n• Level : Premium (${userLevel})\n\n📞 **Un expert va t'appeler sous 2h !**\n\nContinue à me poser des questions pour l'analyse premium ! 🔧`, 'bot', 'dual_brain_success');
-                    } else {
-                        // Fallback mailto
-                        const emailBody = `NOUVEAU LEAD DUAL BRAIN IA - ${callbackData.nom}\n\n🧠 DUAL BRAIN IA : Claude + OpenAI\n💰 Valeur lead : ${leadValue}€\n📊 Level : ${userLevel}\n🎯 Interactions : ${leadData.interactions}\n\n📋 INFORMATIONS :\n• Nom : ${callbackData.nom}\n• Téléphone : ${callbackData.telephone}\n• Email : ${callbackData.email || 'Non renseigné'}\n• Véhicule : ${callbackData.vehicule || 'Non précisé'}\n• Problème : ${callbackData.probleme || 'Non précisé'}\n\nSession: ${leadData.sessionId}`;
-
-                        const mailtoLink = `mailto:mgaume@re-fap.fr?subject=${encodeURIComponent('🧠 LEAD DUAL BRAIN IA - ' + callbackData.nom)}&body=${encodeURIComponent(emailBody)}`;
-                        
-                        window.open(mailtoLink, '_blank');
-
-                        addMessage(`📧 **Email client ouvert !**\n🧠 **Lead Dual Brain généré (${leadValue}€)**\n\n💬 **Instructions :**\n1. Email pré-rempli ouvert\n2. Clique "Envoyer"\n3. Rappel sous 2h garanti !\n\n🎯 **Ton niveau premium est activé !**`, 'bot', 'mailto_fallback');
-                    }
-
-                } catch (error) {
-                    console.error('Erreur callback:', error);
-                    addMessage(`❌ Erreur envoi : ${error.message}`, 'bot');
-                }
-
-                setShowCallbackForm(false);
-                setCallbackData({ nom: '', telephone: '', email: '', probleme: '', vehicule: '' });
-            };
-
-            const getLevelName = () => {
-                const names = {
-                    0: 'Diagnostic de Base',
-                    1: 'Diagnostic Avancé', 
-                    2: 'Expertise Premium',
-                    3: 'Service VIP'
-                };
-                return names[userLevel] || 'Inconnu';
-            };
-
-            const getAiModeDisplay = () => {
-                return aiMode || '🤖 IA';
-            };
-
-            const renderMessage = (message, index) => {
-                const isUser = message.type === 'user';
-                const sourceIcons = {
-                    '🧠 Dual Brain (Claude + OpenAI)': '🧠',
-                    '🎯 Claude Expert': '🎯',
-                    '🤖 OpenAI Enhanced': '🤖',
-                    '📸 Vision IA': '📸',
-                    'dual_brain_success': '✅',
-                    'upgrade_success': '🎁',
-                    'intro': '👋'
-                };
-                
-                const sourceIcon = sourceIcons[message.source] || '';
-                
-                return (
-                    <div key={index} className={`mb-4 ${isUser ? 'text-right' : ''}`}>
-                        <div className={`inline-block p-3 rounded-lg max-w-[85%] sm:max-w-md ${
-                            isUser 
-                                ? 'bg-blue-500 text-white' 
-                                : message.source?.includes('Dual Brain') || message.source?.includes('🧠')
-                                    ? 'bg-purple-100 text-gray-800 border-l-4 border-purple-500'
-                                    : message.source?.includes('Claude') || message.source?.includes('🎯')
-                                        ? 'bg-blue-100 text-gray-800 border-l-4 border-blue-500'
-                                        : message.source?.includes('OpenAI') || message.source?.includes('🤖')
-                                            ? 'bg-green-100 text-gray-800 border-l-4 border-green-500'
-                                            : message.source?.includes('📸')
-                                                ? 'bg-orange-100 text-gray-800 border-l-4 border-orange-500'
-                                                : 'bg-white text-gray-800 border border-gray-200'
-                        }`}>
-                            {typeof message.content === 'string' ? 
-                                message.content.split('\n').map((line, i) => (
-                                    <div key={i} className={line.startsWith('**') && line.endsWith('**') ? 'font-bold' : ''}>
-                                        {line.replace(/\*\*/g, '')}
-                                    </div>
-                                )) : 
-                                <div>Erreur affichage message</div>
-                            }
-                            
-                            {!isUser && (
-                                <div className="text-xs text-gray-400 mt-2 flex items-center justify-between">
-                                    <span>
-                                        {sourceIcon} {message.source || 'Auto'} 
-                                    </span>
-                                    <span>{new Date(message.timestamp).toLocaleTimeString()}</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                );
-            };
-
-            return (
-                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-orange-50">
-                    {/* Header avec stats Dual Brain */}
-                    <header className="bg-white shadow-sm border-b">
-                        <div className="max-w-6xl mx-auto px-2 sm:px-4 py-3">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center min-w-0 flex-1">
-                                    <div className="mr-2 sm:mr-3 bg-gradient-to-r from-green-500 to-green-600 px-2 sm:px-4 py-1 sm:py-2 rounded-lg shadow-sm">
-                                        <span className="text-white font-bold text-sm sm:text-lg">re-fap</span>
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <h1 className="text-sm sm:text-lg font-bold text-gray-800 truncate">Julien - Expert FAP Dual Brain</h1>
-                                        <p className="text-xs text-gray-600 hidden sm:block">
-                                            {getAiModeDisplay()} • {getLevelName()} • {leadValue}€ lead
-                                        </p>
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={() => window.open('https://re-fap.fr/trouver_garage_partenaire/', '_blank')}
-                                    className="bg-orange-500 hover:bg-orange-600 text-white px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ml-2 whitespace-nowrap"
-                                >
-                                    <span className="hidden sm:inline">📞 Devis gratuit</span>
-                                    <span className="sm:hidden">📞</span>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        {/* Status Dual Brain */}
-                        <div className="text-xs text-center py-2 bg-gradient-to-r from-purple-50 to-blue-50">
-                            <span className="text-purple-600 font-medium">
-                                🧠 {getAiModeDisplay()} • Level {userLevel} • {leadData.interactions} interactions • {leadValue > 0 ? `${leadValue}€ lead` : 'Lead en cours'}
-                            </span>
-                        </div>
-                    </header>
-
-                    {/* Chat principal */}
-                    <div className="max-w-6xl mx-auto p-2 sm:p-4">
-                        <div className="flex flex-col lg:flex-row gap-2 sm:gap-4">
-                            {/* Chat */}
-                            <div className="flex-1 bg-white rounded-xl shadow-lg overflow-hidden">
-                                {/* Header chat */}
-                                <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white p-4">
-                                    <div className="flex items-center">
-                                        <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-3">
-                                            <span className="text-2xl">🧠</span>
-                                        </div>
-                                        <div>
-                                            <h2 className="text-xl font-bold">Julien Dual Brain IA</h2>
-                                            <p className="text-orange-100 text-sm">
-                                                Claude + OpenAI • {getLevelName()}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Messages */}
-                                <div className="h-96 overflow-y-auto p-2 sm:p-4 bg-gray-50">
-                                    {messages.map((message, index) => renderMessage(message, index))}
-                                    
-                                    {isTyping && (
-                                        <div className="mb-4">
-                                            <div className="inline-block bg-white p-3 rounded-lg border border-gray-200">
-                                                <div className="flex items-center space-x-2">
-                                                    <div className="flex space-x-1">
-                                                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
-                                                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                                                        <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                                                    </div>
-                                                    <span className="text-sm text-gray-600">Dual Brain analyse... 🧠💎</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                    <div ref={messagesEndRef} />
-                                </div>
-
-                                {/* Input */}
-                                <div className="p-2 sm:p-4 border-t bg-white">
-                                    <form onSubmit={handleSendMessage} className="flex gap-2 mb-3">
-                                        <input
-                                            type="text"
-                                            value={inputMessage}
-                                            onChange={(e) => setInputMessage(e.target.value)}
-                                            placeholder="💬 Décris ton problème ou écris ton email..."
-                                            className="flex-1 p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-sm"
-                                            disabled={isTyping}
-                                        />
-                                        <button
-                                            type="submit"
-                                            disabled={isTyping || !inputMessage.trim()}
-                                            className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-colors text-sm whitespace-nowrap"
-                                        >
-                                            <span className="hidden sm:inline">Envoyer</span>
-                                            <span className="sm:hidden">📤</span>
-                                        </button>
-                                    </form>
-
-                                    {/* Upload photo */}
-                                    <div className="mb-3 p-2 sm:p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-dashed border-blue-300">
-                                        <div className="text-center">
-                                            <input
-                                                type="file"
-                                                id="imageUpload"
-                                                accept="image/*"
-                                                onChange={handleImageUpload}
-                                                className="hidden"
-                                                disabled={isTyping}
-                                            />
-                                            <label 
-                                                htmlFor="imageUpload" 
-                                                className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg inline-flex items-center gap-2 font-medium transition-colors text-sm"
-                                            >
-                                                📸 <span className="hidden sm:inline">Photo de mon voyant</span><span className="sm:hidden">Photo</span>
-                                            </label>
-                                            <p className="text-xs text-gray-600 mt-2 px-2">
-                                                JPG/PNG max 5MB • Analyse Dual Brain ! 🧠
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {/* Quick options */}
-                                    <div className="grid grid-cols-2 gap-1 sm:gap-2 mb-4 lg:mb-0">
-                                        {[
-                                            { text: "🟡 Voyant FAP", textMobile: "🟡 FAP", msg: "Voyant FAP allumé" },
-                                            { text: "💨 Ça fume", textMobile: "💨 Fume", msg: "Ça pue et ça fume" },
-                                            { text: "⚡ Perte puissance", textMobile: "⚡ Puissance", msg: "Plus de puissance en ville" },
-                                            { text: "🔧 Je suis bricoleur", textMobile: "🔧 Bricoleur", msg: "Je démonte moi-même" }
-                                        ].map((option, index) => (
-                                            <button
-                                                key={index}
-                                                onClick={async () => {
-                                                    addMessage(option.msg, 'user');
-                                                    setIsTyping(true);
-                                                    const response = await getDualBrainResponse(option.msg);
-                                                    addMessage(response.text, 'bot', response.mode);
-                                                    setIsTyping(false);
-                                                }}
-                                                disabled={isTyping}
-                                                className="bg-gray-100 hover:bg-gray-200 p-2 rounded text-xs sm:text-sm disabled:opacity-50 transition-colors"
-                                            >
-                                                <span className="hidden sm:inline">{option.text}</span>
-                                                <span className="sm:hidden">{option.textMobile}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    {/* CTA mobile */}
-                                    <div className="lg:hidden p-3 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
-                                        <h4 className="font-bold text-orange-800 text-sm mb-2 text-center">🎯 Besoin d'aide ?</h4>
-                                        <div className="grid grid-cols-1 gap-2">
-                                            <button
-                                                onClick={handleGarageClick}
-                                                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded text-sm font-medium transition-colors"
-                                            >
-                                                🏪 Trouver un garage de confiance
-                                            </button>
-                                            <button
-                                                onClick={handleCallbackClick}
-                                                className="bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded text-sm font-medium transition-colors"
-                                            >
-                                                📞 Être rappelé gratuitement (Lead {leadValue}€)
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* CTA Section - DESKTOP */}
-                            <div className="hidden lg:block w-64 space-y-4">
-                                {/* Stats Dual Brain */}
-                                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-3 text-center">
-                                    <h4 className="font-bold text-purple-800 text-sm mb-1">🧠 Dual Brain Stats</h4>
-                                    <div className="text-xs text-purple-600 space-y-1">
-                                        <div>Level: {getLevelName()}</div>
-                                        <div>Mode: {getAiModeDisplay()}</div>
-                                        <div>Lead: {leadValue}€</div>
-                                        <div>Interactions: {leadData.interactions}</div>
-                                    </div>
-                                </div>
-
-                                {/* Upgrade si niveau 0 */}
-                                {userLevel === 0 && conversionStrategy && (
-                                    <button
-                                        onClick={handleUpgradeClick}
-                                        className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
-                                    >
-                                        <div className="text-center">
-                                            <div className="text-2xl mb-2">🔓</div>
-                                            <div className="font-bold">Diagnostic Premium</div>
-                                            <div className="font-bold">GRATUIT</div>
-                                            <div className="text-xs mt-1 opacity-90">Dual Brain activé !</div>
-                                        </div>
-                                    </button>
-                                )}
-
-                                {/* Bouton Garage */}
-                                <button
-                                    onClick={handleGarageClick}
-                                    className="w-full bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
-                                >
-                                    <div className="text-center">
-                                        <div className="text-2xl mb-2">🏪</div>
-                                        <div className="font-bold">Trouver un garage</div>
-                                        <div className="font-bold">de confiance</div>
-                                        <div className="text-xs mt-1 opacity-90">Réseau Re-Fap</div>
-                                    </div>
-                                </button>
-
-                                {/* Bouton Rappel */}
-                                <button
-                                    onClick={handleCallbackClick}
-                                    className="w-full bg-green-500 hover:bg-green-600 text-white p-4 rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
-                                >
-                                    <div className="text-center">
-                                        <div className="text-2xl mb-2">📞</div>
-                                        <div className="font-bold">Être rappelé</div>
-                                        <div className="font-bold">gratuitement</div>
-                                        <div className="text-xs mt-1 opacity-90">Lead {leadValue}€ • Expert sous 2h</div>
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* MODAL UPGRADE PREMIUM */}
-                        {showUpgradeForm && (
-                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-                                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto mx-2">
-                                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-3 sm:p-4 rounded-t-xl">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex-1">
-                                                <h3 className="text-base sm:text-lg font-bold">🔓 Diagnostic Premium Gratuit</h3>
-                                                <p className="text-xs sm:text-sm opacity-90">Dual Brain Claude + OpenAI</p>
-                                            </div>
-                                            <button 
-                                                onClick={() => setShowUpgradeForm(false)}
-                                                className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded ml-2"
-                                            >
-                                                ✕
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <form onSubmit={handleUpgradeSubmit} className="p-4 sm:p-6 space-y-4">
-                                        <div className="text-center mb-4">
-                                            <div className="text-2xl mb-2">🧠</div>
-                                            <p className="text-sm text-gray-600">
-                                                Débloquez l'analyse Dual Brain premium ! Fusion Claude (précision) + OpenAI (créativité) pour un diagnostic unique.
-                                            </p>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Email *
-                                            </label>
-                                            <input
-                                                type="email"
-                                                required
-                                                value={callbackData.email}
-                                                onChange={(e) => setCallbackData({...callbackData, email: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-sm"
-                                                placeholder="votre@email.com"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Prénom
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={callbackData.nom}
-                                                onChange={(e) => setCallbackData({...callbackData, nom: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-sm"
-                                                placeholder="Votre prénom"
-                                            />
-                                        </div>
-
-                                        <div className="bg-purple-50 p-2 sm:p-3 rounded-lg text-xs text-purple-700">
-                                            🎁 <strong>Vous obtenez :</strong>
-                                            <br />• Analyse Dual Brain (Claude + OpenAI)
-                                            <br />• Diagnostic technique approfondi
-                                            <br />• Recommandations personnalisées
-                                            <br />• Estimation coûts précise
-                                        </div>
-
-                                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowUpgradeForm(false)}
-                                                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
-                                            >
-                                                Plus tard
-                                            </button>
-                                            <button
-                                                type="submit"
-                                                className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
-                                            >
-                                                🔓 Activer Premium
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* MODAL RAPPEL */}
-                        {showCallbackForm && (
-                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-                                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto mx-2">
-                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-3 sm:p-4 rounded-t-xl">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex-1">
-                                                <h3 className="text-base sm:text-lg font-bold">📞 Rappel Expert</h3>
-                                                <p className="text-xs sm:text-sm opacity-90">Lead {leadValue}€ • Dual Brain</p>
-                                            </div>
-                                            <button 
-                                                onClick={() => setShowCallbackForm(false)}
-                                                className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded ml-2"
-                                            >
-                                                ✕
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <form onSubmit={handleCallbackSubmit} className="p-4 sm:p-6 space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Nom / Prénom *
-                                            </label>
-                                            <input
-                                                type="text"
-                                                required
-                                                value={callbackData.nom}
-                                                onChange={(e) => setCallbackData({...callbackData, nom: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="Votre nom complet"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Téléphone *
-                                            </label>
-                                            <input
-                                                type="tel"
-                                                required
-                                                value={callbackData.telephone}
-                                                onChange={(e) => setCallbackData({...callbackData, telephone: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="06 12 34 56 78"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Email
-                                            </label>
-                                            <input
-                                                type="email"
-                                                value={callbackData.email}
-                                                onChange={(e) => setCallbackData({...callbackData, email: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="votre@email.com"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Résumé du problème
-                                            </label>
-                                            <textarea
-                                                value={callbackData.probleme}
-                                                onChange={(e) => setCallbackData({...callbackData, probleme: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="Voyants allumés, fumées..."
-                                                rows="3"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Véhicule
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={callbackData.vehicule}
-                                                onChange={(e) => setCallbackData({...callbackData, vehicule: e.target.value})}
-                                                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                                                placeholder="Peugeot 308 2018"
-                                            />
-                                        </div>
-
-                                        <div className="bg-green-50 p-2 sm:p-3 rounded-lg text-xs text-green-700">
-                                            🧠 <strong>Lead Dual Brain :</strong> {leadValue}€
-                                            <br />📊 Analysé par IA premium (Claude + OpenAI)
-                                            <br />✅ Données utilisées uniquement pour le rappel
-                                        </div>
-
-                                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowCallbackForm(false)}
-                                                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
-                                            >
-                                                Annuler
-                                            </button>
-                                            <button
-                                                type="submit"
-                                                className="w-full bg-green-500 hover:bg-green-600 text-white py-2 sm:py-3 px-4 rounded-lg font-medium transition-colors text-sm"
-                                            >
-                                                📞 Demander le rappel
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Footer */}
-                    <footer className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 text-center text-xs sm:text-sm text-gray-600">
-                        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-6 mb-3">
-                            <span className="flex items-center"><span className="text-purple-500 mr-1">🧠</span> Dual Brain IA</span>
-                            <span className="flex items-center"><span className="text-blue-500 mr-1">🎯</span> {getLevelName()}</span>
-                            <span className="flex items-center"><span className="text-green-500 mr-1">💰</span> {leadValue}€ lead</span>
-                            <span className="flex items-center"><span className="text-orange-500 mr-1">📊</span> {leadData.interactions} interactions</span>
-                        </div>
-                        <p className="text-xs px-2">
-                            Powered by <a href="https://re-fap.fr" className="text-orange-600 hover:underline">Re-Fap</a> • 
-                            Dual Brain IA (Claude + OpenAI) •
-                            <span className="hidden sm:inline"> Diagnostic premium •</span>
-                            <span className="block sm:inline"> Session: {leadData.sessionId}</span>
-                        </p>
-                    </footer>
+            .chat-header {
+                border-radius: 0;
+            }
+            
+            .chat-input-container {
+                border-radius: 0;
+            }
+            
+            .cta-buttons {
+                flex-direction: column;
+            }
+            
+            .cta-button {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>🚗 Assistant Auto Re-Fap</h1>
+            <p>Diagnostic intelligent FAP, EGR, AdBlue - Solutions sur mesure</p>
+        </div>
+        
+        <div class="chat-messages" id="chatMessages">
+            <div class="message bot">
+                <div class="message-bubble">
+                    👋 Salut ! Je suis l'assistant Re-Fap, spécialisé dans les problèmes de FAP, EGR et AdBlue.
+                    <br><br>
+                    Décris-moi ton problème : voyants, fumées, perte de puissance... Je vais t'orienter vers la meilleure solution !
                 </div>
-            );
+            </div>
+            
+            <div class="quick-actions">
+                <button class="quick-action" onclick="sendQuickMessage('Voyant FAP allumé')">🔴 Voyant FAP</button>
+                <button class="quick-action" onclick="sendQuickMessage('Fumée noire au démarrage')">💨 Fumée noire</button>
+                <button class="quick-action" onclick="sendQuickMessage('Perte de puissance')">⚡ Perte puissance</button>
+                <button class="quick-action" onclick="sendQuickMessage('Mode dégradé')">⚠️ Mode dégradé</button>
+            </div>
+        </div>
+        
+        <div class="typing-indicator" id="typingIndicator">
+            <span>Assistant en train d'analyser</span>
+            <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+        
+        <div class="chat-input-container">
+            <div class="chat-input-wrapper">
+                <input type="text" class="chat-input" id="chatInput" placeholder="Décris ton problème auto..." maxlength="500">
+                <button class="send-button" id="sendButton" onclick="sendMessage()">Envoyer</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+        const typingIndicator = document.getElementById('typingIndicator');
+
+        // Configuration API
+        const API_CONFIG = {
+            baseUrl: '/api',
+            endpoints: {
+                chat: '/chat-dual-brain'
+            }
         };
 
-        ReactDOM.render(<JulienDualBrainChatbot />, document.getElementById('root'));
+        // Gestion des messages
+        function addMessage(content, isUser = false, cta = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user' : 'bot'}`;
+            
+            let messageHTML = `<div class="message-bubble">${content}</div>`;
+            
+            // Ajouter les CTA si présents
+            if (cta && !isUser) {
+                messageHTML += `
+                    <div class="cta-container">
+                        <div class="cta-title">${cta.title}</div>
+                        <div class="cta-message">${cta.message}</div>
+                        <div class="cta-buttons">
+                            ${cta.buttons.map(button => `
+                                <a href="${button.url}" 
+                                   class="cta-button ${button.type || 'primary'}" 
+                                   target="${button.url.startsWith('http') ? '_blank' : '_self'}"
+                                   onclick="trackCTA('${button.text}', '${button.url}')">
+                                    ${button.text}
+                                </a>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            messageDiv.innerHTML = messageHTML;
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        // Tracking des CTA
+        function trackCTA(buttonText, url) {
+            console.log('CTA cliqué:', { buttonText, url, timestamp: new Date() });
+            
+            // Analytics (à adapter selon vos besoins)
+            if (typeof gtag !== 'undefined') {
+                gtag('event', 'cta_click', {
+                    'button_text': buttonText,
+                    'destination': url,
+                    'source': 'chatbot_refap'
+                });
+            }
+        }
+
+        // Scroll automatique
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Indicateur de frappe
+        function showTyping() {
+            typingIndicator.style.display = 'flex';
+            scrollToBottom();
+        }
+
+        function hideTyping() {
+            typingIndicator.style.display = 'none';
+        }
+
+        // Envoi de message
+        async function sendMessage(message = null) {
+            const text = message || chatInput.value.trim();
+            if (!text) return;
+
+            // Désactiver l'interface
+            chatInput.disabled = true;
+            sendButton.disabled = true;
+            
+            // Ajouter message utilisateur
+            addMessage(text, true);
+            
+            // Vider l'input si ce n'est pas un message rapide
+            if (!message) {
+                chatInput.value = '';
+            }
+            
+            // Afficher indicateur de frappe
+            showTyping();
+
+            try {
+                const response = await fetch(`${API_CONFIG.baseUrl}${API_CONFIG.endpoints.chat}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: text })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Masquer indicateur de frappe
+                hideTyping();
+                
+                // Ajouter réponse avec CTA éventuels
+                addMessage(data.message, false, data.cta);
+                
+            } catch (error) {
+                console.error('Erreur:', error);
+                hideTyping();
+                
+                addMessage(
+                    '❌ Désolé, une erreur est survenue. Veuillez réessayer ou contactez notre support : support@re-fap.fr',
+                    false,
+                    {
+                        title: '🆘 Support Re-Fap',
+                        message: 'Notre équipe est là pour vous aider !',
+                        buttons: [
+                            {
+                                text: '📧 Contacter le support',
+                                url: 'mailto:support@re-fap.fr',
+                                type: 'info'
+                            },
+                            {
+                                text: '📞 Appeler maintenant',
+                                url: 'tel:+33123456789',
+                                type: 'primary'
+                            }
+                        ]
+                    }
+                );
+            } finally {
+                // Réactiver l'interface
+                chatInput.disabled = false;
+                sendButton.disabled = false;
+                chatInput.focus();
+            }
+        }
+
+        // Messages rapides
+        function sendQuickMessage(message) {
+            sendMessage(message);
+        }
+
+        // Gestion des événements
+        chatInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Focus automatique
+        chatInput.focus();
+
+        // Message de bienvenue avec CTA
+        setTimeout(() => {
+            addMessage(
+                `🎯 <strong>Diagnostic gratuit disponible !</strong><br>
+                Si tu n'es pas sûr de ton problème, nous proposons un diagnostic gratuit chez Re-Fap pour identifier précisément la panne.`,
+                false,
+                {
+                    title: '🔍 Diagnostic Gratuit Re-Fap',
+                    message: 'Analyse complète de votre système FAP/EGR/AdBlue par nos experts',
+                    buttons: [
+                        {
+                            text: '📅 Prendre RDV diagnostic',
+                            url: 'https://re-fap.fr/diagnostic-gratuit',
+                            type: 'primary'
+                        },
+                        {
+                            text: '📍 Trouver un centre',
+                            url: 'https://re-fap.fr/centres',
+                            type: 'secondary'
+                        }
+                    ]
+                }
+            );
+        }, 2000);
     </script>
 </body>
 </html>
