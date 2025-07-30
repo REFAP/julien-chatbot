@@ -1,4 +1,4 @@
-// api/chat-dual-brain.js - NOUVEAU Backend avec CTA intelligents Re-Fap
+// api/chat-dual-brain.js - Backend avec CTA intelligents Re-Fap
 
 import OpenAI from 'openai';
 
@@ -83,13 +83,11 @@ class ProblemDetector {
     const indicators = {
       bricoleur: [
         'je démonte', 'démonter moi-même', 'bricoleur',
-        'j\'ai des outils', 'garage maison', 'mécano amateur',
-        'je peux démonter', 'je sais faire'
+        'j\'ai des outils', 'garage maison', 'mécano amateur'
       ],
       debutant: [
         'je ne sais pas', 'débutant', 'première fois',
-        'jamais fait', 'pas doué', 'peur de casser',
-        'aucune idée', 'connais rien'
+        'jamais fait', 'pas doué', 'peur de casser'
       ]
     };
 
@@ -288,36 +286,28 @@ class CTAGenerator {
 
 // Prompts pour les deux cerveaux
 const PROMPTS = {
-  brain1: `Tu es Julien, expert en diagnostic automobile depuis 20 ans, spécialisé dans les systèmes FAP, EGR et AdBlue chez Re-Fap.
+  brain1: `Tu es un expert en diagnostic automobile, spécialisé dans les systèmes FAP, EGR et AdBlue.
 
 RÈGLES STRICTES :
 - Réponds UNIQUEMENT aux problèmes automobiles
 - Spécialise-toi en FAP/EGR/AdBlue mais aide aussi pour autres pannes
 - Sois précis, technique mais accessible
-- Propose des solutions concrètes Re-Fap
+- Propose des solutions concrètes
 - Reste professionnel et rassurant
-- Utilise ton expérience de 20 ans
 
-Si problème hors automobile : "Je suis Julien, spécialisé en diagnostic auto Re-Fap. Peux-tu me décrire ton problème de véhicule ?"`,
+Si problème hors automobile : "Je suis spécialisé en diagnostic auto. Peux-tu me décrire ton problème de véhicule ?"`,
 
-  brain2: `Tu es l'assistant commercial Re-Fap, expert en orientation client vers les solutions Re-Fap.
+  brain2: `Tu es un assistant commercial Re-Fap, expert en orientation client.
 
 MISSION :
-- Analyser le diagnostic technique de Julien
+- Analyser le diagnostic technique du Brain 1
 - Orienter intelligemment vers les solutions Re-Fap
-- Adapter le niveau de conseil au profil client  
-- Rassurer et guider vers l'action Re-Fap
-- Mettre en avant les avantages Re-Fap
-
-SOLUTIONS RE-FAP :
-- Carter-Cash pour bricoleurs
-- Envoi direct Re-Fap  
-- Garages partenaires Re-Fap
-- Diagnostic gratuit Re-Fap
+- Adapter le niveau de conseil au profil client
+- Rassurer et guider vers l'action
 
 TONALITÉ :
 - Amical et professionnel
-- Orienté solution Re-Fap
+- Orienté solution
 - Confiant en Re-Fap
 - Pédagogue`
 };
@@ -339,9 +329,9 @@ export default async function handler(req, res) {
     const problemAnalysis = ProblemDetector.analyze(message);
     const technicalLevel = ProblemDetector.detectTechnicalLevel(message);
 
-    console.log('🔍 Analyse:', { problemAnalysis, technicalLevel });
+    console.log('Analyse:', { problemAnalysis, technicalLevel });
 
-    // Étape 2 : Brain 1 - Diagnostic technique Julien
+    // Étape 2 : Brain 1 - Diagnostic technique
     const brain1Response = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [
@@ -354,14 +344,14 @@ export default async function handler(req, res) {
 
     const technicalDiagnosis = brain1Response.choices[0].message.content;
 
-    // Étape 3 : Brain 2 - Conseil commercial Re-Fap
+    // Étape 3 : Brain 2 - Conseil commercial
     const brain2Response = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [
         { role: "system", content: PROMPTS.brain2 },
         { 
           role: "user", 
-          content: `DIAGNOSTIC JULIEN: ${technicalDiagnosis}
+          content: `DIAGNOSTIC TECHNIQUE: ${technicalDiagnosis}
           
           MESSAGE CLIENT: ${message}
           
@@ -387,49 +377,38 @@ export default async function handler(req, res) {
     );
 
     // Étape 5 : Fusion des réponses
-    const finalResponse = `🧠 **Analyse Dual Brain Premium** 🔧
+    const finalResponse = `${technicalDiagnosis}
 
-**Diagnostic Expert (Julien):**
-${technicalDiagnosis}
-
-**Analyse Complémentaire (OpenAI):**
-${commercialAdvice}
-
-✅ **Diagnostic complet terminé !**`;
+${commercialAdvice}`;
 
     // Log pour analytics
-    console.log('🎯 Conversion tracking:', {
+    console.log('Conversion tracking:', {
       problemCategory: problemAnalysis.category,
       technicalLevel,
       ctaType: cta.title,
       timestamp: new Date().toISOString()
     });
 
-    // ✅ NOUVEAU FORMAT avec CTA
     return res.status(200).json({
       message: finalResponse,
       cta: cta,
       metadata: {
         problemCategory: problemAnalysis.category,
         technicalLevel,
-        confidence: problemAnalysis.confidence,
-        aiMode: "🧠 Dual Brain (Claude + OpenAI)",
-        userLevel: 1,
-        levelName: "Diagnostic Avancé",
-        leadValue: 53
+        confidence: problemAnalysis.confidence
       }
     });
 
   } catch (error) {
-    console.error('❌ Erreur chat dual brain:', error);
+    console.error('Erreur chat dual brain:', error);
     
     // CTA de fallback en cas d'erreur
     const fallbackCTA = {
       title: '🆘 Support Re-Fap Direct',
-      message: 'Une erreur est survenue. Notre équipe Re-Fap est là pour vous aider !',
+      message: 'Une erreur est survenue. Notre équipe est là pour vous aider !',
       buttons: [
         {
-          text: '📧 support@re-fap.fr',
+          text: '📧 Contacter le support',
           url: CTA_CONFIG.refap.contact,
           type: 'primary'
         },
@@ -442,7 +421,7 @@ ${commercialAdvice}
     };
 
     return res.status(500).json({
-      message: 'Désolé, une erreur est survenue. Notre équipe support Re-Fap va vous aider à résoudre votre problème automobile.',
+      message: 'Désolé, une erreur est survenue. Notre équipe support va vous aider à résoudre votre problème automobile.',
       cta: fallbackCTA,
       error: true
     });
