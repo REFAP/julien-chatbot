@@ -1,22 +1,27 @@
 // diagnostics-core.js
-import OpenAI from "openai";
+import dotenv from 'dotenv';
+import OpenAI from 'openai';
+import fetch from 'node:fetch'; // Node 18+ a fetch global, mais on peut l'utiliser directement.
 
-// --- configuration / variables d'environnement ---
-const openaiKey = process.env.OPENAI_API_KEY || process.env.CLÉ_API_OPENAI;
-const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
+dotenv.config();
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const TABLE_NAME = "CAS_DIAGNOSTIC"; // nom exact de la table Airtable
+const TABLE_NAME = process.env.TABLE_NAME || 'CAS_DIAGNOSTIC';
 
-if (!openaiKey) throw new Error("Missing OpenAI API key (OPENAI_API_KEY or CLÉ_API_OPENAI).");
-if (!AIRTABLE_TOKEN) throw new Error("Missing Airtable personal access token (AIRTABLE_TOKEN).");
-if (!AIRTABLE_BASE_ID) throw new Error("Missing Airtable base ID (AIRTABLE_BASE_ID).");
+if (!OPENAI_API_KEY) throw new Error('Missing OpenAI API key (OPENAI_API_KEY).');
+if (!AIRTABLE_API_KEY) throw new Error('Missing Airtable API key/token (AIRTABLE_API_KEY or AIRTABLE_TOKEN).');
+if (!AIRTABLE_BASE_ID) throw new Error('Missing Airtable base ID (AIRTABLE_BASE_ID).');
 
-const openai = new OpenAI({ apiKey: openaiKey });
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-// --- utilitaires ---
+// -- utilitaires embeddings / similarité --
+
 function cosineSimilarity(a, b) {
-  if (!a || !b || a.length !== b.length) return 0;
-  let dot = 0, normA = 0, normB = 0;
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i];
     normA += a[i] * a[i];
@@ -29,246 +34,157 @@ function cosineSimilarity(a, b) {
 async function getEmbedding(text) {
   if (!text) return null;
   const resp = await openai.embeddings.create({
-    model: "text-embedding-ada-002",
+    model: 'text-embedding-ada-002',
     input: text,
   });
   return resp.data[0].embedding;
 }
 
-// --- Airtable REST helpers ---
-async function airtableList(params = {}) {
-  const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(TABLE_NAME)}`);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString(), {
-    headers: {
-      Authorization: `Bearer ${AIRTABLE_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`Airtable list error ${res.status}: ${txt}`);
-  }
-  return res.json();
-}
+// --- helpers Airtable via REST (pour pouvoir patcher facilement) ---
+const airtableBaseUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(
+  TABLE_NAME
+)}`;
+const airtableHeaders = {
+  Authorization: `Bearer ${AIRTABLE_API_KEY}`,
+  'Content-Type': 'application/json',
+};
 
-async function airtableCreate(fields) {
-  const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(TABLE_NAME)}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${AIRTABLE_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ fields }),
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`Airtable create error ${res.status}: ${txt}`);
-  }
-  return res.json();
+async function airtableListAll() {
+  // pagination automatique
+  let records = [];
+  let offset = undefined;
+  do {
+    const url = new URL(airtableBaseUrl);
+    url.searchParams.set('pageSize', '100');
+    if (offset) url.searchParams.set('offset', offset);
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      headers: airtableHeaders,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Airtable list error ${res.status}: ${text}`);
+    }
+    const data = await res.json();
+    records = records.concat(data.records || []);
+    offset = data.offset;
+  } while (offset);
+  return records;
 }
 
 async function airtableUpdate(recordId, fields) {
-  const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(TABLE_NAME)}`;
+  const url = `${airtableBaseUrl}/${recordId}`;
   const res = await fetch(url, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${AIRTABLE_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ records: [{ id: recordId, fields }] }),
+    method: 'PATCH',
+    headers: airtableHeaders,
+    body: JSON.stringify({ fields }),
   });
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`Airtable update error ${res.status}: ${txt}`);
+    const text = await res.text();
+    throw new Error(`Airtable update error ${res.status}: ${text}`);
   }
   return res.json();
 }
 
-// --- refresh des embeddings existants ---
-let cachedCases = null;
+// --- logique principale ---
 
-export async function refreshAllEmbeddings({ force = false } = {}) {
-  let offset;
-  do {
-    const params = { view: "Grid view", pageSize: 100 };
-    if (offset) params.offset = offset;
-    const data = await airtableList(params);
-    for (const record of data.records) {
-      const hasEmbedding = record.fields.Embedding;
-      if (hasEmbedding && !force) continue;
-      const sympt = record.fields.Symptômes || "";
-      const causes = record.fields.Causes_probables || "";
-      const solution = record.fields.Solution_Proposée || "";
-      const context = `${sympt} ${causes} ${solution}`.trim();
-      if (!context) continue;
-      try {
-        const embedding = await getEmbedding(context);
-        await airtableUpdate(record.id, { Embedding: JSON.stringify(embedding) });
-      } catch (err) {
-        console.warn("Erreur embedding pour record", record.id, err.message);
+/**
+ * Parcourt tous les cas et complète les embeddings manquants dans Airtable.
+ */
+export async function refreshAllEmbeddings() {
+  const all = await airtableListAll();
+  for (const rec of all) {
+    const fields = rec.fields || {};
+    let embedding = fields.Embedding;
+
+    // Normaliser : si c'est une string, essayer de parser, sinon s'il n'existe pas on génère
+    let parsedEmbedding = null;
+    if (embedding) {
+      if (typeof embedding === 'string') {
+        try {
+          parsedEmbedding = JSON.parse(embedding);
+        } catch {}
+      } else if (Array.isArray(embedding)) {
+        parsedEmbedding = embedding;
       }
     }
-    offset = data.offset;
-  } while (offset);
-  cachedCases = null;
-  console.log("✅ Embeddings refreshés.");
-}
 
-export async function fetchAllCasesCached() {
-  if (cachedCases) return cachedCases;
-  const all = [];
-  let offset;
-  do {
-    const params = { view: "Grid view", pageSize: 100 };
-    if (offset) params.offset = offset;
-    const data = await airtableList(params);
-    for (const r of data.records) {
-      let embedding = null;
-      try {
-        if (r.fields.Embedding) embedding = JSON.parse(r.fields.Embedding);
-      } catch {}
-      all.push({
-        id: r.id,
-        fields: r.fields,
-        embedding,
-      });
-    }
-    offset = data.offset;
-  } while (offset);
-  cachedCases = all;
-  return cachedCases;
-}
-
-// --- matching ---
-export async function findBestMatches(userInput, topK = 3) {
-  const allCases = await fetchAllCasesCached();
-  const userContext = `${userInput.symptomes || ""} ${userInput.codesErreur || ""} ${userInput.vehicule || ""}`.trim();
-  const userEmbedding = await getEmbedding(userContext);
-
-  const scored = allCases.map((c) => {
-    let score = 0;
-    if (userInput.codesErreur && c.fields.Codes_Erreur) {
-      const userCodes = userInput.codesErreur
-        .split(",")
-        .map((s) => s.trim().toUpperCase());
-      const caseCodes = (c.fields.Codes_Erreur || "")
-        .split(",")
-        .map((s) => s.trim().toUpperCase());
-      if (userCodes.some((code) => caseCodes.includes(code))) {
-        score += 0.6;
+    if (!parsedEmbedding) {
+      // créer un texte représentatif (tu peux ajuster ce que tu combines)
+      const textToEmbed = [
+        fields.Symptômes,
+        fields.Codes_Erreur,
+        fields.Causes_probables,
+        fields.Diagnostic_conseillé,
+      ]
+        .filter(Boolean)
+        .join(' | ');
+      const newEmbedding = await getEmbedding(textToEmbed);
+      if (newEmbedding) {
+        // on stocke sous forme de chaîne pour éviter de casser les types
+        await airtableUpdate(rec.id, { Embedding: JSON.stringify(newEmbedding) });
       }
     }
-    if (userEmbedding && c.embedding) {
-      const sim = cosineSimilarity(userEmbedding, c.embedding);
-      score += 0.4 * sim;
+  }
+}
+
+/**
+ * Cherche le cas le plus proche dans la base à partir du texte d'entrée.
+ * @param {string} inputText
+ */
+export async function queryDiagnostic(inputText) {
+  if (!inputText) throw new Error('inputText requis pour queryDiagnostic');
+
+  // embedding de la requête
+  const queryEmbedding = await getEmbedding(inputText);
+
+  // charger tous les cas
+  const all = await airtableListAll();
+
+  let best = null;
+
+  for (const rec of all) {
+    const fields = rec.fields || {};
+    let embedding = fields.Embedding;
+    let parsedEmbedding = null;
+    if (embedding) {
+      if (typeof embedding === 'string') {
+        try {
+          parsedEmbedding = JSON.parse(embedding);
+        } catch {}
+      } else if (Array.isArray(embedding)) {
+        parsedEmbedding = embedding;
+      }
     }
-    return { case: c, score };
-  });
+    if (!parsedEmbedding) continue; // on skip si pas d'embedding
 
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, topK);
-}
+    const score = cosineSimilarity(queryEmbedding, parsedEmbedding);
+    if (!best || score > best.score) {
+      best = {
+        score,
+        cas: fields,
+      };
+    }
+  }
 
-// --- prompt builder ---
-function buildFallbackPrompt(userInput, topMatches) {
-  const similarText = topMatches
-    .map((m) => {
-      const f = m.case.fields;
-      return `- ${f.ID_Cas || m.case.id}: Symptômes: ${f.Symptômes || "N/A"} | Solution: ${f.Solution_Proposée || "N/A"}`;
-    })
-    .join("\n");
-
-  return `
-Tu es un mécano expérimenté, direct et crédible. L’utilisateur a ce contexte :
-- Symptômes : ${userInput.symptomes || "non précisé"}
-- Codes erreur : ${userInput.codesErreur || "aucun"}
-- Véhicule : ${userInput.vehicule || "non précisé"}
-
-Cas similaires déjà connus :
-${similarText || "aucun"}
-
-Donne une réponse structurée au format JSON avec ces clés :
-1. "Diagnostic_probable" : court résumé
-2. "Causes_possibles" : liste ou chaîne
-3. "Solution_recommandée" : ce qu'il faut faire (prioriser Re-FAP / partenaire si pertinent)
-4. "Conseils_pratiques"
-5. "Différence_avec_cas_connus" : ce qui fait que c’est spécifique
-6. "Ton" : style (ex. "Mécano cash")
-
-Répond uniquement en JSON, sans explication supplémentaire.`;
-}
-
-// --- appel GPT ---
-async function callGPT(prompt) {
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.2,
-    max_tokens: 500,
-  });
-  return completion.choices[0].message.content.trim();
-}
-
-// --- gestion de la requête utilisateur ---
-export async function handleUserQuery(userInput) {
-  const matches = await findBestMatches(userInput, 3);
-  const best = matches[0];
-  const threshold = 0.75;
-
-  if (best && best.score >= threshold) {
+  if (!best) {
     return {
-      source: "base",
-      score: best.score,
-      réponse: best.case.fields.Réponse_formattée,
-      cas: best.case.fields,
+      source: 'base',
+      score: 0,
+      réponse: "Aucun cas pertinent trouvé.",
+      cas: null,
     };
   }
 
-  const prompt = buildFallbackPrompt(userInput, matches);
-  const gptRaw = await callGPT(prompt);
-
-  let parsed;
-  try {
-    parsed = JSON.parse(gptRaw);
-  } catch (e) {
-    parsed = {
-      Diagnostic_probable: "À extraire manuellement",
-      Causes_possibles: "",
-      Solution_recommandée: "",
-      Conseils_pratiques: "",
-      Différence_avec_cas_connus: "",
-      Ton: "Mécano cash",
-      raw: gptRaw,
-    };
-  }
-
-  const newCaseFields = {
-    ID_Cas: `AUTO_${Date.now()}`,
-    Symptômes: userInput.symptomes || "",
-    Codes_Erreur: userInput.codesErreur || "",
-    Causes_probables: parsed.Causes_possibles || "",
-    Diagnostic_conseillé: parsed.Diagnostic_probable || "",
-    Solution_Proposée: parsed.Solution_recommandée || "",
-    Réponse_formattée: gptRaw,
-    Ton_de_réponse: parsed.Ton || "Mécano cash",
-    Validé: false,
-    Date_creation: new Date().toISOString().split("T")[0],
-    Source: "GPT fallback",
-    Lien_CTA: "https://auto.re-fap.fr",
-  };
-
-  try {
-    await airtableCreate(newCaseFields);
-  } catch (err) {
-    console.warn("Échec création fallback case Airtable:", err.message);
-  }
+  // formater la réponse rapide (tu peux l'ajuster)
+  const réponseFormatted =
+    best.cas.Réponse_formattée ||
+    "Un voyant ou symptôme comme celui-ci cache souvent un problème sérieux. Il faut analyser et traiter rapidement.";
 
   return {
-    source: "gpt",
-    score: best ? best.score : 0,
-    parsed,
-    raw: gptRaw,
+    source: 'base',
+    score: best.score,
+    réponse: réponseFormatted,
+    cas: best.cas,
   };
 }
