@@ -7,7 +7,7 @@
     "test-query": "node test-query.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=18" 
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.2",
