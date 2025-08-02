@@ -1,26 +1,22 @@
 // diagnostics-core.js
 import OpenAI from "openai";
 
-// --- configuration / variables d'environnement ---
+// --- config et variables ---
 const openaiKey = process.env.OPENAI_API_KEY || process.env.CLÉ_API_OPENAI;
 const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const TABLE_NAME = "CAS_DIAGNOSTIC"; // nom de la table dans Airtable
+const TABLE_NAME = "CAS_DIAGNOSTIC";
 
 if (!openaiKey) throw new Error("Missing OpenAI API key (OPENAI_API_KEY or CLÉ_API_OPENAI).");
 if (!AIRTABLE_TOKEN) throw new Error("Missing Airtable personal access token (AIRTABLE_TOKEN).");
 if (!AIRTABLE_BASE_ID) throw new Error("Missing Airtable base ID (AIRTABLE_BASE_ID).");
 
-const openai = new OpenAI({
-  apiKey: openaiKey,
-});
+const openai = new OpenAI({ apiKey: openaiKey });
 
 // --- utilitaires ---
 function cosineSimilarity(a, b) {
   if (!a || !b || a.length !== b.length) return 0;
-  let dot = 0,
-    normA = 0,
-    normB = 0;
+  let dot = 0, normA = 0, normB = 0;
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i];
     normA += a[i] * a[i];
@@ -39,7 +35,7 @@ async function getEmbedding(text) {
   return resp.data[0].embedding;
 }
 
-// --- Airtable REST helpers using personal access token ---
+// --- Airtable REST helpers ---
 async function airtableList(params = {}) {
   const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(TABLE_NAME)}`);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
@@ -90,63 +86,45 @@ async function airtableUpdate(recordId, fields) {
   return res.json();
 }
 
-// --- 1. refresh des embeddings existants ---
+// --- refresh des embeddings ---
 export async function refreshAllEmbeddings({ force = false } = {}) {
   let offset;
-  const toCache = []; // on ne remplace pas cache ici mais permet de parcourir
   do {
-    const params = {
-      view: "Grid view",
-      pageSize: 100,
-    };
+    const params = { view: "Grid view", pageSize: 100 };
     if (offset) params.offset = offset;
     const data = await airtableList(params);
     for (const record of data.records) {
       const hasEmbedding = record.fields.Embedding;
-      if (hasEmbedding && !force) {
-        toCache.push(record); // on garde pour cache
-        continue;
-      }
+      if (hasEmbedding && !force) continue;
       const sympt = record.fields.Symptômes || "";
       const causes = record.fields.Causes_probables || "";
       const solution = record.fields.Solution_Proposée || "";
       const context = `${sympt} ${causes} ${solution}`.trim();
-      if (!context) {
-        toCache.push(record);
-        continue;
-      }
+      if (!context) continue;
       try {
         const embedding = await getEmbedding(context);
         await airtableUpdate(record.id, { Embedding: JSON.stringify(embedding) });
-        // mettre à jour le champ localement aussi
-        record.fields.Embedding = JSON.stringify(embedding);
       } catch (err) {
         console.warn("Erreur embedding pour record", record.id, err.message);
       }
-      toCache.push(record);
     }
     offset = data.offset;
   } while (offset);
-  // invalider cache pour forcer refetch si nécessaire
-  cachedCases = null;
+  cachedCases = null; // invalider cache
   console.log("✅ Embeddings refreshés.");
 }
 
 // --- cache en mémoire ---
 let cachedCases = null;
-
 export async function fetchAllCasesCached() {
   if (cachedCases) return cachedCases;
   const all = [];
   let offset;
   do {
-    const params = {
-      view: "Grid view",
-      pageSize: 100,
-    };
+    const params = { view: "Grid view", pageSize: 100 };
     if (offset) params.offset = offset;
     const data = await airtableList(params);
-    data.records.forEach((r) => {
+    for (const r of data.records) {
       let embedding = null;
       try {
         if (r.fields.Embedding) embedding = JSON.parse(r.fields.Embedding);
@@ -156,7 +134,7 @@ export async function fetchAllCasesCached() {
         fields: r.fields,
         embedding,
       });
-    });
+    }
     offset = data.offset;
   } while (offset);
   cachedCases = all;
@@ -171,7 +149,6 @@ export async function findBestMatches(userInput, topK = 3) {
 
   const scored = allCases.map((c) => {
     let score = 0;
-    // boost sur code erreur
     if (userInput.codesErreur && c.fields.Codes_Erreur) {
       const userCodes = userInput.codesErreur
         .split(",")
@@ -183,7 +160,6 @@ export async function findBestMatches(userInput, topK = 3) {
         score += 0.6;
       }
     }
-    // similarité texte
     if (userEmbedding && c.embedding) {
       const sim = cosineSimilarity(userEmbedding, c.embedding);
       score += 0.4 * sim;
@@ -195,7 +171,7 @@ export async function findBestMatches(userInput, topK = 3) {
   return scored.slice(0, topK);
 }
 
-// --- prompt builder pour fallback GPT ---
+// --- prompt builder ---
 function buildFallbackPrompt(userInput, topMatches) {
   const similarText = topMatches
     .map((m) => {
@@ -227,7 +203,7 @@ Répond uniquement en JSON, sans explication supplémentaire.`;
 // --- appel GPT ---
 async function callGPT(prompt) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o", // adapte selon ton accès (ex: "gpt-4" ou "gpt-4o")
+    model: "gpt-4o",
     messages: [{ role: "user", content: prompt }],
     temperature: 0.2,
     max_tokens: 500,
@@ -235,9 +211,8 @@ async function callGPT(prompt) {
   return completion.choices[0].message.content.trim();
 }
 
-// --- gestion de la requête utilisateur ---
+// --- traitement de la requête utilisateur ---
 export async function handleUserQuery(userInput) {
-  // format attendu : { symptomes: "", codesErreur: "", vehicule: "" }
   const matches = await findBestMatches(userInput, 3);
   const best = matches[0];
   const threshold = 0.75;
@@ -251,7 +226,6 @@ export async function handleUserQuery(userInput) {
     };
   }
 
-  // fallback GPT
   const prompt = buildFallbackPrompt(userInput, matches);
   const gptRaw = await callGPT(prompt);
 
