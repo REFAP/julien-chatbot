@@ -1,9 +1,17 @@
 {
-  "name": "julien-dual-brain",
+  "name": "julien-chatbot",
   "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "test-query": "node test-query.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.2",
-    "openai": "^4.20.1"
+    "openai": "^4.20.1",
+    "airtable": "^0.11.1",
+    "dotenv": "^16.0.0"
   }
 }
