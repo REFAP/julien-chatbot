@@ -1,27 +1,28 @@
 // diagnostics-core.js
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
-import fetch from 'node:fetch'; // Node 18+ a fetch global, mais on peut l'utiliser directement.
 
 dotenv.config();
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN;
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const TABLE_NAME = process.env.TABLE_NAME || 'CAS_DIAGNOSTIC';
+// --- validations ---
+const openaiKey = process.env.OPENAI_API_KEY;
+const airtableToken = process.env.AIRTABLE_API_KEY; // ton PAT Airtable
+const airtableBaseId = process.env.AIRTABLE_BASE_ID;
+const TABLE_NAME = process.env.TABLE_NAME;
 
-if (!OPENAI_API_KEY) throw new Error('Missing OpenAI API key (OPENAI_API_KEY).');
-if (!AIRTABLE_API_KEY) throw new Error('Missing Airtable API key/token (AIRTABLE_API_KEY or AIRTABLE_TOKEN).');
-if (!AIRTABLE_BASE_ID) throw new Error('Missing Airtable base ID (AIRTABLE_BASE_ID).');
+if (!openaiKey) throw new Error("Missing OpenAI API key (OPENAI_API_KEY).");
+if (!airtableToken) throw new Error("Missing Airtable token (AIRTABLE_API_KEY).");
+if (!airtableBaseId) throw new Error("Missing Airtable base ID (AIRTABLE_BASE_ID).");
+if (!TABLE_NAME) throw new Error("Missing Airtable table name (TABLE_NAME).");
 
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: openaiKey });
 
-// -- utilitaires embeddings / similarité --
-
+// --- utilitaires ---
 function cosineSimilarity(a, b) {
-  let dot = 0;
-  let normA = 0;
-  let normB = 0;
+  if (!a || !b || a.length !== b.length) return 0;
+  let dot = 0,
+    normA = 0,
+    normB = 0;
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i];
     normA += a[i] * a[i];
@@ -34,157 +35,166 @@ function cosineSimilarity(a, b) {
 async function getEmbedding(text) {
   if (!text) return null;
   const resp = await openai.embeddings.create({
-    model: 'text-embedding-ada-002',
+    model: "text-embedding-ada-002",
     input: text,
   });
   return resp.data[0].embedding;
 }
 
-// --- helpers Airtable via REST (pour pouvoir patcher facilement) ---
-const airtableBaseUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(
+// Parse éventuellement l'embedding stocké (chaîne JSON ou tableau)
+function parseEmbedding(raw) {
+  if (!raw) return null;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "object" && raw.embedding) return raw.embedding;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // tentatives secondaires (guillemets simples -> doubles)
+    try {
+      const cleaned = raw.replace(/'/g, '"');
+      return JSON.parse(cleaned);
+    } catch {
+      return null;
+    }
+  }
+}
+
+// --- Airtable REST helpers ---
+const AIRTABLE_API_BASE = `https://api.airtable.com/v0/${airtableBaseId}/${encodeURIComponent(
   TABLE_NAME
 )}`;
 const airtableHeaders = {
-  Authorization: `Bearer ${AIRTABLE_API_KEY}`,
-  'Content-Type': 'application/json',
+  Authorization: `Bearer ${airtableToken}`,
+  "Content-Type": "application/json",
 };
 
 async function airtableListAll() {
-  // pagination automatique
   let records = [];
   let offset = undefined;
   do {
-    const url = new URL(airtableBaseUrl);
-    url.searchParams.set('pageSize', '100');
-    if (offset) url.searchParams.set('offset', offset);
+    const url = new URL(AIRTABLE_API_BASE);
+    url.searchParams.set("pageSize", "100");
+    if (offset) url.searchParams.set("offset", offset);
+
     const res = await fetch(url.toString(), {
-      method: 'GET',
       headers: airtableHeaders,
     });
+
+    const text = await res.text();
     if (!res.ok) {
-      const text = await res.text();
       throw new Error(`Airtable list error ${res.status}: ${text}`);
     }
-    const data = await res.json();
-    records = records.concat(data.records || []);
+    const data = JSON.parse(text);
+    records.push(...(data.records || []));
     offset = data.offset;
   } while (offset);
   return records;
 }
 
-async function airtableUpdate(recordId, fields) {
-  const url = `${airtableBaseUrl}/${recordId}`;
-  const res = await fetch(url, {
-    method: 'PATCH',
+async function airtableUpdateEmbedding(recordId, embeddingArray) {
+  const body = {
+    fields: {
+      Embedding: JSON.stringify(embeddingArray),
+    },
+  };
+  const res = await fetch(`${AIRTABLE_API_BASE}/${recordId}`, {
+    method: "PATCH",
     headers: airtableHeaders,
-    body: JSON.stringify({ fields }),
+    body: JSON.stringify(body),
   });
+  const text = await res.text();
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Airtable update error ${res.status}: ${text}`);
+    console.warn(
+      `Failed updating embedding for ${recordId}: ${res.status} ${text}`
+    );
+    return null;
   }
-  return res.json();
+  return JSON.parse(text);
 }
 
-// --- logique principale ---
+// --- cache simple en mémoire ---
+let cachedCases = null;
 
-/**
- * Parcourt tous les cas et complète les embeddings manquants dans Airtable.
- */
+// récupère et met en cache toutes les fiches
+async function fetchAllCases() {
+  if (cachedCases) return cachedCases;
+  const records = await airtableListAll();
+  cachedCases = records.map((r) => ({
+    id: r.id,
+    fields: r.fields,
+  }));
+  return cachedCases;
+}
+
+// force le rafraîchissement des embeddings dans Airtable à partir d'une source de texte (ici Réponse_formattée)
 export async function refreshAllEmbeddings() {
-  const all = await airtableListAll();
-  for (const rec of all) {
-    const fields = rec.fields || {};
-    let embedding = fields.Embedding;
-
-    // Normaliser : si c'est une string, essayer de parser, sinon s'il n'existe pas on génère
-    let parsedEmbedding = null;
-    if (embedding) {
-      if (typeof embedding === 'string') {
-        try {
-          parsedEmbedding = JSON.parse(embedding);
-        } catch {}
-      } else if (Array.isArray(embedding)) {
-        parsedEmbedding = embedding;
-      }
-    }
-
-    if (!parsedEmbedding) {
-      // créer un texte représentatif (tu peux ajuster ce que tu combines)
-      const textToEmbed = [
-        fields.Symptômes,
-        fields.Codes_Erreur,
-        fields.Causes_probables,
-        fields.Diagnostic_conseillé,
-      ]
-        .filter(Boolean)
-        .join(' | ');
-      const newEmbedding = await getEmbedding(textToEmbed);
-      if (newEmbedding) {
-        // on stocke sous forme de chaîne pour éviter de casser les types
-        await airtableUpdate(rec.id, { Embedding: JSON.stringify(newEmbedding) });
-      }
+  const cases = await fetchAllCases();
+  for (const c of cases) {
+    try {
+      const sourceText =
+        c.fields.Réponse_formattée ||
+        c.fields.Diagnostic_conseillé ||
+        c.fields["Réponse_formattée"] ||
+        "";
+      if (!sourceText) continue;
+      const emb = await getEmbedding(sourceText);
+      if (!emb) continue;
+      await airtableUpdateEmbedding(c.id, emb);
+      // petite pause pour ne pas trop écraser l'API si nécessaire
+      await new Promise((r) => setTimeout(r, 200));
+    } catch (e) {
+      console.warn("Erreur pendant refreshAllEmbeddings pour", c.id, e);
     }
   }
+  // invalide cache pour que les prochains query reprennent à jour
+  cachedCases = null;
+  return { refreshed: true };
 }
 
-/**
- * Cherche le cas le plus proche dans la base à partir du texte d'entrée.
- * @param {string} inputText
- */
+// interroge en comparant l'inputText avec les cas existants via cosine similarity
 export async function queryDiagnostic(inputText) {
-  if (!inputText) throw new Error('inputText requis pour queryDiagnostic');
+  if (!inputText) {
+    throw new Error("inputText requis pour queryDiagnostic");
+  }
 
-  // embedding de la requête
-  const queryEmbedding = await getEmbedding(inputText);
+  const inputEmbedding = await getEmbedding(inputText);
+  if (!inputEmbedding) {
+    throw new Error("Impossible de calculer l'embedding de l'entrée");
+  }
 
-  // charger tous les cas
-  const all = await airtableListAll();
-
+  const cases = await fetchAllCases();
   let best = null;
+  let bestScore = -1;
 
-  for (const rec of all) {
-    const fields = rec.fields || {};
-    let embedding = fields.Embedding;
-    let parsedEmbedding = null;
-    if (embedding) {
-      if (typeof embedding === 'string') {
-        try {
-          parsedEmbedding = JSON.parse(embedding);
-        } catch {}
-      } else if (Array.isArray(embedding)) {
-        parsedEmbedding = embedding;
-      }
-    }
-    if (!parsedEmbedding) continue; // on skip si pas d'embedding
-
-    const score = cosineSimilarity(queryEmbedding, parsedEmbedding);
-    if (!best || score > best.score) {
-      best = {
-        score,
-        cas: fields,
-      };
+  for (const c of cases) {
+    const rawEmb = c.fields.Embedding;
+    const caseEmbedding = parseEmbedding(rawEmb);
+    if (!caseEmbedding) continue;
+    const score = cosineSimilarity(inputEmbedding, caseEmbedding);
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
     }
   }
 
   if (!best) {
     return {
-      source: 'base',
+      source: "base",
       score: 0,
       réponse: "Aucun cas pertinent trouvé.",
       cas: null,
     };
   }
 
-  // formater la réponse rapide (tu peux l'ajuster)
-  const réponseFormatted =
-    best.cas.Réponse_formattée ||
-    "Un voyant ou symptôme comme celui-ci cache souvent un problème sérieux. Il faut analyser et traiter rapidement.";
-
+  // construis la réponse finale
   return {
-    source: 'base',
-    score: best.score,
-    réponse: réponseFormatted,
-    cas: best.cas,
+    source: "base",
+    score: bestScore,
+    réponse:
+      best.fields.Réponse_formattée ||
+      best.fields["Réponse_formattée"] ||
+      best.fields.Diagnostic_conseillé ||
+      "",
+    cas: best.fields,
   };
 }
