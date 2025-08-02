@@ -1,11 +1,11 @@
 // diagnostics-core.js
 import OpenAI from "openai";
 
-// --- config et variables ---
+// --- configuration / variables d'environnement ---
 const openaiKey = process.env.OPENAI_API_KEY || process.env.CLÉ_API_OPENAI;
 const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const TABLE_NAME = "CAS_DIAGNOSTIC";
+const TABLE_NAME = "CAS_DIAGNOSTIC"; // nom exact de la table Airtable
 
 if (!openaiKey) throw new Error("Missing OpenAI API key (OPENAI_API_KEY or CLÉ_API_OPENAI).");
 if (!AIRTABLE_TOKEN) throw new Error("Missing Airtable personal access token (AIRTABLE_TOKEN).");
@@ -86,7 +86,9 @@ async function airtableUpdate(recordId, fields) {
   return res.json();
 }
 
-// --- refresh des embeddings ---
+// --- refresh des embeddings existants ---
+let cachedCases = null;
+
 export async function refreshAllEmbeddings({ force = false } = {}) {
   let offset;
   do {
@@ -110,12 +112,10 @@ export async function refreshAllEmbeddings({ force = false } = {}) {
     }
     offset = data.offset;
   } while (offset);
-  cachedCases = null; // invalider cache
+  cachedCases = null;
   console.log("✅ Embeddings refreshés.");
 }
 
-// --- cache en mémoire ---
-let cachedCases = null;
 export async function fetchAllCasesCached() {
   if (cachedCases) return cachedCases;
   const all = [];
@@ -211,7 +211,7 @@ async function callGPT(prompt) {
   return completion.choices[0].message.content.trim();
 }
 
-// --- traitement de la requête utilisateur ---
+// --- gestion de la requête utilisateur ---
 export async function handleUserQuery(userInput) {
   const matches = await findBestMatches(userInput, 3);
   const best = matches[0];
