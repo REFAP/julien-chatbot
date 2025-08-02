@@ -2,12 +2,13 @@
   "name": "julien-chatbot",
   "version": "1.0.0",
   "type": "module",
-  "engines": {
-    "node": ">=18"
-  },
   "scripts": {
     "start": "node server.js",
-    "test-query": "node test-query.js"
+    "test-query": "node test-query.js",
+    "dev": "nodemon server.js"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.2",
