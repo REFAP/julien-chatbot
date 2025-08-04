@@ -121,6 +121,7 @@ class FAPDiagnosticEngine {
     this.kb = knowledgeBase;
     this.sessions = new Map();
     this.learningData = new Map();
+    this.loadDecisionTrees(); // Charger les arbres de décision
   }
 
   // ==================== GESTION DE SESSION ====================
@@ -870,27 +871,203 @@ class FAPDiagnosticEngine {
     const workflow = this.selectBestWorkflow(session, [topCause]);
     const progress = this.calculateProgress(session);
     
+    // Utiliser les CTA de l'arbre de décision
+    const decisionCTAs = this.generateDecisionCTAs(session, topCause);
+    const finalCTAs = decisionCTAs.length > 0 ? decisionCTAs : (workflow ? this.generateWorkflowCTAs([workflow]) : []);
+    
     return {
       response: `🎯 **Diagnostic (${Math.round(topCause.score * 100)}% certitude)**\n\n` +
                 `**Problème :** ${topCause.name}\n\n` +
                 `**Explication :** ${topCause.technical_explanation}\n\n` +
-                `**Solution recommandée :** ${workflow?.name || 'Diagnostic professionnel'}`,
+                `**Solutions recommandées par ordre d'efficacité :**`,
       confidence: topCause.score,
       top_causes: [topCause],
       recommended_workflow: workflow,
-      ctas: workflow ? this.generateWorkflowCTAs([workflow]) : [],
-      current_progress: Math.max(progress, 80), // Au moins 80% si diagnostic prêt
-      session_state: 'diagnosis_complete'
+      ctas: finalCTAs,
+      current_progress: Math.max(progress, 80),
+      session_state: 'diagnosis_complete',
+      decision_tree_active: decisionCTAs.length > 0
     };
   }
 
-  // ==================== GESTION DU SUIVI WORKFLOW ====================
+  // ==================== SYSTÈME D'ARBRE DE DÉCISION ====================
+  
+  loadDecisionTrees() {
+    // En production, charger depuis un fichier JSON externe
+    // Pour l'instant, intégré dans le code
+    this.decisionTrees = {
+      "dpf_clogged_tree": {
+        "trigger_conditions": { "cause": "dpf_clogged", "confidence": 0.7 },
+        "nodes": {
+          "self_service_path": {
+            "type": "workflow_sequence",
+            "title": "🛠️ Solutions Auto-Service",
+            "description": "Commençons par les solutions que vous pouvez faire vous-même",
+            "ctas": [
+              {
+                "type": "primary",
+                "title": "🛣️ Démarrer régénération autoroute",
+                "action": "start_highway_regeneration", 
+                "description": "30-45 min • Gratuit • 65% de succès"
+              },
+              {
+                "type": "secondary",
+                "title": "🧴 Traitement additif d'abord",
+                "action": "start_additive_first",
+                "description": "Si vous préférez l'additif"
+              },
+              {
+                "type": "info", 
+                "title": "👨‍🔧 Passer au professionnel",
+                "action": "skip_to_professional",
+                "description": "Solution garantie directement"
+              }
+            ]
+          },
+          "additive_treatment": {
+            "type": "workflow_sequence",
+            "title": "🧴 Traitement Additif FAP",
+            "description": "La régénération n'a pas suffi, essayons l'additif",
+            "ctas": [
+              {
+                "type": "primary",
+                "title": "🛒 Commander additif FAP Re-Fap",
+                "action": "order_additive",
+                "description": "Livraison 24h • Guide inclus"
+              },
+              {
+                "type": "secondary",
+                "title": "📋 J'ai déjà l'additif",
+                "action": "guide_additive_usage", 
+                "description": "Guide d'utilisation"
+              }
+            ]
+          },
+          "professional_diagnosis": {
+            "type": "workflow_sequence",
+            "title": "👨‍🔧 Diagnostic Professionnel",
+            "description": "Diagnostic précis nécessaire",
+            "ctas": [
+              {
+                "type": "primary",
+                "title": "📞 Prendre RDV diagnostic",
+                "action": "book_diagnostic",
+                "description": "30€ • Déduit si intervention"
+              },
+              {
+                "type": "urgent",
+                "title": "🚨 Diagnostic d'urgence",
+                "action": "emergency_diagnostic",
+                "description": "Si le problème s'aggrave"
+              }
+            ]
+          },
+          "monitor_prevention": {
+            "type": "follow_up",
+            "title": "✅ Problème Résolu - Surveillance",
+            "description": "Voici comment éviter que ça revienne",
+            "ctas": [
+              {
+                "type": "prevention",
+                "title": "📅 Entretien préventif",
+                "action": "schedule_maintenance",
+                "description": "Tous les 15 000 km"
+              },
+              {
+                "type": "product",
+                "title": "🛒 Additif préventif",
+                "action": "subscribe_preventive",
+                "description": "Abonnement • -20%"
+              }
+            ]
+          }
+        }
+      }
+    };
+  }
+
+  getDecisionTree(session, topCause) {
+    const cause = topCause.id;
+    const confidence = topCause.score;
+    
+    // Trouver l'arbre de décision approprié
+    for (const [treeId, tree] of Object.entries(this.decisionTrees)) {
+      const conditions = tree.trigger_conditions;
+      if (conditions.cause === cause && confidence >= conditions.confidence) {
+        return { treeId, tree };
+      }
+    }
+    
+    return null;
+  }
+
+  getCurrentDecisionNode(session, treeId) {
+    // Déterminer le nœud actuel selon l'historique
+    const attemptedWorkflows = session.attempted_workflows || [];
+    
+    if (attemptedWorkflows.length === 0) {
+      return "self_service_path";
+    }
+    
+    const lastAttempt = attemptedWorkflows[attemptedWorkflows.length - 1];
+    
+    // Logique de progression selon les résultats
+    if (lastAttempt.workflow_id === "highway_regeneration") {
+      switch (lastAttempt.result) {
+        case "success": return "monitor_prevention";  
+        case "partial": return "additive_treatment";
+        case "failure": return "professional_diagnosis";
+      }
+    }
+    
+    if (lastAttempt.workflow_id === "additive_treatment") {
+      switch (lastAttempt.result) {
+        case "success": return "monitor_prevention";
+        case "partial": 
+        case "failure": return "professional_diagnosis";
+      }
+    }
+    
+    return "self_service_path"; // Default
+  }
+
+  generateDecisionCTAs(session, topCause) {
+    const decisionResult = this.getDecisionTree(session, topCause);
+    
+    if (!decisionResult) {
+      // Fallback vers les CTA standards
+      return this.generateWorkflowCTAs(this.selectApplicableWorkflows(session, [topCause]));
+    }
+    
+    const { treeId, tree } = decisionResult;
+    const currentNode = this.getCurrentDecisionNode(session, treeId);
+    const nodeData = tree.nodes[currentNode];
+    
+    if (!nodeData) {
+      return [];
+    }
+    
+    console.log(`🌳 Arbre de décision: ${treeId}, Nœud: ${currentNode}`);
+    
+    // Ajouter des métadonnées aux CTA
+    return nodeData.ctas.map(cta => ({
+      ...cta,
+      node: currentNode,
+      tree: treeId,
+      enhanced: true
+    }));
+  }
+  // ==================== GESTION DU SUIVI WORKFLOW AMÉLIORÉE ====================
   async handleWorkflowFeedback(sessionId, workflowId, result, userMessage) {
     const session = this.getSession(sessionId);
     
     console.log(`📊 Feedback workflow ${workflowId}: ${result}`);
     
     // Enregistrer le résultat
+    if (!session.attempted_workflows) {
+      session.attempted_workflows = [];
+    }
+    
     session.attempted_workflows.push({
       workflow_id: workflowId,
       result: result,
@@ -898,9 +1075,83 @@ class FAPDiagnosticEngine {
       user_message: userMessage
     });
     
-    // Générer la réponse de suivi
+    // Déterminer la prochaine étape selon l'arbre de décision
+    const topCause = this.getTopCauses(session.current_scores, 1)[0];
+    if (topCause) {
+      const decisionResult = this.getDecisionTree(session, topCause);
+      
+      if (decisionResult) {
+        const { treeId } = decisionResult;
+        const nextNode = this.getNextNodeAfterResult(treeId, workflowId, result);
+        
+        return this.generateNodeResponse(session, treeId, nextNode, result);
+      }
+    }
+    
+    // Fallback vers l'ancienne logique
+    return this.generateStandardFeedbackResponse(session, workflowId, result, userMessage);
+  }
+
+  getNextNodeAfterResult(treeId, workflowId, result) {
+    // Logique de navigation dans l'arbre selon les résultats
+    const progressionMap = {
+      "highway_regeneration": {
+        "success": "monitor_prevention",
+        "partial": "additive_treatment", 
+        "failure": "professional_diagnosis"
+      },
+      "additive_treatment": {
+        "success": "monitor_prevention",
+        "partial": "professional_diagnosis",
+        "failure": "professional_diagnosis"
+      }
+    };
+    
+    return progressionMap[workflowId]?.[result] || "professional_diagnosis";
+  }
+
+  generateNodeResponse(session, treeId, nodeId, previousResult) {
+    const tree = this.decisionTrees[treeId];
+    const node = tree.nodes[nodeId];
+    
+    if (!node) {
+      return this.generateStandardFeedbackResponse(session, null, previousResult, "");
+    }
+    
+    // Messages contextuels selon le résultat précédent
+    let contextMessage = "";
+    switch (previousResult) {
+      case "success":
+        contextMessage = "🎉 **Excellent !** Votre problème FAP est résolu !\n\n";
+        break;
+      case "partial":  
+        contextMessage = "🤔 **Amélioration partielle** - Continuons avec la prochaine étape :\n\n";
+        break;
+      case "failure":
+        contextMessage = "😔 **Cette solution n'a pas fonctionné** - Pas d'inquiétude, nous avons d'autres options :\n\n";
+        break;
+    }
+    
+    return {
+      response: contextMessage + `${node.title}\n\n${node.description}`,
+      confidence: 0.9,
+      ctas: node.ctas.map(cta => ({
+        ...cta,
+        enhanced: true,
+        node: nodeId,
+        tree: treeId
+      })),
+      decision_tree_progression: {
+        tree: treeId,
+        node: nodeId,
+        previous_result: previousResult
+      }
+    };
+  }
+
+  generateStandardFeedbackResponse(session, workflowId, result, userMessage) {
+    // Ancienne logique de fallback
     const workflow = this.kb.workflows[workflowId];
-    const nextWorkflowId = workflow?.next_workflows?.[result];
     
     if (result === 'success') {
       return {
@@ -908,59 +1159,28 @@ class FAPDiagnosticEngine {
                   `✅ **Conseils pour éviter que ça revienne :**\n` +
                   `• Faites un trajet autoroute 1x/semaine minimum\n` +
                   `• Évitez les trajets uniquement urbains\n` +
-                  `• Utilisez un additif FAP mensuel en prévention\n\n` +
-                  `💡 **Surveillez ces signaux d'alerte :**\n` +
-                  `• Retour du voyant FAP/moteur\n` +
-                  `• Nouvelle perte de puissance\n` +
-                  `• Fumée noire à l'échappement`,
+                  `• Utilisez un additif FAP mensuel en prévention`,
         confidence: 0.95,
         ctas: [
           {
-            type: 'success',
-            title: '🛒 Commander additif préventif',
-            action: 'order_preventive_additive'
-          },
-          {
-            type: 'info',
-            title: '📚 Guide d\'entretien FAP',
-            action: 'maintenance_guide'
+            type: 'prevention',
+            title: '📅 Programmer entretien préventif',
+            action: 'schedule_maintenance'
           }
         ]
       };
-      
-    } else if (result === 'partial') {
-      const nextWorkflow = nextWorkflowId ? this.kb.workflows[nextWorkflowId] : null;
-      
+    } else {
       return {
-        response: `🤔 **Amélioration partielle** - C'est un bon début !\n\n` +
-                  `**Prochaine étape recommandée :**\n` +
-                  `${nextWorkflow ? `🔧 ${nextWorkflow.name}` : '📞 Consultation professionnelle'}\n\n` +
-                  `Cette approche graduée maximise vos chances de succès tout en minimisant les coûts.`,
-        confidence: 0.75,
-        ctas: nextWorkflow ? this.generateWorkflowCTAs([nextWorkflow]) : [
+        response: `😔 **Cette solution n'a pas fonctionné** - Passons à l'étape suivante :\n\n` +
+                  `👨‍🔧 **Diagnostic professionnel recommandé**\n\n` +
+                  `Un expert va identifier précisément le problème et proposer la solution adaptée.`,
+        confidence: 0.85,
+        ctas: [
           {
             type: 'professional',
-            title: '👨‍🔧 Diagnostic professionnel',
-            action: 'professional_diagnosis'
-          }
-        ]
-      };
-      
-    } else { // failure
-      const nextWorkflow = nextWorkflowId ? this.kb.workflows[nextWorkflowId] : null;
-      
-      return {
-        response: `😔 **La ${workflow?.name || 'solution'} n'a pas fonctionné**\n\n` +
-                  `C'est normal, votre problème FAP est probablement plus avancé.\n\n` +
-                  `**Solution suivante :**\n` +
-                  `${nextWorkflow ? `🔧 ${nextWorkflow.name}` : '👨‍🔧 Intervention professionnelle recommandée'}\n\n` +
-                  `💡 **Pas d'inquiétude :** Ce diagnostic progressif nous permet de trouver la solution exacte !`,
-        confidence: 0.85,
-        ctas: nextWorkflow ? this.generateWorkflowCTAs([nextWorkflow]) : [
-          {
-            type: 'urgent',
-            title: '🚨 Diagnostic professionnel urgent',
-            action: 'urgent_professional'
+            title: '📞 Prendre RDV diagnostic',
+            action: 'book_diagnostic',
+            description: '30€ • Déduit si intervention'
           }
         ]
       };
