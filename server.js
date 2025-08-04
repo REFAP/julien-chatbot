@@ -4,8 +4,20 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
+// NOUVEAU: Import Supabase
+const { createClient } = require('@supabase/supabase-js');
+
 const app = express();
 const port = process.env.PORT || 3000;
+
+// ==================== CONFIGURATION SUPABASE ====================
+const supabaseUrl = process.env.SUPABASE_URL || 'https://ipoxyhgfnzcggohugzzh.supabase.co';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlwb3h5aGdmbnpjZ2dvaHVnenpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyMDU2OTksImV4cCI6MjA2OTc4MTY5OX0.PmS4a7jWFEGoUcxJiPSuNAByNAclW8vSz14UsgOANq0';
+
+// Créer le client Supabase
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+console.log('🔗 Supabase configuré:', supabaseUrl);
 
 // ==================== MIDDLEWARE DE BASE ====================
 app.use(cors({
@@ -28,6 +40,194 @@ app.options('*', (req, res) => {
 
 // Configuration APIs
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
+
+// ==================== FONCTIONS SUPABASE ====================
+
+// Sauvegarder une session de diagnostic
+async function saveSession(sessionData) {
+  try {
+    const { data, error } = await supabase
+      .from('diagnostic_sessions')
+      .insert([{
+        session_id: sessionData.id,
+        created_at: sessionData.created_at,
+        state: sessionData.state,
+        collected_signals: sessionData.collected_signals,
+        current_scores: sessionData.current_scores,
+        user_data: sessionData.user_data || {},
+        diagnostic_result: sessionData.diagnostic_result || null,
+        current_progress: sessionData.current_progress || 0
+      }]);
+
+    if (error) {
+      console.error('❌ Erreur sauvegarde session:', error);
+      return null;
+    }
+    
+    console.log('✅ Session sauvegardée dans Supabase');
+    return data;
+  } catch (err) {
+    console.error('❌ Erreur Supabase:', err);
+    return null;
+  }
+}
+
+// Mettre à jour une session
+async function updateSessionInDB(sessionId, updates) {
+  try {
+    const { data, error } = await supabase
+      .from('diagnostic_sessions')
+      .update({
+        state: updates.state,
+        collected_signals: updates.collected_signals,
+        current_scores: updates.current_scores,
+        user_data: updates.user_data,
+        diagnostic_result: updates.diagnostic_result,
+        current_progress: updates.current_progress || 0,
+        updated_at: new Date()
+      })
+      .eq('session_id', sessionId);
+
+    if (error) {
+      console.error('❌ Erreur update session:', error);
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('❌ Erreur Supabase update:', err);
+  }
+}
+
+// Sauvegarder l'historique des messages
+async function saveMessage(sessionId, sender, message, metadata = {}) {
+  try {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .insert([{
+        session_id: sessionId,
+        sender: sender,
+        message: message,
+        metadata: metadata,
+        created_at: new Date()
+      }]);
+
+    if (error) {
+      console.error('❌ Erreur sauvegarde message:', error);
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('❌ Erreur Supabase message:', err);
+  }
+}
+
+// Sauvegarder les données utilisateur (immatriculation, code postal)
+async function saveUserData(sessionId, userData) {
+  try {
+    const { data, error } = await supabase
+      .from('user_data')
+      .insert([{
+        session_id: sessionId,
+        immatriculation: userData.immatriculation,
+        code_postal: userData.code_postal,
+        phone: userData.phone || null,
+        email: userData.email || null,
+        created_at: new Date()
+      }]);
+
+    if (error) {
+      console.error('❌ Erreur sauvegarde user data:', error);
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('❌ Erreur Supabase user data:', err);
+  }
+}
+
+// Sauvegarder le feedback sur les workflows
+async function saveWorkflowFeedback(sessionId, workflowId, result, userMessage) {
+  try {
+    const { data, error } = await supabase
+      .from('workflow_feedback')
+      .insert([{
+        session_id: sessionId,
+        workflow_id: workflowId,
+        result: result,
+        user_message: userMessage,
+        created_at: new Date()
+      }]);
+
+    if (error) {
+      console.error('❌ Erreur sauvegarde feedback:', error);
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('❌ Erreur Supabase feedback:', err);
+  }
+}
+
+// Récupérer l'historique d'une session
+async function getSessionHistory(sessionId) {
+  try {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('❌ Erreur récupération historique:', error);
+      return [];
+    }
+    
+    return data || [];
+  } catch (err) {
+    console.error('❌ Erreur Supabase historique:', err);
+    return [];
+  }
+}
+
+// Statistiques globales
+async function getGlobalStats() {
+  try {
+    // Nombre total de sessions
+    const { count: totalSessions } = await supabase
+      .from('diagnostic_sessions')
+      .select('*', { count: 'exact', head: true });
+
+    // Taux de succès des workflows
+    const { data: feedbackData } = await supabase
+      .from('workflow_feedback')
+      .select('workflow_id, result');
+
+    // Calculer les stats par workflow
+    const workflowStats = {};
+    if (feedbackData) {
+      feedbackData.forEach(feedback => {
+        if (!workflowStats[feedback.workflow_id]) {
+          workflowStats[feedback.workflow_id] = {
+            total: 0,
+            success: 0,
+            partial: 0,
+            failure: 0
+          };
+        }
+        workflowStats[feedback.workflow_id].total++;
+        workflowStats[feedback.workflow_id][feedback.result]++;
+      });
+    }
+
+    return {
+      totalSessions,
+      workflowStats
+    };
+  } catch (err) {
+    console.error('❌ Erreur stats:', err);
+    return null;
+  }
+}
 
 // ==================== CHARGEMENT BASE DE CONNAISSANCES ====================
 let KNOWLEDGE_BASE;
@@ -121,8 +321,8 @@ class FAPDiagnosticEngine {
     this.kb = knowledgeBase;
     this.sessions = new Map();
     this.learningData = new Map();
-    this.loadDecisionTrees(); // Charger les arbres de décision
-    this.loadPostDiagnosticFlows(); // NOUVEAU: Charger les flux post-diagnostic
+    this.loadDecisionTrees();
+    this.loadPostDiagnosticFlows();
   }
 
   // ==================== GESTION DE SESSION ====================
@@ -136,9 +336,14 @@ class FAPDiagnosticEngine {
       current_scores: {},
       attempted_workflows: [],
       current_progress: 0,
-      user_data: {} // NOUVEAU: Pour stocker immatriculation, code postal, etc.
+      user_data: {}
     };
+    
     this.sessions.set(sessionId, session);
+    
+    // NOUVEAU: Sauvegarder dans Supabase
+    saveSession(session);
+    
     console.log(`✅ Nouvelle session créée: ${sessionId}`);
     return session;
   }
@@ -152,6 +357,10 @@ class FAPDiagnosticEngine {
     Object.assign(session, updates);
     session.updated_at = new Date();
     this.sessions.set(sessionId, session);
+    
+    // NOUVEAU: Mettre à jour dans Supabase
+    updateSessionInDB(sessionId, session);
+    
     return session;
   }
 
@@ -890,6 +1099,13 @@ class FAPDiagnosticEngine {
     session.current_flow = 'fap_related';
     session.current_step = 'ask_garage';
     
+    // Sauvegarder le résultat du diagnostic
+    session.diagnostic_result = {
+      cause: topCause,
+      confidence: topCause.score,
+      timestamp: new Date()
+    };
+    
     return {
       response: `🎯 **Diagnostic (${Math.round(topCause.score * 100)}% certitude)**\n\n` +
                 `**Problème :** ${topCause.name}\n\n` +
@@ -1114,617 +1330,3 @@ class FAPDiagnosticEngine {
           "yes": {
             "action": "collect_immat_cp",
             "next": "list_and_offer_garages",
-            "message": "Donne-moi ton immatriculation et ton code postal, je te propose des garages de confiance."
-          },
-          "no": {
-            "message": "Ok, si tu changes d'avis je peux te relancer ou t'envoyer des conseils pour préparer ton diagnostic."
-          }
-        }
-      }
-    };
-
-    // CTA enrichis pour le post-diagnostic
-    this.postDiagnosticCTAs = {
-      "list_and_offer_garages": {
-        "title": "Prendre RDV avec un garage de confiance",
-        "description": "Confirme ton diagnostic et obtiens un devis, incluant nettoyage ou remplacement.",
-        "inputs_required": ["immatriculation", "code_postal"],
-        "next_steps": [
-          "afficher_liste_garages",
-          "prendre_rdv"
-        ]
-      },
-      "refap_cleaning": {
-        "title": "Nettoyage FAP Re-Fap",
-        "description": "Nettoyage comme neuf à partir de 99€ hors frais de port. Tu peux démonter ton FAP et l'envoyer.",
-        "options": ["rappel_conseiller", "commander_directement"],
-        "education_block": "Différence nettoyage vs remplacement, garanties, coût."
-      },
-      "carter_cash": {
-        "title": "Point Carter-Cash",
-        "description": "Alternative de proximité pour démarrer le process.",
-        "link": "https://auto.re-fap.fr/"
-      }
-    };
-  }
-
-  generatePostDiagnosticCTAs(session, topCause) {
-    const isProblemFAP = topCause && (topCause.id.includes('dpf') || topCause.id.includes('fap'));
-    
-    if (isProblemFAP) {
-      // CTA pour problème FAP confirmé
-      return [
-        {
-          type: 'primary',
-          title: '🏭 Garage de confiance',
-          description: 'Confirmation pro + devis',
-          action: 'choose_garage_option'
-        },
-        {
-          type: 'secondary', 
-          title: '🛠️ Je suis bricoleur',
-          description: 'Nettoyage Re-Fap 99€',
-          action: 'choose_diy_option'
-        },
-        {
-          type: 'alternative',
-          title: '📍 Point Carter-Cash',
-          description: 'Dépôt proche de chez toi',
-          action: 'choose_carter_cash'
-        }
-      ];
-    } else {
-      // CTA pour non-FAP
-      return [
-        {
-          type: 'primary',
-          title: '🔍 Diagnostic pro recommandé',
-          description: 'Pour identifier le vrai problème',
-          action: 'book_diagnostic_non_fap'
-        },
-        {
-          type: 'secondary',
-          title: '📞 Parler à un expert',
-          description: 'Conseil personnalisé',
-          action: 'contact_expert'
-        }
-      ];
-    }
-  }
-
-  async handlePostDiagnosticFlow(session, message) {
-    const messageLower = message.toLowerCase();
-    const currentFlow = session.current_flow || 'fap_related';
-    const currentStep = session.current_step || 'ask_garage';
-    
-    console.log(`🔄 Post-diagnostic: ${currentFlow} -> ${currentStep}`);
-    
-    // Gestion des choix utilisateur
-    if (messageLower.includes('garage') || messageLower.includes('confiance') || 
-        message.includes('choose_garage_option')) {
-      session.current_step = 'collect_immat_cp';
-      session.state = 'collect_user_data';
-      session.data_to_collect = ['immatriculation', 'code_postal'];
-      
-      return {
-        response: `🏭 **Garage de confiance**\n\n` +
-                  `Vu ton problème FAP, il faut aller dans un garage pour confirmer ce diagnostic avec un professionnel. ` +
-                  `Il pourra diagnostiquer ta voiture et te donner un devis précis incluant le nettoyage (ou remplacement si nécessaire).\n\n` +
-                  `**J'ai besoin de :**\n` +
-                  `• Ton immatriculation (ex: AB-123-CD)\n` +
-                  `• Ton code postal (ex: 75015)\n\n` +
-                  `Je te proposerai une liste de garages fiables près de chez toi avec prise de RDV rapide.`,
-        ctas: [],
-        form_active: true,
-        current_progress: 90
-      };
-    }
-    
-    if (messageLower.includes('bricoleur') || messageLower.includes('démonter') || 
-        message.includes('choose_diy_option')) {
-      return {
-        response: `🛠️ **Solution Bricoleur - Nettoyage Re-Fap**\n\n` +
-                  `Parfait ! Tu peux démonter ton FAP toi-même. Je te propose un nettoyage comme neuf via Re-Fap :\n\n` +
-                  `✅ **À partir de 99€ HT** (hors frais de port)\n` +
-                  `✅ **Garantie 12 mois**\n` +
-                  `✅ **Retour en 48-72h**\n` +
-                  `✅ **Process certifié**\n\n` +
-                  `💡 **Comment ça marche :**\n` +
-                  `1. Tu démontes ton FAP\n` +
-                  `2. Tu l'envoies dans notre atelier\n` +
-                  `3. On le nettoie comme neuf\n` +
-                  `4. On te le renvoie rapidement\n\n` +
-                  `Tu veux qu'un conseiller t'appelle pour t'expliquer ou tu préfères commander directement ?`,
-        ctas: [
-          {
-            type: 'primary',
-            title: '📞 Me faire rappeler',
-            description: 'Un expert t\'explique tout',
-            action: 'request_callback'
-          },
-          {
-            type: 'success',
-            title: '🛒 Commander directement',
-            description: 'Je connais la procédure',
-            action: 'order_refap_cleaning'
-          }
-        ],
-        current_progress: 95
-      };
-    }
-    
-    if (messageLower.includes('carter') || messageLower.includes('cash') || 
-        message.includes('choose_carter_cash')) {
-      return {
-        response: `📍 **Points de dépôt Carter-Cash**\n\n` +
-                  `Si tu préfères une option de proximité, tu peux te rendre dans un point Carter-Cash. ` +
-                  `Ils peuvent réceptionner ton FAP et t'assister dans le process.\n\n` +
-                  `**Avantages :**\n` +
-                  `• 200+ points en France\n` +
-                  `• Personnel formé FAP\n` +
-                  `• Pas besoin d'expédier toi-même\n` +
-                  `• Conseils sur place\n\n` +
-                  `Clique ci-dessous pour trouver le Carter-Cash le plus proche de chez toi :`,
-        ctas: [
-          {
-            type: 'primary',
-            title: '🗺️ Trouver le plus proche',
-            description: 'Localiser un point Carter-Cash',
-            action: 'open_carter_cash_link'
-          },
-          {
-            type: 'secondary',
-            title: '↩️ Voir autres options',
-            description: 'Garage ou bricoleur',
-            action: 'back_to_options'
-          }
-        ],
-        external_link: 'https://auto.re-fap.fr/',
-        current_progress: 95
-      };
-    }
-    
-    // Gérer le retour aux options
-    if (messageLower.includes('autres options') || message.includes('back_to_options')) {
-      return this.generateDiagnosisResponse(session, this.getTopCauses(session.current_scores, 1)[0]);
-    }
-    
-    // Par défaut, reproposer les options
-    return {
-      response: `Je n'ai pas compris ton choix. Comment préfères-tu résoudre ton problème FAP ?`,
-      ctas: this.generatePostDiagnosticCTAs(session, this.getTopCauses(session.current_scores, 1)[0]),
-      current_progress: 85
-    };
-  }
-
-  async handleUserDataCollection(session, message) {
-    const dataToCollect = session.data_to_collect || [];
-    const collectedData = session.user_data || {};
-    
-    // Parser les données du message
-    const immatPattern = /[A-Z]{2}[-\s]?\d{3}[-\s]?[A-Z]{2}/i;
-    const cpPattern = /\d{5}/;
-    
-    const immatMatch = message.match(immatPattern);
-    const cpMatch = message.match(cpPattern);
-    
-    if (immatMatch) {
-      collectedData.immatriculation = immatMatch[0].toUpperCase();
-      console.log(`✅ Immatriculation collectée: ${collectedData.immatriculation}`);
-    }
-    
-    if (cpMatch) {
-      collectedData.code_postal = cpMatch[0];
-      console.log(`✅ Code postal collecté: ${collectedData.code_postal}`);
-    }
-    
-    session.user_data = collectedData;
-    
-    // Vérifier si toutes les données sont collectées
-    const missingData = dataToCollect.filter(field => !collectedData[field]);
-    
-    if (missingData.length === 0) {
-      // Toutes les données collectées, afficher les garages
-      session.state = 'show_results';
-      
-      return {
-        response: `✅ **Parfait ! J'ai trouvé 3 garages partenaires près de ${collectedData.code_postal}**\n\n` +
-                  `🏭 **Garage Martin** - 2km\n` +
-                  `⭐ 4.8/5 - Spécialiste FAP\n` +
-                  `📅 Dispo demain matin\n` +
-                  `💰 Diagnostic: 30€ (déduit si intervention)\n\n` +
-                  `🏭 **Auto Service Pro** - 3.5km\n` +
-                  `⭐ 4.6/5 - Nettoyage FAP sur place\n` +
-                  `📅 Dispo jeudi\n` +
-                  `💰 Forfait nettoyage: 180€\n\n` +
-                  `🏭 **FAP Express** - 5km\n` +
-                  `⭐ 4.9/5 - Expert Re-Fap certifié\n` +
-                  `📅 Dispo aujourd'hui urgence\n` +
-                  `💰 Intervention rapide\n\n` +
-                  `💡 **Mention le code "CHATBOT-FAP" pour -10% sur l'intervention**`,
-        ctas: [
-          {
-            type: 'primary',
-            title: '📞 Appeler Garage Martin',
-            description: 'Le plus proche et disponible',
-            action: 'call_garage_1'
-          },
-          {
-            type: 'secondary',
-            title: '📅 Prendre RDV en ligne',
-            description: 'Choisir un créneau',
-            action: 'book_online'
-          },
-          {
-            type: 'info',
-            title: '📋 Voir tous les détails',
-            description: 'Tarifs, horaires, avis',
-            action: 'show_all_garages'
-          }
-        ],
-        user_data: collectedData,
-        garages_found: 3,
-        current_progress: 100
-      };
-    } else {
-      // Données manquantes
-      const examples = {
-        immatriculation: 'AB-123-CD',
-        code_postal: '75015'
-      };
-      
-      const missingText = missingData.map(field => 
-        `• ${field === 'immatriculation' ? 'Ton immatriculation' : 'Ton code postal'} (ex: ${examples[field]})`
-      ).join('\n');
-      
-      return {
-        response: `J'ai encore besoin de :\n${missingText}\n\nMerci de me les donner pour que je puisse chercher les meilleurs garages près de chez toi.`,
-        form_active: true,
-        missing_fields: missingData,
-        current_progress: 92
-      };
-    }
-  }
-  
-  // ==================== GESTION DU SUIVI WORKFLOW AMÉLIORÉE ====================
-  async handleWorkflowFeedback(sessionId, workflowId, result, userMessage) {
-    const session = this.getSession(sessionId);
-    
-    console.log(`📊 Feedback workflow ${workflowId}: ${result}`);
-    
-    // Enregistrer le résultat
-    if (!session.attempted_workflows) {
-      session.attempted_workflows = [];
-    }
-    
-    session.attempted_workflows.push({
-      workflow_id: workflowId,
-      result: result,
-      timestamp: new Date(),
-      user_message: userMessage
-    });
-    
-    // Déterminer la prochaine étape selon l'arbre de décision
-    const topCause = this.getTopCauses(session.current_scores, 1)[0];
-    if (topCause) {
-      const decisionResult = this.getDecisionTree(session, topCause);
-      
-      if (decisionResult) {
-        const { treeId } = decisionResult;
-        const nextNode = this.getNextNodeAfterResult(treeId, workflowId, result);
-        
-        return this.generateNodeResponse(session, treeId, nextNode, result);
-      }
-    }
-    
-    // Fallback vers l'ancienne logique
-    return this.generateStandardFeedbackResponse(session, workflowId, result, userMessage);
-  }
-
-  getNextNodeAfterResult(treeId, workflowId, result) {
-    // Logique de navigation dans l'arbre selon les résultats
-    const progressionMap = {
-      "highway_regeneration": {
-        "success": "monitor_prevention",
-        "partial": "additive_treatment", 
-        "failure": "professional_diagnosis"
-      },
-      "additive_treatment": {
-        "success": "monitor_prevention",
-        "partial": "professional_diagnosis",
-        "failure": "professional_diagnosis"
-      }
-    };
-    
-    return progressionMap[workflowId]?.[result] || "professional_diagnosis";
-  }
-
-  generateNodeResponse(session, treeId, nodeId, previousResult) {
-    const tree = this.decisionTrees[treeId];
-    const node = tree.nodes[nodeId];
-    
-    if (!node) {
-      return this.generateStandardFeedbackResponse(session, null, previousResult, "");
-    }
-    
-    // Messages contextuels selon le résultat précédent
-    let contextMessage = "";
-    switch (previousResult) {
-      case "success":
-        contextMessage = "🎉 **Excellent !** Votre problème FAP est résolu !\n\n";
-        break;
-      case "partial":  
-        contextMessage = "🤔 **Amélioration partielle** - Continuons avec la prochaine étape :\n\n";
-        break;
-      case "failure":
-        contextMessage = "😔 **Cette solution n'a pas fonctionné** - Pas d'inquiétude, nous avons d'autres options :\n\n";
-        break;
-    }
-    
-    return {
-      response: contextMessage + `${node.title}\n\n${node.description}`,
-      confidence: 0.9,
-      ctas: node.ctas.map(cta => ({
-        ...cta,
-        enhanced: true,
-        node: nodeId,
-        tree: treeId
-      })),
-      decision_tree_progression: {
-        tree: treeId,
-        node: nodeId,
-        previous_result: previousResult
-      }
-    };
-  }
-
-  generateStandardFeedbackResponse(session, workflowId, result, userMessage) {
-    // Ancienne logique de fallback
-    const workflow = this.kb.workflows[workflowId];
-    
-    if (result === 'success') {
-      return {
-        response: `🎉 **Excellent !** La ${workflow?.name || 'solution'} a fonctionné !\n\n` +
-                  `✅ **Conseils pour éviter que ça revienne :**\n` +
-                  `• Faites un trajet autoroute 1x/semaine minimum\n` +
-                  `• Évitez les trajets uniquement urbains\n` +
-                  `• Utilisez un additif FAP mensuel en prévention`,
-        confidence: 0.95,
-        ctas: [
-          {
-            type: 'prevention',
-            title: '📅 Programmer entretien préventif',
-            action: 'schedule_maintenance'
-          }
-        ]
-      };
-    } else {
-      return {
-        response: `😔 **Cette solution n'a pas fonctionné** - Passons à l'étape suivante :\n\n` +
-                  `👨‍🔧 **Diagnostic professionnel recommandé**\n\n` +
-                  `Un expert va identifier précisément le problème et proposer la solution adaptée.`,
-        confidence: 0.85,
-        ctas: [
-          {
-            type: 'professional',
-            title: '📞 Prendre RDV diagnostic',
-            action: 'book_diagnostic',
-            description: '30€ • Déduit si intervention'
-          }
-        ]
-      };
-    }
-  }
-
-  async getFallbackResponse(message) {
-    if (!CLAUDE_API_KEY) {
-      return "Base de diagnostic non disponible. Décrivez vos symptômes FAP pour un conseil général.";
-    }
-
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': CLAUDE_API_KEY,
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: 'claude-3-sonnet-20240229',
-          max_tokens: 300,
-          messages: [{
-            role: 'user',
-            content: `Tu es Julien, expert FAP Re-Fap. Question: ${message}. Réponds brièvement et professionnellement.`
-          }]
-        })
-      });
-
-      const data = await response.json();
-      return data.content?.[0]?.text || "Erreur IA. Contactez notre équipe.";
-    } catch (error) {
-      console.error('Erreur Claude:', error);
-      return "IA temporairement indisponible. Contactez directement notre expert.";
-    }
-  }
-}
-
-// ==================== INITIALISATION ====================
-loadKnowledgeBase();
-const diagnosticEngine = new FAPDiagnosticEngine(KNOWLEDGE_BASE);
-
-// ==================== ROUTES API ====================
-
-// Route principale de chat
-app.post('/api/chat', async (req, res) => {
-  // Headers CORS
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-
-  try {
-    const { message, session_id } = req.body;
-    
-    if (!message || message.trim() === '') {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Message requis',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    const sessionId = session_id || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    console.log(`💬 Session ${sessionId.split('_')[1]}: "${message}"`);
-
-    // Traitement avec timeout
-    const processPromise = diagnosticEngine.processMessage(sessionId, message);
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Timeout')), 8000)
-    );
-
-    const result = await Promise.race([processPromise, timeoutPromise]);
-    
-    // Si confiance faible, utiliser fallback IA
-    if (result.confidence < 0.3 && !result.top_causes?.length) {
-      console.log('🤖 Fallback IA activé...');
-      const aiResponse = await diagnosticEngine.getFallbackResponse(message);
-      
-      return res.json({
-        success: true,
-        session_id: sessionId,
-        response: aiResponse,
-        source: 'ai_fallback',
-        confidence: 0.6,
-        ctas: [{
-          type: 'contact',
-          title: '📞 Expert disponible',
-          description: 'Diagnostic personnalisé',
-          action: 'contact_expert'
-        }],
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Réponse du moteur expert
-    res.json({
-      success: true,
-      session_id: sessionId,
-      ...result,
-      source: 'diagnostic_engine',
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('❌ Erreur API chat:', error);
-    
-    res.status(500).json({
-      success: false,
-      error: 'Erreur serveur temporaire',
-      fallback_response: "🔧 **Conseils FAP généraux :**\n\n• Voyant moteur + perte puissance = Probable FAP colmaté\n• Essayez trajet autoroute 30+ km à 90+ km/h\n• Si persistant : contactez professionnel FAP Re-Fap",
-      ctas: [{
-        type: 'contact',
-        title: '📞 Assistance directe',
-        action: 'emergency_contact'
-      }],
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Route feedback workflow
-app.post('/api/workflow-feedback', async (req, res) => {
-  try {
-    const { session_id, workflow_id, result, feedback } = req.body;
-    
-    // Enregistrer feedback (version simple)
-    console.log(`📊 Feedback: ${workflow_id} = ${result} (${feedback})`);
-    
-    res.json({
-      success: true,
-      message: 'Feedback enregistré, merci !'
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Health check amélioré
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    version: '2.0.0-integrated',
-    timestamp: new Date().toISOString(),
-    engine: {
-      knowledge_base: {
-        version: KNOWLEDGE_BASE.version,
-        signals: Object.keys(KNOWLEDGE_BASE.signals).length,
-        causes: Object.keys(KNOWLEDGE_BASE.causes).length,
-        workflows: Object.keys(KNOWLEDGE_BASE.workflows).length
-      },
-      active_sessions: diagnosticEngine.sessions.size,
-      claude_ai: CLAUDE_API_KEY ? 'Disponible' : 'Non configuré'
-    },
-    server: {
-      port: port,
-      uptime: Math.round(process.uptime()),
-      memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB'
-    }
-  });
-});
-
-// Test direct (pour debug)
-app.get('/api/test/:query', async (req, res) => {
-  try {
-    const query = decodeURIComponent(req.params.query);
-    const sessionId = `test_${Date.now()}`;
-    
-    const result = await diagnosticEngine.processMessage(sessionId, query);
-    
-    res.json({
-      success: true,
-      query: query,
-      result: result,
-      debug: {
-        session_id: sessionId,
-        kb_version: KNOWLEDGE_BASE.version
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message,
-      query: req.params.query
-    });
-  }
-});
-
-// Interface principale
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Middleware d'erreur global
-app.use((err, req, res, next) => {
-  console.error('❌ Erreur globale:', err);
-  
-  if (res.headersSent) {
-    return next(err);
-  }
-  
-  res.status(500).json({
-    success: false,
-    error: 'Erreur serveur inattendue',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Contactez le support'
-  });
-});
-
-// ==================== DÉMARRAGE SERVEUR ====================
-app.listen(port, () => {
-  console.log(`🚀 FAP Re-Fap Expert v2.0 - PORT ${port}`);
-  console.log(`📚 Base de connaissances: ${KNOWLEDGE_BASE.version}`);
-  console.log(`🧠 Moteur diagnostic: ✅ Opérationnel`);
-  console.log(`🤖 Claude AI: ${CLAUDE_API_KEY ? '✅' : '❌'} ${CLAUDE_API_KEY ? 'Configuré' : 'Variable manquante'}`);
-  console.log(`🌐 Interface: http://localhost:${port}`);
-  console.log(`📊 Logs de debug activés`);
-  console.log(`✅ SYSTÈME COMPLET PRÊT !`);
-});
