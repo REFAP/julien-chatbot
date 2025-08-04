@@ -1,20 +1,19 @@
 {
   "name": "julien-chatbot",
   "version": "1.0.0",
-  "type": "module",
+  "description": "Chatbot Julien avec priorité Airtable",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test-query": "node test-query.js"
-  },
-  "engines": {
-    "node": ">=18"
+    "build": "echo 'No build step required'",
+    "dev": "node server.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.24.2",
-    "openai": "^4.20.1",
-    "airtable": "^0.11.1",
-    "dotenv": "^16.0.0",
-    "express": "^5.1.0",
-    "cors": "^2.8.5"
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": "18.x"
   }
 }
