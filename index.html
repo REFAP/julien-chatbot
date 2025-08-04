@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Julien - Expert FAP Re-Fap</title>
+    <title>Julien - Expert FAP Re-Fap v2.0</title>
     <style>
         * {
             margin: 0;
@@ -12,20 +12,22 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
-            align-items: center;
             justify-content: center;
+            align-items: center;
+            padding: 20px;
         }
 
         .chat-container {
-            width: 400px;
-            height: 600px;
-            background: white;
+            width: 100%;
+            max-width: 800px;
+            height: 90vh;
+            background: rgba(255, 255, 255, 0.95);
             border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -39,249 +41,328 @@
             position: relative;
         }
 
-        .avatar {
-            width: 50px;
-            height: 50px;
+        .expert-avatar {
+            width: 60px;
+            height: 60px;
+            background: #fbbf24;
             border-radius: 50%;
-            background: rgba(255,255,255,0.2);
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 10px;
             font-size: 24px;
+            margin: 0 auto 10px;
         }
 
-        .status {
+        .expert-name {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .expert-title {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .session-info {
             position: absolute;
-            top: 15px;
-            right: 15px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
+            top: 10px;
+            right: 10px;
             font-size: 12px;
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #10b981;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            opacity: 0.8;
         }
 
         .chat-messages {
             flex: 1;
-            padding: 20px;
             overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
+            padding: 20px;
+            background: #f8fafc;
         }
 
         .message {
-            max-width: 80%;
-            padding: 12px 16px;
-            border-radius: 18px;
-            word-wrap: break-word;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: flex-start;
             animation: slideIn 0.3s ease-out;
         }
 
         @keyframes slideIn {
-            from { opacity: 0; transform: translateY(10px); }
+            from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
         .message.user {
-            background: #4f46e5;
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 5px;
+            flex-direction: row-reverse;
         }
 
-        .message.bot {
-            background: #f3f4f6;
-            color: #1f2937;
-            align-self: flex-start;
-            border-bottom-left-radius: 5px;
-            position: relative;
-        }
-
-        .message-source {
-            font-size: 10px;
-            color: #6b7280;
-            margin-top: 5px;
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
-            gap: 5px;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+            margin: 0 10px;
         }
 
-        .source-fap_expert { color: #059669; font-weight: bold; }
-        .source-database { color: #059669; }
-        .source-AI { color: #7c3aed; }
+        .message.user .message-avatar {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .message.assistant .message-avatar {
+            background: #fbbf24;
+            color: #1f2937;
+        }
+
+        .message-content {
+            max-width: 70%;
+            background: white;
+            border-radius: 18px;
+            padding: 15px 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            line-height: 1.5;
+        }
+
+        .message.user .message-content {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .diagnostic-card {
+            background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+            border: 2px solid #0ea5e9;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 15px 0;
+        }
 
         .confidence-bar {
-            width: 30px;
-            height: 3px;
+            width: 100%;
+            height: 8px;
             background: #e5e7eb;
-            border-radius: 2px;
+            border-radius: 4px;
+            margin: 10px 0;
             overflow: hidden;
         }
 
         .confidence-fill {
             height: 100%;
+            background: linear-gradient(90deg, #ef4444, #f59e0b, #10b981);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-indicator {
+            background: #f3f4f6;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
             background: #10b981;
+            border-radius: 3px;
             transition: width 0.3s ease;
         }
 
-        .typing-indicator {
-            display: none;
-            align-items: center;
-            gap: 5px;
-            color: #6b7280;
-            font-style: italic;
-            padding: 0 20px;
-        }
-
-        .typing-dots {
+        .cta-buttons {
             display: flex;
-            gap: 2px;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
         }
 
-        .typing-dot {
-            width: 4px;
-            height: 4px;
+        .cta-button {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 25px;
+            padding: 10px 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cta-button:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            transform: translateY(-2px);
+        }
+
+        .cta-button.primary {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+
+        .cta-button.urgent {
+            background: #ef4444;
+            color: white;
+            border-color: #ef4444;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .workflow-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #10b981;
+        }
+
+        .workflow-steps {
+            margin-top: 10px;
+        }
+
+        .workflow-step {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .step-number {
+            width: 24px;
+            height: 24px;
+            background: #3b82f6;
+            color: white;
             border-radius: 50%;
-            background: #6b7280;
-            animation: typing 1.4s infinite ease-in-out;
-        }
-
-        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
-        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
-
-        @keyframes typing {
-            0%, 80%, 100% { transform: scale(0); }
-            40% { transform: scale(1); }
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 10px;
         }
 
         .chat-input-container {
             padding: 20px;
+            background: white;
             border-top: 1px solid #e5e7eb;
-            display: flex;
-            gap: 10px;
         }
 
         .chat-input {
-            flex: 1;
-            padding: 12px 16px;
+            width: 100%;
+            min-height: 50px;
             border: 2px solid #e5e7eb;
             border-radius: 25px;
+            padding: 15px 20px;
+            font-size: 16px;
+            resize: none;
             outline: none;
-            font-size: 14px;
-            transition: border-color 0.2s;
+            transition: border-color 0.2s ease;
         }
 
         .chat-input:focus {
-            border-color: #4f46e5;
+            border-color: #3b82f6;
+        }
+
+        .input-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
         }
 
         .send-button {
-            width: 45px;
-            height: 45px;
-            border: none;
-            background: #4f46e5;
+            background: #3b82f6;
             color: white;
-            border-radius: 50%;
+            border: none;
+            border-radius: 20px;
+            padding: 10px 25px;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
+            transition: background 0.2s ease;
         }
 
         .send-button:hover {
-            background: #4338ca;
-            transform: scale(1.05);
+            background: #2563eb;
         }
 
         .send-button:disabled {
             background: #9ca3af;
             cursor: not-allowed;
-            transform: none;
         }
 
-        /* CTA Buttons */
-        .cta-container {
-            margin-top: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
+        .typing-indicator {
+            display: none;
+            color: #6b7280;
+            font-style: italic;
+            padding: 10px 0;
         }
 
-        .cta-button {
-            padding: 8px 12px;
-            border: none;
+        .error-message {
+            background: #fecaca;
+            border: 2px solid #ef4444;
+            color: #991b1b;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+
+        .success-message {
+            background: #bbf7d0;
+            border: 2px solid #10b981;
+            color: #065f46;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+
+        .question-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .option-button {
+            background: white;
+            border: 2px solid #e5e7eb;
             border-radius: 12px;
-            font-size: 12px;
+            padding: 15px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
             text-align: left;
         }
 
-        .cta-emergency {
-            background: #fee2e2;
-            color: #dc2626;
-            border: 1px solid #fecaca;
-        }
-
-        .cta-professional {
+        .option-button:hover {
+            border-color: #3b82f6;
             background: #eff6ff;
-            color: #2563eb;
-            border: 1px solid #dbeafe;
         }
 
-        .cta-self_service {
-            background: #f0fdf4;
-            color: #16a34a;
-            border: 1px solid #dcfce7;
-        }
-
-        .cta-button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        /* Quick responses for conversations */
-        .quick-responses {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
-        }
-
-        .quick-response {
-            padding: 6px 12px;
-            background: #f3f4f6;
-            border: 1px solid #d1d5db;
-            border-radius: 15px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .quick-response:hover {
-            background: #e5e7eb;
-        }
-
-        @media (max-width: 480px) {
+        @media (max-width: 768px) {
             .chat-container {
-                width: 100vw;
                 height: 100vh;
                 border-radius: 0;
+            }
+            
+            .message-content {
+                max-width: 85%;
+            }
+            
+            .question-options {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -289,267 +370,518 @@
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <div class="status">
-                <div class="status-dot"></div>
-                <span>En ligne</span>
-            </div>
-            <div class="avatar">👨‍💼</div>
-            <h2>Julien</h2>
-            <p>Expert FAP Re-Fap</p>
+            <div class="session-info" id="sessionInfo">Session: Nouvelle</div>
+            <div class="expert-avatar">👨‍🔧</div>
+            <div class="expert-name">Julien</div>
+            <div class="expert-title">Expert FAP Re-Fap v2.0</div>
         </div>
-        
-        <div class="chat-messages" id="messages">
-            <div class="message bot">
-                <div>Bonjour ! Je suis Julien, votre expert FAP Re-Fap. Je consulte d'abord ma base de connaissances pour vous donner les meilleures réponses. Comment puis-je vous aider ?</div>
-                <div class="message-source source-fap_expert">
-                    🔧 Expert FAP conversationnel
-                    <div class="confidence-bar">
-                        <div class="confidence-fill" style="width: 100%"></div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="message assistant">
+                <div class="message-avatar">J</div>
+                <div class="message-content">
+                    <div class="diagnostic-card">
+                        <h3>🔧 Bienvenue chez FAP Re-Fap Expert v2.0</h3>
+                        <p>Je suis votre assistant intelligent pour diagnostiquer les problèmes de FAP (Filtre à Particules) avec précision.</p>
+                        
+                        <div class="progress-indicator">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                <span>Diagnostic en cours</span>
+                                <span id="progressText">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                        
+                        <p><strong>💡 Comment ça marche :</strong></p>
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            <li>🔍 Je collecte vos symptômes intelligemment</li>
+                            <li>📊 J'analyse avec un moteur de scoring avancé</li>
+                            <li>🎯 Je propose les solutions les plus efficaces</li>
+                            <li>📈 J'apprends de chaque diagnostic pour m'améliorer</li>
+                        </ul>
+                        
+                        <div class="cta-buttons">
+                            <button class="cta-button primary" onclick="quickStart()">
+                                🚀 Diagnostic rapide
+                            </button>
+                            <button class="cta-button" onclick="detailedStart()">
+                                🔬 Analyse complète
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <div class="typing-indicator" id="typing">
-            <span>Julien analyse votre problème</span>
-            <div class="typing-dots">
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-            </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            Julien analyse votre message...
         </div>
-        
+
         <div class="chat-input-container">
-            <input 
-                type="text" 
+            <textarea 
                 class="chat-input" 
                 id="messageInput" 
-                placeholder="Décrivez votre problème..."
-                maxlength="500"
-            >
-            <button class="send-button" id="sendButton" onclick="sendMessage()">
-                ➤
-            </button>
+                placeholder="Décrivez votre problème FAP (voyants, perte puissance, fumée, codes erreur...)"
+                rows="2"
+            ></textarea>
+            <div class="input-actions">
+                <div style="display: flex; gap: 10px;">
+                    <button class="cta-button" onclick="showHelp()">❓ Aide</button>
+                    <button class="cta-button" onclick="resetSession()">🔄 Reset</button>
+                </div>
+                <button class="send-button" id="sendButton" onclick="sendMessage()">
+                    Envoyer
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
-        const messagesContainer = document.getElementById('messages');
-        const messageInput = document.getElementById('messageInput');
-        const sendButton = document.getElementById('sendButton');
-        const typingIndicator = document.getElementById('typing');
-
-        const API_BASE = window.location.origin;
-        let sessionId = 'session_' + Date.now();
-        let currentConversationState = null;
-
-        messageInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-
-        async function sendMessage(messageText = null) {
-            const message = messageText || messageInput.value.trim();
-            if (!message || sendButton.disabled) return;
-
-            addMessage(message, 'user');
-            if (!messageText) messageInput.value = '';
-            setLoading(true);
-
-            try {
-                console.log('Envoi du message:', message);
+        class FAPExpertChat {
+            constructor() {
+                this.sessionId = null;
+                this.currentState = 'initial';
+                this.messageHistory = [];
+                this.currentProgress = 0;
+                this.awaitingResponse = false;
                 
-                const requestBody = { 
-                    message: message,
-                    sessionId: sessionId
-                };
+                this.initializeEventListeners();
+                this.generateSessionId();
+            }
 
-                const response = await fetch(`${API_BASE}/api/chat`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(requestBody)
+            initializeEventListeners() {
+                const messageInput = document.getElementById('messageInput');
+
+                // Enter pour envoyer (Shift+Enter pour nouvelle ligne)
+                messageInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
                 });
 
-                console.log('Réponse status:', response.status);
+                // Auto-resize du textarea
+                messageInput.addEventListener('input', () => {
+                    messageInput.style.height = 'auto';
+                    messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
+                });
+            }
+
+            generateSessionId() {
+                this.sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const sessionInfo = document.getElementById('sessionInfo');
+                if (sessionInfo) {
+                    sessionInfo.textContent = `Session: ${this.sessionId.split('_')[1]}`;
+                }
+            }
+
+            async sendMessage(message = null) {
+                const messageInput = document.getElementById('messageInput');
+                const userMessage = message || messageInput.value.trim();
                 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+                if (!userMessage || this.awaitingResponse) return;
+
+                // Désactiver l'interface pendant le traitement
+                this.setLoading(true);
+                
+                // Afficher le message utilisateur
+                this.displayMessage('user', userMessage);
+                messageInput.value = '';
+                messageInput.style.height = 'auto';
+
+                try {
+                    // Appel API avec le nouveau système
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: userMessage,
+                            session_id: this.sessionId
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Erreur HTTP ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    // Traiter la réponse selon le nouveau format
+                    this.handleResponse(data);
+
+                } catch (error) {
+                    console.error('Erreur API:', error);
+                    this.displayError('Problème de connexion au serveur. Vérifiez que le serveur est démarré sur le port 3000.');
                 }
 
-                const data = await response.json();
-                console.log('Données reçues:', data);
+                this.setLoading(false);
+            }
 
-                if (data.success) {
-                    // Mettre à jour l'état de conversation
-                    currentConversationState = data.conversationState;
-                    
-                    addMessage(data.message, 'bot', {
-                        source: data.source,
-                        confidence: data.confidence,
-                        type: data.type,
-                        ctas: data.ctas,
-                        options: data.options
-                    });
+            handleResponse(data) {
+                if (!data.success) {
+                    this.displayError(data.error || 'Erreur inconnue');
+                    return;
+                }
+
+                // Mettre à jour la progression
+                if (data.current_progress !== undefined) {
+                    this.updateProgress(data.current_progress);
+                }
+
+                // Afficher la réponse principale
+                this.displayMessage('assistant', data.response, {
+                    confidence: data.confidence,
+                    top_causes: data.top_causes,
+                    ctas: data.ctas,
+                    question_type: data.question_type,
+                    options: data.options,
+                    requires_confirmation: data.requires_confirmation,
+                    recommended_workflow: data.recommended_workflow
+                });
+
+                // Mettre à jour l'état
+                this.currentState = data.session_state || this.currentState;
+            }
+
+            displayMessage(sender, content, metadata = {}) {
+                const messagesContainer = document.getElementById('chatMessages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}`;
+
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.textContent = sender === 'user' ? 'U' : 'J';
+
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+
+                if (sender === 'assistant') {
+                    messageContent.innerHTML = this.formatAssistantMessage(content, metadata);
                 } else {
-                    addMessage('Désolé, une erreur s\'est produite.', 'bot', { source: 'error' });
+                    messageContent.innerHTML = this.formatMarkdown(content || '');
                 }
 
-            } catch (error) {
-                console.error('Erreur complète:', error);
-                addMessage('Impossible de se connecter au serveur. Vérifiez la console pour plus de détails.', 'bot', { source: 'error' });
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(messageContent);
+                messagesContainer.appendChild(messageDiv);
+
+                // Scroll automatique
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                // Stocker dans l'historique
+                this.messageHistory.push({ sender, content, metadata, timestamp: new Date() });
             }
 
-            setLoading(false);
-        }
-
-        function addMessage(text, sender, metadata = {}) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${sender}`;
-            
-            const textDiv = document.createElement('div');
-            textDiv.innerHTML = formatMessageText(text);
-            messageDiv.appendChild(textDiv);
-
-            // Ajouter les métadonnées pour les messages bot
-            if (sender === 'bot' && metadata.source) {
-                const sourceDiv = document.createElement('div');
-                sourceDiv.className = 'message-source';
+            formatAssistantMessage(content, metadata) {
+                // Sécurité : vérifier que content existe
+                if (!content) content = "Réponse vide reçue du serveur.";
                 
-                let sourceText = '';
-                let sourceClass = '';
-                
-                switch(metadata.source) {
-                    case 'fap_expert':
-                        sourceText = '🔧 Expert FAP conversationnel';
-                        sourceClass = 'source-fap_expert';
-                        break;
-                    case 'database':
-                        sourceText = '📊 Base de données';
-                        sourceClass = 'source-database';
-                        break;
-                    case 'AI':
-                        sourceText = '🤖 Intelligence Artificielle';
-                        sourceClass = 'source-AI';
-                        break;
-                    default:
-                        sourceText = '💭 Réponse générée';
-                        sourceClass = 'source-AI';
+                let html = `<div>${this.formatMarkdown(content)}</div>`;
+
+                // Affichage de la confiance si présente
+                if (metadata.confidence !== undefined) {
+                    const confidencePercent = Math.round(metadata.confidence * 100);
+                    html += `
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: ${confidencePercent}%"></div>
+                        </div>
+                        <small>Confiance du diagnostic: ${confidencePercent}%</small>
+                    `;
                 }
-                
-                sourceDiv.className += ` ${sourceClass}`;
-                sourceDiv.innerHTML = `${sourceText} <div class="confidence-bar"><div class="confidence-fill" style="width: ${(metadata.confidence || 0.8) * 100}%"></div></div>`;
-                messageDiv.appendChild(sourceDiv);
 
-                // Ajouter les CTA si présents
+                // Affichage des causes principales
+                if (metadata.top_causes && metadata.top_causes.length > 0) {
+                    html += '<div class="diagnostic-card">';
+                    html += '<h4>🎯 Causes les plus probables:</h4>';
+                    metadata.top_causes.forEach((cause, index) => {
+                        const percentage = Math.round((cause.score || 0) * 100);
+                        html += `
+                            <div style="margin: 10px 0; padding: 10px; background: rgba(59, 130, 246, 0.1); border-radius: 8px;">
+                                <strong>${index + 1}. ${cause.name || 'Cause inconnue'}</strong> (${percentage}%)
+                                <br><small>${cause.description || ''}</small>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                }
+
+                // Workflow recommandé
+                if (metadata.recommended_workflow) {
+                    html += this.formatWorkflow(metadata.recommended_workflow);
+                }
+
+                // Options de questions à choix multiples
+                if (metadata.options && metadata.question_type === 'multiple_choice') {
+                    html += '<div class="question-options">';
+                    metadata.options.forEach(option => {
+                        html += `
+                            <button class="option-button" onclick="chat.selectOption('${option.id}', '${this.escapeHtml(option.label)}')">
+                                ${option.label}
+                            </button>
+                        `;
+                    });
+                    html += '</div>';
+                }
+
+                // Boutons CTA
                 if (metadata.ctas && metadata.ctas.length > 0) {
-                    const ctaContainer = document.createElement('div');
-                    ctaContainer.className = 'cta-container';
-                    
+                    html += '<div class="cta-buttons">';
                     metadata.ctas.forEach(cta => {
-                        const ctaButton = document.createElement('button');
-                        ctaButton.className = `cta-button cta-${cta.type}`;
-                        ctaButton.textContent = cta.text;
-                        ctaButton.onclick = () => handleCTA(cta);
-                        ctaContainer.appendChild(ctaButton);
+                        const buttonClass = this.getCTAButtonClass(cta.type);
+                        html += `
+                            <button class="cta-button ${buttonClass}" onclick="chat.executeCTA('${cta.action}', '${this.escapeHtml(cta.title)}')">
+                                ${cta.title}
+                                ${cta.success_rate ? `<small>(${cta.success_rate}% succès)</small>` : ''}
+                            </button>
+                        `;
                     });
-                    
-                    messageDiv.appendChild(ctaContainer);
+                    html += '</div>';
                 }
 
-                // Ajouter les réponses rapides pour les conversations
-                if (metadata.type === 'fap_conversation' && metadata.options) {
-                    const quickContainer = document.createElement('div');
-                    quickContainer.className = 'quick-responses';
-                    
-                    Object.keys(metadata.options).forEach(option => {
-                        const quickBtn = document.createElement('button');
-                        quickBtn.className = 'quick-response';
-                        quickBtn.textContent = option === 'oui' ? 'Oui' : 
-                                              option === 'non' ? 'Non' : 
-                                              option === 'ne_sais_pas' ? 'Je ne sais pas' : option;
-                        quickBtn.onclick = () => sendMessage(quickBtn.textContent);
-                        quickContainer.appendChild(quickBtn);
+                return html;
+            }
+
+            formatWorkflow(workflow) {
+                if (!workflow) return '';
+                
+                let html = `
+                    <div class="workflow-card">
+                        <h4>🔧 ${workflow.name || 'Workflow'}</h4>
+                        <p><strong>Catégorie:</strong> ${this.formatCategory(workflow.category)}</p>
+                        <p><strong>Taux de succès:</strong> ${Math.round((workflow.success_probability || 0.5) * 100)}%</p>
+                `;
+
+                if (workflow.steps && workflow.steps.length > 0) {
+                    html += '<div class="workflow-steps">';
+                    workflow.steps.forEach(step => {
+                        html += `
+                            <div class="workflow-step">
+                                <div class="step-number">${step.step}</div>
+                                <div>
+                                    <strong>${step.title || 'Étape'}</strong>
+                                    <br><small>${step.instructions || ''}</small>
+                                    ${step.duration ? `<br><em>Durée: ${step.duration}</em>` : ''}
+                                </div>
+                            </div>
+                        `;
                     });
+                    html += '</div>';
+                }
+
+                html += '</div>';
+                return html;
+            }
+
+            formatCategory(category) {
+                const categories = {
+                    'self_service': '🛠️ Auto-service',
+                    'professional': '👨‍🔧 Professionnel',
+                    'urgent': '🚨 Urgent',
+                    'diagnostic': '🔍 Diagnostic'
+                };
+                return categories[category] || category;
+            }
+
+            getCTAButtonClass(type) {
+                const classes = {
+                    'confirmation': 'primary',
+                    'urgent': 'urgent',
+                    'emergency': 'urgent',
+                    'answer': 'primary'
+                };
+                return classes[type] || '';
+            }
+
+            formatMarkdown(text) {
+                // Sécurité : vérifier que text existe et est une chaîne
+                if (!text || typeof text !== 'string') {
+                    return '';
+                }
+                
+                return text
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/\n/g, '<br>')
+                    .replace(/^• /gm, '• '); // Préserver les puces
+            }
+
+            escapeHtml(text) {
+                if (!text) return '';
+                const map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+                return text.replace(/[&<>"']/g, m => map[m]);
+            }
+
+            selectOption(optionId, optionLabel) {
+                this.sendMessage(optionLabel);
+            }
+
+            async executeCTA(action, title) {
+                console.log(`Exécution CTA: ${action} - ${title}`);
+                
+                // Actions spéciales selon le type
+                switch (action) {
+                    case 'confirm_diagnosis':
+                        this.sendMessage('Oui, c\'est exactement ça');
+                        break;
                     
-                    messageDiv.appendChild(quickContainer);
+                    case 'gather_more_info':
+                        this.sendMessage('Non, ce n\'est pas tout à fait ça');
+                        break;
+                    
+                    case 'contact_expert':
+                    case 'contact_support':
+                        this.showContactInfo();
+                        break;
+                    
+                    default:
+                        // Pour les workflows et autres actions
+                        if (action.startsWith('answer_')) {
+                            const answer = action.split('_').slice(2).join(' ');
+                            this.sendMessage(answer);
+                        } else {
+                            const confirmed = confirm(`Voulez-vous exécuter: ${title} ?`);
+                            if (confirmed) {
+                                this.sendMessage(`Je veux exécuter: ${title}`);
+                            }
+                        }
                 }
             }
 
-            messagesContainer.appendChild(messageDiv);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
+            showContactInfo() {
+                this.displayMessage('assistant', `
+                    📞 **Contact Expert FAP Re-Fap**
+                    
+                    **Julien - Expert FAP**
+                    • Téléphone: [Votre numéro]
+                    • Email: [Votre email]
+                    • Atelier: [Votre adresse]
+                    
+                    **Horaires:**
+                    • Lun-Ven: 8h-18h
+                    • Sam: 8h-12h
+                    
+                    💡 **Mentionnez votre numéro de session:** ${this.sessionId}
+                `);
+            }
 
-        function formatMessageText(text) {
-            // Convertir les ** en <strong>
-            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            
-            // Convertir les retours à la ligne en <br>
-            text = text.replace(/\n/g, '<br>');
-            
-            return text;
-        }
+            updateProgress(percentage) {
+                this.currentProgress = percentage;
+                const progressFill = document.getElementById('progressFill');
+                const progressText = document.getElementById('progressText');
+                
+                if (progressFill) {
+                    progressFill.style.width = `${percentage}%`;
+                }
+                if (progressText) {
+                    progressText.textContent = `${percentage}%`;
+                }
+            }
 
-        function handleCTA(cta) {
-            console.log('CTA cliqué:', cta);
-            
-            switch(cta.action) {
-                case 'emergency_call':
-                    alert('🚨 Appel d\'urgence : 01 23 45 67 89');
-                    break;
-                case 'book_cleaning':
-                    alert('🔧 Redirection vers prise de RDV nettoyage FAP');
-                    break;
-                case 'highway_regeneration':
-                    sendMessage('Je vais essayer la régénération autoroute');
-                    break;
-                default:
-                    alert(`Action: ${cta.action}`);
+            setLoading(loading) {
+                this.awaitingResponse = loading;
+                const sendButton = document.getElementById('sendButton');
+                const typingIndicator = document.getElementById('typingIndicator');
+                
+                if (sendButton) {
+                    sendButton.disabled = loading;
+                    sendButton.textContent = loading ? 'Analyse...' : 'Envoyer';
+                }
+                
+                if (typingIndicator) {
+                    typingIndicator.style.display = loading ? 'block' : 'none';
+                }
+            }
+
+            displayError(message) {
+                const messagesContainer = document.getElementById('chatMessages');
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.innerHTML = `
+                    ⚠️ <strong>Erreur:</strong> ${message}
+                    <div style="margin-top: 10px;">
+                        <button class="cta-button" onclick="chat.retryLastMessage()">🔄 Réessayer</button>
+                    </div>
+                `;
+                messagesContainer.appendChild(errorDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            retryLastMessage() {
+                const lastUserMessage = this.messageHistory
+                    .slice()
+                    .reverse()
+                    .find(msg => msg.sender === 'user');
+                
+                if (lastUserMessage) {
+                    this.sendMessage(lastUserMessage.content);
+                }
             }
         }
 
-        function setLoading(loading) {
-            sendButton.disabled = loading;
-            messageInput.disabled = loading;
-            typingIndicator.style.display = loading ? 'flex' : 'none';
-            
-            if (loading) {
-                sendButton.innerHTML = '⏳';
-            } else {
-                sendButton.innerHTML = '➤';
-            }
+        // Instance globale
+        const chat = new FAPExpertChat();
+
+        // Fonctions utilitaires globales
+        function sendMessage() {
+            chat.sendMessage();
         }
 
-        async function testConnection() {
-            try {
-                console.log('Test de connexion...');
-                const response = await fetch(`${API_BASE}/api/health`);
-                const data = await response.json();
-                console.log('🟢 Connexion OK:', data);
-            } catch (error) {
-                console.error('🔴 Erreur de connexion:', error);
-            }
+        function quickStart() {
+            chat.sendMessage('Je veux un diagnostic rapide de mon problème FAP');
         }
 
-        // Reset session function
+        function detailedStart() {
+            chat.sendMessage('Je veux une analyse complète et détaillée');
+        }
+
+        function showHelp() {
+            chat.displayMessage('assistant', `
+                ❓ **Guide d'utilisation FAP Expert v2.0**
+                
+                **Types de problèmes que je peux diagnostiquer:**
+                • 🔶 Voyants allumés (moteur, FAP, AdBlue...)
+                • ⚡ Perte de puissance
+                • 💨 Fumée d'échappement
+                • 🔢 Codes d'erreur OBD
+                • 🚗 Problèmes liés à la conduite urbaine
+                
+                **Comment bien me décrire votre problème:**
+                • Soyez précis sur les symptômes
+                • Mentionnez les codes d'erreur si vous en avez
+                • Décrivez votre type de conduite
+                • Indiquez le kilométrage de votre véhicule
+                
+                **Exemples de messages efficaces:**
+                • "Voyant FAP allumé + perte de puissance en ville"
+                • "Code P2002 + fumée noire à l'accélération"
+                • "Conduite urbaine uniquement, voyant moteur"
+                
+                💡 **Plus vous êtes précis, plus mon diagnostic sera exact !**
+            `);
+        }
+
         function resetSession() {
-            sessionId = 'session_' + Date.now();
-            currentConversationState = null;
-            
-            fetch(`${API_BASE}/api/reset-session`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId: sessionId })
-            });
+            if (confirm('Voulez-vous vraiment recommencer le diagnostic ?')) {
+                location.reload();
+            }
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('Page chargée, test de connexion...');
-            testConnection();
-            messageInput.focus();
+        // Auto-focus sur l'input au chargement
+        window.addEventListener('load', () => {
+            const messageInput = document.getElementById('messageInput');
+            if (messageInput) {
+                messageInput.focus();
+            }
         });
     </script>
 </body>
