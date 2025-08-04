@@ -814,6 +814,7 @@ class FAPDiagnosticEngine {
 
   generateDiagnosisResponse(session, topCause) {
     const workflow = this.selectBestWorkflow(session, [topCause]);
+    const progress = this.calculateProgress(session);
     
     return {
       response: `🎯 **Diagnostic (${Math.round(topCause.score * 100)}% certitude)**\n\n` +
@@ -824,6 +825,7 @@ class FAPDiagnosticEngine {
       top_causes: [topCause],
       recommended_workflow: workflow,
       ctas: workflow ? this.generateWorkflowCTAs([workflow]) : [],
+      current_progress: Math.max(progress, 80), // Au moins 80% si diagnostic prêt
       session_state: 'diagnosis_complete'
     };
   }
