@@ -987,7 +987,7 @@
             async executeCTA(action, title, ctaData) {
                 console.log(`Exécution CTA: ${action} - ${title}`, ctaData);
                 
-                // Gestion des actions
+                // Gestion des actions avec des réponses spécifiques
                 switch (action) {
                     case 'black_smoke':
                         this.sendMessage('Fumée noire');
@@ -1013,12 +1013,55 @@
                         this.sendMessage('Non, pas de perte de puissance');
                         break;
                     
+                    case 'orange_light':
+                        this.displayMessage('assistant', "🟠 **Voyant orange = Alerte modérée**\n\nLe voyant orange indique un problème qui nécessite une attention dans les prochains jours.\n\n**Causes possibles :**\n• FAP en cours d'encrassement (60%)\n• Régénération nécessaire (30%)\n• Capteur défaillant (10%)\n\n**Que faire maintenant ?**", {
+                            confidence: 0.7,
+                            ctas: [
+                                { type: 'primary', title: '🛣️ Faire une régénération', action: 'highway_regeneration' },
+                                { type: 'info', title: '🔍 Diagnostic complet', action: 'full_diagnosis' }
+                            ],
+                            current_progress: 40
+                        });
+                        break;
+                    
+                    case 'red_light':
+                        this.displayMessage('assistant', "🔴 **VOYANT ROUGE = URGENCE !**\n\n⚠️ **Arrêtez le véhicule dès que possible !**\n\nUn voyant rouge indique un risque de dommages importants au moteur.\n\n**Actions immédiates :**\n• Garez-vous en sécurité\n• Coupez le moteur\n• Ne redémarrez pas", {
+                            confidence: 0.95,
+                            ctas: [
+                                { type: 'urgent', title: '📞 Appel dépannage', action: 'emergency_call' },
+                                { type: 'urgent', title: '🚨 Voir garages urgents', action: 'emergency_garages' }
+                            ],
+                            current_progress: 60
+                        });
+                        break;
+                    
+                    case 'yellow_light':
+                        this.displayMessage('assistant', "🟡 **Voyant jaune = Attention requise**\n\nLe voyant jaune est souvent lié à l'AdBlue ou à un début d'encrassement FAP.\n\n**Vérifications :**\n• Niveau AdBlue\n• Dernière régénération FAP\n• Kilométrage depuis dernier entretien", {
+                            confidence: 0.65,
+                            ctas: [
+                                { type: 'primary', title: '💧 Vérifier AdBlue', action: 'check_adblue' },
+                                { type: 'secondary', title: '🔧 Continuer diagnostic', action: 'continue_diagnosis' }
+                            ],
+                            current_progress: 35
+                        });
+                        break;
+                    
                     case 'book_cleaning':
-                        this.displayMessage('assistant', "🧽 **Nettoyage professionnel FAP**\n\nJe vous recommande un nettoyage professionnel avec le produit Re-Fap.\n\n**Avantages :**\n• Économie de 80% vs remplacement\n• Garantie 1 an\n• Résultat en 2-3h\n\n**Tarif moyen :** 150-250€\n\n📞 Contactez un garage partenaire Re-Fap près de chez vous.");
+                        this.displayMessage('assistant', "🧽 **Nettoyage professionnel FAP**\n\nJe vous recommande un nettoyage professionnel avec le produit Re-Fap.\n\n**Avantages :**\n• Économie de 80% vs remplacement\n• Garantie 1 an\n• Résultat en 2-3h\n\n**Tarif moyen :** 150-250€\n\n📞 Contactez un garage partenaire Re-Fap près de chez vous.", {
+                            ctas: [
+                                { type: 'professional', title: '📍 Trouver un garage', action: 'find_garage' },
+                                { type: 'info', title: '📄 Devis gratuit', action: 'free_quote' }
+                            ]
+                        });
                         break;
                     
                     case 'highway_regeneration':
-                        this.displayMessage('assistant', "🛣️ **Guide régénération autoroute**\n\n**Instructions :**\n1. Réservoir > 1/4 plein\n2. Moteur chaud\n3. Roulez 30-45 min à 90-110 km/h\n4. Régime moteur > 2500 tr/min\n\n⚠️ **Important :** Ne pas s'arrêter pendant le trajet !");
+                        this.displayMessage('assistant', "🛣️ **Guide régénération autoroute**\n\n**Instructions :**\n1. Réservoir > 1/4 plein\n2. Moteur chaud\n3. Roulez 30-45 min à 90-110 km/h\n4. Régime moteur > 2500 tr/min\n\n⚠️ **Important :** Ne pas s'arrêter pendant le trajet !\n\n**Taux de succès :** 70% si FAP peu encrassé", {
+                            ctas: [
+                                { type: 'success', title: '✅ C\'est fait !', action: 'regeneration_done' },
+                                { type: 'warning', title: '❌ Ça n\'a pas marché', action: 'regeneration_failed' }
+                            ]
+                        });
                         break;
                     
                     case 'contact_expert':
@@ -1031,6 +1074,15 @@
                     
                     case 'full_analysis':
                         this.sendMessage('Je veux une analyse complète');
+                        break;
+                    
+                    case 'show_solutions':
+                        this.displayMessage('assistant', "🔧 **Solutions pour codes P2002/P2003**\n\n**1. Solution économique (150-250€)**\n• Nettoyage chimique professionnel\n• Efficace dans 85% des cas\n• Garantie 1 an\n\n**2. Régénération forcée (50-100€)**\n• Par diagnostic électronique\n• Succès : 60%\n\n**3. Remplacement FAP (800-1500€)**\n• Solution définitive\n• Si nettoyage échoué", {
+                            ctas: [
+                                { type: 'prevention', title: '💰 Option économique', action: 'economic_solution' },
+                                { type: 'professional', title: '🔧 Solution définitive', action: 'definitive_solution' }
+                            ]
+                        });
                         break;
                     
                     default:
