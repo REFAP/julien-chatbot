@@ -48,7 +48,7 @@ class AirtableService {
       console.log(`📊 Résultats trouvés: ${scoredResults.length}, Meilleur score: ${scoredResults[0]?.score || 0}`);
       
       return {
-        hasRelevantData: scoredResults.length > 0 && scoredResults[0].score > 0.3, // Seuil abaissé
+        hasRelevantData: scoredResults.length > 0 && scoredResults[0].score > 0.1, // Seuil abaissé
         results: scoredResults,
         bestMatch: scoredResults[0] || null
       };
