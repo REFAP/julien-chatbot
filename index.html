@@ -817,13 +817,9 @@
                 
                 if (!currentQuestionDiv || !currentQuestionText) return;
 
-                // Si on a une question en attente ou des options
-                if (data.question_type && data.options) {
-                    // Extraire la question de la réponse
-                    const questionMatch = data.response.match(/\*\*(.*?)\*\*/);
-                    const question = questionMatch ? questionMatch[1] : 'Question en cours...';
-                    
-                    currentQuestionText.textContent = question;
+                // Si on a une question directe dans next_question
+                if (data.next_question && data.next_question.text) {
+                    currentQuestionText.textContent = data.next_question.text;
                     currentQuestionDiv.style.display = 'block';
                     
                     // Mettre à jour le placeholder
@@ -831,20 +827,26 @@
                     if (messageInput) {
                         messageInput.placeholder = "Votre réponse...";
                     }
-                } else if (data.response.includes('j\'ai besoin de')) {
-                    // Si la réponse contient "j'ai besoin de", extraire la question
-                    const needMatch = data.response.match(/j'ai besoin de\s*:?\s*(.*?)(?:\n|$)/i);
-                    if (needMatch) {
-                        currentQuestionText.textContent = needMatch[1];
-                        currentQuestionDiv.style.display = 'block';
-                        
-                        const messageInput = document.getElementById('messageInput');
-                        if (messageInput) {
-                            messageInput.placeholder = "Répondez à la question ci-dessus...";
-                        }
-                    } else {
-                        currentQuestionDiv.style.display = 'none';
-                        this.resetInputPlaceholder();
+                } else if (data.question_type && data.options) {
+                    // Si on a une question avec options
+                    const questionMatch = data.response.match(/\*\*(.*?)\*\*/);
+                    const question = questionMatch ? questionMatch[1] : 'Question en cours...';
+                    
+                    currentQuestionText.textContent = question;
+                    currentQuestionDiv.style.display = 'block';
+                    
+                    const messageInput = document.getElementById('messageInput');
+                    if (messageInput) {
+                        messageInput.placeholder = "Votre réponse...";
+                    }
+                } else if (data.response.includes('j\'ai besoin de') || data.response.includes('Pour affiner le diagnostic')) {
+                    // Si la réponse indique qu'on collecte des infos
+                    currentQuestionText.textContent = "Répondez aux questions pour affiner le diagnostic";
+                    currentQuestionDiv.style.display = 'block';
+                    
+                    const messageInput = document.getElementById('messageInput');
+                    if (messageInput) {
+                        messageInput.placeholder = "Décrivez vos symptômes plus précisément...";
                     }
                 } else {
                     // Masquer la question si diagnostic terminé
