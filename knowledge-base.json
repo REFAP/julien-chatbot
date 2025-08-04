@@ -340,7 +340,7 @@
     },
     
     "diagnosis_confidence_medium": {
-      "template": "🔍 **Analyse en cours - {confidence}% de certitude**\n\nBasé sur vos symptômes, voici les causes les plus probables :\n\n{top_causes}\n\nPour affiner le diagnostic, j'ai besoin de :\n{additional_questions}",
+      "template": "🔍 **Analyse en cours - {confidence}% de certitude**\n\nBasé sur vos symptômes, voici les causes les plus probables :\n\n{top_causes}\n\nPour affiner le diagnostic, j'ai besoin de :\n**{additional_questions}**",
       "tone": "investigative"
     },
     
