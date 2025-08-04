@@ -35,12 +35,11 @@ class AirtableService {
       
       // Recherche dans vos tables spécifiques
       const searches = await Promise.all([
-        this.searchInTable('CAS_DIAGNOSTIC', query),
-        this.searchInTable('DIAGNOSTICS', query),
-        this.searchInTable('LEADS', query),
-        this.searchInTable('KNOWLEDGE_BASE', query),
-        this.searchInTable('VEHICULES_SENSIBLES', query)
-      ]);
+  this.searchInTable('DIAGNOSTICS', query),
+  this.searchInTable('LEADS', query),
+  this.searchInTable('KNOWLEDGE_BASE', query),
+  this.searchInTable('VEHICULES_SENSIBLES', query)
+]);
 
       const allResults = searches.flat();
       const scoredResults = this.scoreResults(allResults, query);
