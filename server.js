@@ -35,8 +35,9 @@ class SupabaseService {
     try {
       console.log(`🔍 Recherche Supabase pour: "${query}"`);
       
-      // Recherche dans les tables disponibles
       const searches = await Promise.all([
+  this.searchInTable('messages', query) // Tous les messages
+]);
         this.searchInTable('diagnostic', query),
         this.searchInTable('messages', query, 'robot'), // Messages du robot uniquement
         this.searchInTable('symptomes', query)
