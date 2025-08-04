@@ -56,10 +56,23 @@ function createFallbackKnowledgeBase() {
       dashboard_lights: {
         id: "dashboard_lights",
         type: "multiple_choice",
-        question: "Quels voyants sont allumés ?",
+        question: "Quels voyants sont allumés sur votre tableau de bord ?",
+        explanation: "Les voyants nous donnent des indices précis sur le système défaillant",
         options: [
           {"id": "dpf_light", "label": "🟡 Voyant FAP", "weight": 5},
-          {"id": "engine_light", "label": "🔶 Voyant moteur", "weight": 3}
+          {"id": "engine_light", "label": "🔶 Voyant moteur", "weight": 3},
+          {"id": "no_lights", "label": "❌ Aucun voyant", "weight": 0}
+        ]
+      },
+      power_loss: {
+        id: "power_loss",
+        type: "multiple_choice",
+        question: "Décrivez la perte de puissance que vous ressentez :",
+        explanation: "Le type de perte de puissance aide à identifier la cause",
+        options: [
+          {"id": "acceleration", "label": "🚗 À l'accélération", "weight": 4},
+          {"id": "permanent", "label": "🔄 Permanente", "weight": 5},
+          {"id": "no_loss", "label": "❌ Pas de perte", "weight": 0}
         ]
       }
     },
@@ -69,9 +82,10 @@ function createFallbackKnowledgeBase() {
         name: "FAP colmaté",
         probability_base: 0.8,
         signal_weights: {
-          dashboard_lights: {"dpf_light": 5, "engine_light": 3}
+          dashboard_lights: {"dpf_light": 5, "engine_light": 3},
+          power_loss: {"acceleration": 4, "permanent": 5}
         },
-        technical_explanation: "Filtre à particules saturé",
+        technical_explanation: "Filtre à particules saturé en suie",
         severity: "moderate"
       }
     },
@@ -86,8 +100,16 @@ function createFallbackKnowledgeBase() {
     },
     response_templates: {
       diagnosis_confidence_high: {
-        template: "🎯 **Diagnostic : {cause_name}**\n\n{technical_explanation}",
+        template: "🎯 **Diagnostic avec {confidence}% de certitude**\n\n**Problème :** {cause_name}\n\n**Explication :** {technical_explanation}",
         tone: "confident"
+      },
+      diagnosis_confidence_medium: {
+        template: "🔍 **Analyse en cours - {confidence}% de certitude**\n\nBasé sur vos symptômes, voici les causes les plus probables :\n\n{top_causes}\n\nPour affiner le diagnostic, j'ai besoin de :\n**{additional_questions}**",
+        tone: "investigative"
+      },
+      gathering_information: {
+        template: "🔍 **Collecte d'informations ({progress}%)**\n\n{question}\n\n💡 {explanation}",
+        tone: "questioning"
       }
     }
   };
@@ -101,7 +123,7 @@ class FAPDiagnosticEngine {
     this.learningData = new Map();
   }
 
-  // Session Management
+  // ==================== GESTION DE SESSION ====================
   createSession(sessionId) {
     const session = {
       id: sessionId,
@@ -114,6 +136,7 @@ class FAPDiagnosticEngine {
       current_progress: 0
     };
     this.sessions.set(sessionId, session);
+    console.log(`✅ Nouvelle session créée: ${sessionId}`);
     return session;
   }
 
@@ -129,9 +152,11 @@ class FAPDiagnosticEngine {
     return session;
   }
 
-  // Scoring probabiliste
+  // ==================== MOTEUR DE SCORING ====================
   calculateProbabilityScores(collectedSignals) {
     const scores = {};
+    
+    console.log('📊 Calcul scores pour signaux:', Object.keys(collectedSignals));
     
     // Initialiser avec probabilités de base
     Object.keys(this.kb.causes).forEach(causeId => {
@@ -140,16 +165,22 @@ class FAPDiagnosticEngine {
 
     // Appliquer les poids des signaux
     Object.entries(collectedSignals).forEach(([signalId, signalValue]) => {
+      console.log(`🔍 Traitement signal ${signalId}:`, signalValue);
+      
       Object.entries(this.kb.causes).forEach(([causeId, cause]) => {
         if (cause.signal_weights && cause.signal_weights[signalId]) {
           const signalWeights = cause.signal_weights[signalId];
           
           if (typeof signalValue === 'string' && signalWeights[signalValue]) {
-            scores[causeId] += signalWeights[signalValue] * 0.05;
+            const weight = signalWeights[signalValue] * 0.05;
+            scores[causeId] += weight;
+            console.log(`  ✅ ${causeId}: +${weight} (total: ${scores[causeId].toFixed(2)})`);
           } else if (Array.isArray(signalValue)) {
             signalValue.forEach(option => {
               if (signalWeights[option]) {
-                scores[causeId] += signalWeights[option] * 0.05;
+                const weight = signalWeights[option] * 0.05;
+                scores[causeId] += weight;
+                console.log(`  ✅ ${causeId}: +${weight} (total: ${scores[causeId].toFixed(2)})`);
               }
             });
           }
@@ -162,13 +193,16 @@ class FAPDiagnosticEngine {
       scores[causeId] = Math.min(Math.max(scores[causeId], 0), 1);
     });
 
+    console.log('📊 Scores finaux:', scores);
     return scores;
   }
 
-  // Extraction de signaux depuis message initial
+  // ==================== EXTRACTION DE SIGNAUX ====================
   extractSignalsFromMessage(message) {
     const signals = {};
     const messageLower = message.toLowerCase();
+    
+    console.log('🔍 Extraction signaux depuis:', message);
 
     // Codes d'erreur
     if (this.kb.signals.error_codes && this.kb.signals.error_codes.patterns) {
@@ -180,6 +214,7 @@ class FAPDiagnosticEngine {
             weight: pattern.weight,
             urgent: pattern.urgent
           });
+          console.log(`📟 Code détecté: ${pattern.pattern}`);
         }
       });
       
@@ -190,39 +225,101 @@ class FAPDiagnosticEngine {
 
     // Mots-clés symptômes
     const keywordMapping = {
-      dashboard_lights: ['voyant', 'témoin', 'allumé', 'clignote', 'fap', 'moteur'],
-      power_loss: ['puissance', 'perte', 'mou', 'accélération', 'force'],
-      exhaust_smoke: ['fumée', 'fume', 'noir', 'blanc', 'bleu'],
-      driving_pattern: ['ville', 'urbain', 'autoroute', 'court', 'long', 'trajet']
+      dashboard_lights: {
+        keywords: ['voyant', 'témoin', 'allumé', 'clignote', 'fap', 'moteur'],
+        options: {
+          'fap': 'dpf_light',
+          'moteur': 'engine_light',
+          'adblue': 'adblue_light',
+          'préchauffage': 'glow_plug'
+        }
+      },
+      power_loss: {
+        keywords: ['puissance', 'perte', 'mou', 'accélération', 'force'],
+        options: {
+          'accélération': 'acceleration',
+          'acceleration': 'acceleration',
+          'montée': 'uphill',
+          'permanent': 'permanent',
+          'autoroute': 'highway'
+        }
+      },
+      exhaust_smoke: {
+        keywords: ['fumée', 'fume', 'noir', 'blanc', 'bleu'],
+        options: {
+          'noir': 'black_smoke',
+          'noire': 'black_smoke',
+          'blanc': 'white_smoke',
+          'blanche': 'white_smoke',
+          'bleu': 'blue_smoke',
+          'bleue': 'blue_smoke'
+        }
+      },
+      driving_pattern: {
+        keywords: ['ville', 'urbain', 'autoroute', 'court', 'long', 'trajet'],
+        options: {
+          'ville': 'city_only',
+          'urbain': 'city_only',
+          'autoroute': 'highway_frequent',
+          'court': 'mixed_short'
+        }
+      }
     };
 
-    Object.entries(keywordMapping).forEach(([signalId, keywords]) => {
-      const matchCount = keywords.filter(keyword => messageLower.includes(keyword)).length;
+    Object.entries(keywordMapping).forEach(([signalId, config]) => {
+      const matchCount = config.keywords.filter(keyword => messageLower.includes(keyword)).length;
+      
       if (matchCount > 0) {
+        // Essayer de détecter une option spécifique
+        let detectedOption = null;
+        Object.entries(config.options).forEach(([keyword, optionId]) => {
+          if (messageLower.includes(keyword)) {
+            detectedOption = optionId;
+          }
+        });
+        
         signals[signalId] = {
           type: 'keyword_detected',
           confidence: Math.min(matchCount * 0.3, 1),
-          matched_keywords: keywords.filter(keyword => messageLower.includes(keyword))
+          matched_keywords: config.keywords.filter(keyword => messageLower.includes(keyword)),
+          detected_option: detectedOption
         };
+        
+        console.log(`🔍 Signal détecté ${signalId}:`, signals[signalId]);
       }
     });
 
     return signals;
   }
 
-  // Questions intelligentes
+  // ==================== QUESTIONS INTELLIGENTES ====================
   getNextBestQuestion(session) {
     const { collected_signals } = session;
     
-    // Signaux non collectés, triés par priorité
-    const availableSignals = Object.values(this.kb.signals)
-      .filter(signal => !collected_signals[signal.id])
-      .sort((a, b) => (a.priority || 99) - (b.priority || 99));
-
-    return availableSignals[0] || null;
+    console.log('🔍 Signaux collectés:', Object.keys(collected_signals));
+    
+    // Signaux disponibles par ordre de priorité
+    const signalsPriority = [
+      'dashboard_lights',
+      'power_loss', 
+      'exhaust_smoke',
+      'driving_pattern',
+      'vehicle_mileage'
+    ];
+    
+    // Trouver le premier signal non collecté
+    for (const signalId of signalsPriority) {
+      if (!collected_signals[signalId] && this.kb.signals[signalId]) {
+        console.log(`➡️ Prochaine question: ${signalId}`);
+        return this.kb.signals[signalId];
+      }
+    }
+    
+    console.log('✅ Toutes les questions principales ont été posées');
+    return null; // Toutes les questions importantes ont été posées
   }
 
-  // Sélection de workflow
+  // ==================== SÉLECTION DE WORKFLOW ====================
   selectBestWorkflow(session, topCauses) {
     const applicableWorkflows = Object.values(this.kb.workflows).filter(workflow => {
       return this.isWorkflowApplicable(workflow, session, topCauses);
@@ -261,16 +358,163 @@ class FAPDiagnosticEngine {
     return true;
   }
 
-  // Génération de réponse
+  // ==================== PARSING ET VALIDATION ====================
+  parseUserResponse(input, expectedSignal) {
+    if (!expectedSignal) return { type: 'free_text', content: input };
+
+    const cleaned = input.toLowerCase().trim();
+    console.log(`🔍 Parsing: "${cleaned}" pour signal: ${expectedSignal.id}`);
+
+    // Réponses ambiguës
+    const ambiguous = ['je ne sais pas', 'peut-être', 'pas sûr', '?'];
+    if (ambiguous.some(phrase => cleaned.includes(phrase))) {
+      return { type: 'ambiguous', suggestion: 'need_help' };
+    }
+
+    // Selon type de signal
+    switch (expectedSignal.type) {
+      case 'multiple_choice':
+        return this.parseMultipleChoiceSimple(cleaned, expectedSignal);
+      case 'text_input':
+        return this.parseTextInput(cleaned, expectedSignal);
+      default:
+        return { type: 'parsed', content: input };
+    }
+  }
+
+  parseMultipleChoiceSimple(input, signal) {
+    const matches = [];
+    
+    // Recherche plus flexible
+    signal.options.forEach(option => {
+      const optionText = option.label.toLowerCase();
+      
+      // Recherche par mots-clés de l'option
+      const keywords = [
+        option.id,
+        ...optionText.split(/\s+/).filter(word => word.length > 2)
+      ];
+      
+      const hasMatch = keywords.some(keyword => 
+        input.includes(keyword) || 
+        keyword.includes(input) ||
+        this.similarity(input, keyword) > 0.6
+      );
+      
+      if (hasMatch) {
+        matches.push(option);
+        console.log(`✅ Match trouvé: ${option.label}`);
+      }
+    });
+
+    if (matches.length === 1) {
+      return { type: 'single_match', selected: matches[0] };
+    } else if (matches.length > 1) {
+      return { type: 'multiple_matches', candidates: matches };
+    } else {
+      // Essayer de deviner selon le contexte
+      return this.guessFromContext(input, signal);
+    }
+  }
+
+  guessFromContext(input, signal) {
+    // Mapping contextuel pour les réponses courantes
+    const contextMappings = {
+      dashboard_lights: {
+        'voyant': 'engine_light',
+        'moteur': 'engine_light', 
+        'fap': 'dpf_light',
+        'orange': 'engine_light',
+        'jaune': 'dpf_light',
+        'aucun': 'no_lights',
+        'non': 'no_lights'
+      },
+      power_loss: {
+        'accélération': 'acceleration',
+        'acceleration': 'acceleration',
+        'montée': 'uphill',
+        'côte': 'uphill',
+        'autoroute': 'highway',
+        'permanent': 'permanent',
+        'toujours': 'permanent',
+        'non': 'no_loss',
+        'aucune': 'no_loss'
+      }
+    };
+
+    const mapping = contextMappings[signal.id];
+    if (mapping) {
+      for (const [keyword, optionId] of Object.entries(mapping)) {
+        if (input.includes(keyword)) {
+          const option = signal.options.find(opt => opt.id === optionId);
+          if (option) {
+            console.log(`🎯 Deviné depuis le contexte: ${option.label}`);
+            return { type: 'single_match', selected: option };
+          }
+        }
+      }
+    }
+
+    return { type: 'no_match', suggestion: 'rephrase' };
+  }
+
+  similarity(s1, s2) {
+    const longer = s1.length > s2.length ? s1 : s2;
+    const shorter = s1.length > s2.length ? s2 : s1;
+    
+    if (longer.length === 0) return 1.0;
+    
+    const distance = this.levenshteinDistance(longer, shorter);
+    return (longer.length - distance) / longer.length;
+  }
+
+  levenshteinDistance(s1, s2) {
+    const costs = [];
+    for (let i = 0; i <= s2.length; i++) {
+      let lastValue = i;
+      for (let j = 0; j <= s1.length; j++) {
+        if (i === 0) {
+          costs[j] = j;
+        } else if (j > 0) {
+          let newValue = costs[j - 1];
+          if (s1.charAt(j - 1) !== s2.charAt(i - 1)) {
+            newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+          }
+          costs[j - 1] = lastValue;
+          lastValue = newValue;
+        }
+      }
+      if (i > 0) costs[s1.length] = lastValue;
+    }
+    return costs[s1.length];
+  }
+
+  parseTextInput(input, signal) {
+    const detected = [];
+    
+    if (signal.patterns) {
+      signal.patterns.forEach(pattern => {
+        if (input.includes(pattern.pattern.toLowerCase())) {
+          detected.push(pattern);
+        }
+      });
+    }
+
+    return {
+      type: 'text_analyzed',
+      detected_patterns: detected,
+      urgent: detected.some(p => p.urgent)
+    };
+  }
+
+  // ==================== GÉNÉRATION DE RÉPONSES ====================
   generateResponse(session, context = {}) {
     const { current_scores, collected_signals } = session;
     const topCauses = this.getTopCauses(current_scores, 3);
     const confidence = topCauses[0]?.score || 0;
 
     // Calculer progression
-    const totalSignals = Object.keys(this.kb.signals).length;
-    const collectedCount = Object.keys(collected_signals).length;
-    const progress = Math.round((collectedCount / totalSignals) * 100);
+    const progress = this.calculateProgress(session);
 
     // Sélectionner template
     let templateKey = 'gathering_information';
@@ -290,6 +534,12 @@ class FAPDiagnosticEngine {
       progress,
       context
     });
+  }
+
+  calculateProgress(session) {
+    const totalSignals = Object.keys(this.kb.signals).length;
+    const collectedSignals = Object.keys(session.collected_signals).length;
+    return Math.round((collectedSignals / totalSignals) * 100);
   }
 
   getTopCauses(scores, limit = 3) {
@@ -381,71 +631,15 @@ class FAPDiagnosticEngine {
     return icons[category] || '⚙️';
   }
 
-  // Parsing réponse utilisateur
-  parseUserResponse(input, expectedSignal) {
-    if (!expectedSignal) return { type: 'free_text', content: input };
-
-    const cleaned = input.toLowerCase().trim();
-
-    // Réponses ambiguës
-    const ambiguous = ['je ne sais pas', 'peut-être', 'pas sûr'];
-    if (ambiguous.some(phrase => cleaned.includes(phrase))) {
-      return { type: 'ambiguous', suggestion: 'need_help' };
-    }
-
-    // Selon type de signal
-    switch (expectedSignal.type) {
-      case 'multiple_choice':
-        return this.parseMultipleChoice(cleaned, expectedSignal);
-      case 'text_input':
-        return this.parseTextInput(cleaned, expectedSignal);
-      default:
-        return { type: 'parsed', content: input };
-    }
-  }
-
-  parseMultipleChoice(input, signal) {
-    const matches = [];
-    
-    signal.options.forEach(option => {
-      const keywords = option.label.toLowerCase().split(/\s+/);
-      const hasMatch = keywords.some(keyword => input.includes(keyword));
-      if (hasMatch) matches.push(option);
-    });
-
-    if (matches.length === 1) {
-      return { type: 'single_match', selected: matches[0] };
-    } else if (matches.length > 1) {
-      return { type: 'multiple_matches', candidates: matches };
-    } else {
-      return { type: 'no_match', suggestion: 'rephrase' };
-    }
-  }
-
-  parseTextInput(input, signal) {
-    const detected = [];
-    
-    if (signal.patterns) {
-      signal.patterns.forEach(pattern => {
-        if (input.includes(pattern.pattern.toLowerCase())) {
-          detected.push(pattern);
-        }
-      });
-    }
-
-    return {
-      type: 'text_analyzed',
-      detected_patterns: detected,
-      urgent: detected.some(p => p.urgent)
-    };
-  }
-
-  // Interface principale
+  // ==================== INTERFACE PRINCIPALE ====================
   async processMessage(sessionId, message, context = {}) {
     try {
       const session = this.getSession(sessionId);
       
-      // Ajouter à l'historique
+      console.log(`💬 [${sessionId}] Message: "${message}"`);
+      console.log(`📊 [${sessionId}] État: ${session.state}`);
+      
+      // Ajouter le message à l'historique
       session.conversation_history.push({
         type: 'user',
         message: message,
@@ -459,14 +653,20 @@ class FAPDiagnosticEngine {
         case 'initial':
           response = await this.handleInitialMessage(session, message);
           break;
+          
         case 'gathering_info':
           response = await this.handleInformationGathering(session, message);
           break;
+          
+        case 'confirming_diagnosis':
+          response = await this.handleDiagnosisConfirmation(session, message);
+          break;
+          
         default:
           response = await this.handleInitialMessage(session, message);
       }
 
-      // Enregistrer réponse
+      // Enregistrer la réponse
       session.conversation_history.push({
         type: 'assistant',
         response: response,
@@ -474,10 +674,13 @@ class FAPDiagnosticEngine {
       });
 
       this.updateSession(sessionId, session);
+      
+      console.log(`✅ [${sessionId}] Réponse générée (confiance: ${Math.round((response.confidence || 0) * 100)}%)`);
+      
       return response;
 
     } catch (error) {
-      console.error('Erreur processMessage:', error);
+      console.error(`❌ [${sessionId}] Erreur processMessage:`, error);
       return {
         response: "Problème technique temporaire. Pouvez-vous reformuler ?",
         error: true,
@@ -491,9 +694,18 @@ class FAPDiagnosticEngine {
   }
 
   async handleInitialMessage(session, message) {
+    console.log('🆕 Traitement message initial');
+    
     // Extraire signaux du message
     const detectedSignals = this.extractSignalsFromMessage(message);
-    Object.assign(session.collected_signals, detectedSignals);
+    
+    // Convertir les signaux détectés en signaux collectés
+    Object.entries(detectedSignals).forEach(([signalId, signalData]) => {
+      if (signalData.detected_option) {
+        session.collected_signals[signalId] = signalData.detected_option;
+        console.log(`✅ Signal auto-détecté: ${signalId} = ${signalData.detected_option}`);
+      }
+    });
     
     // Calculer scores
     session.current_scores = this.calculateProbabilityScores(session.collected_signals);
@@ -501,60 +713,103 @@ class FAPDiagnosticEngine {
     // Décider de l'étape suivante
     const topCause = this.getTopCauses(session.current_scores, 1)[0];
     
-    if (topCause && topCause.score > 0.75) {
+    if (topCause && topCause.score > 0.8) {
       session.state = 'diagnosis_ready';
+      console.log('✅ Diagnostic immédiat possible');
       return this.generateDiagnosisResponse(session, topCause);
     } else {
       session.state = 'gathering_info';
+      console.log('🔍 Collecte d\'informations nécessaire');
       return this.generateResponse(session);
     }
   }
 
   async handleInformationGathering(session, message) {
+    console.log('📝 Traitement collecte d\'info:', message);
+    
     const nextQuestion = this.getNextBestQuestion(session);
+    console.log('❓ Question attendue:', nextQuestion?.id);
     
     if (nextQuestion) {
       // Parser la réponse
       const parsed = this.parseUserResponse(message, nextQuestion);
+      console.log('🔍 Résultat parsing:', parsed);
       
       if (parsed.type === 'single_match') {
+        // IMPORTANT: Marquer ce signal comme collecté
         session.collected_signals[nextQuestion.id] = parsed.selected.id;
+        console.log(`✅ Signal enregistré: ${nextQuestion.id} = ${parsed.selected.id}`);
+        
+      } else if (parsed.type === 'multiple_matches') {
+        // Demander clarification
+        const options = parsed.candidates.map(c => c.label).join(', ');
+        return {
+          response: `J'ai trouvé plusieurs correspondances possibles: ${options}.\n\nPouvez-vous être plus précis ?`,
+          question_type: nextQuestion.type,
+          options: parsed.candidates,
+          current_progress: this.calculateProgress(session)
+        };
+        
       } else if (parsed.type === 'text_analyzed') {
         session.collected_signals[nextQuestion.id] = parsed.detected_patterns;
-      } else if (parsed.type === 'ambiguous') {
-        // Gérer les réponses ambiguës avec aide
+        console.log(`✅ Patterns enregistrés: ${nextQuestion.id}`);
+        
+      } else if (parsed.type === 'ambiguous' || parsed.type === 'no_match') {
+        // Aide contextuelle
         return {
-          response: `Je n'ai pas bien compris votre réponse "${message}". \n\nPouvez-vous être plus précis ?\n\n**${nextQuestion.question}**\n\n💡 ${nextQuestion.explanation}`,
+          response: `Je n'ai pas bien compris "${message}". \n\n**${nextQuestion.question}**\n\n💡 ${nextQuestion.explanation}\n\nExemples de réponses: ${nextQuestion.options.map(o => o.label).join(', ')}`,
           question_type: nextQuestion.type,
           options: nextQuestion.options,
           current_progress: this.calculateProgress(session),
-          ctas: [{
-            type: 'help',
-            title: '❓ Besoin d\'aide',
-            action: 'show_help'
-          }]
+          next_question: {
+            text: nextQuestion.question,
+            explanation: nextQuestion.explanation
+          }
         };
       }
     }
 
-    // Recalculer scores
+    // Recalculer scores APRÈS avoir enregistré la réponse
     session.current_scores = this.calculateProbabilityScores(session.collected_signals);
+    console.log('📊 Scores mis à jour:', session.current_scores);
     
     // Vérifier si on peut conclure
     const topCause = this.getTopCauses(session.current_scores, 1)[0];
+    console.log('🎯 Top cause:', topCause?.name, topCause?.score);
+    
     if (topCause && topCause.score > 0.8) {
       session.state = 'diagnosis_ready';
+      console.log('✅ Diagnostic prêt !');
       return this.generateDiagnosisResponse(session, topCause);
     }
     
-    // Continuer la collecte
+    // Continuer la collecte avec la PROCHAINE question
+    console.log('➡️ Continuer la collecte...');
     return this.generateResponse(session);
   }
 
-  calculateProgress(session) {
-    const totalSignals = Object.keys(this.kb.signals).length;
-    const collectedSignals = Object.keys(session.collected_signals).length;
-    return Math.round((collectedSignals / totalSignals) * 100);
+  async handleDiagnosisConfirmation(session, message) {
+    const messageLower = message.toLowerCase();
+    
+    if (messageLower.includes('oui') || messageLower.includes('exactement') || messageLower.includes('correct')) {
+      // Diagnostic confirmé
+      const topCause = this.getTopCauses(session.current_scores, 1)[0];
+      const workflow = this.selectBestWorkflow(session, [topCause]);
+      
+      return {
+        response: `✅ **Diagnostic confirmé !**\n\n🔧 **Solution recommandée :** ${workflow?.name || 'Consultation professionnelle'}\n\nVoulez-vous que je vous guide étape par étape ?`,
+        confidence: topCause?.score || 0.9,
+        recommended_workflow: workflow,
+        ctas: workflow ? this.generateWorkflowCTAs([workflow]) : []
+      };
+    } else {
+      // Retour à la collecte d'informations
+      session.state = 'gathering_info';
+      return {
+        response: `D'accord, continuons l'analyse pour être plus précis.\n\n${this.getNextBestQuestion(session)?.question || 'Pouvez-vous me donner plus de détails sur vos symptômes ?'}`,
+        current_progress: this.calculateProgress(session)
+      };
+    }
   }
 
   generateDiagnosisResponse(session, topCause) {
@@ -568,7 +823,8 @@ class FAPDiagnosticEngine {
       confidence: topCause.score,
       top_causes: [topCause],
       recommended_workflow: workflow,
-      ctas: workflow ? this.generateWorkflowCTAs([workflow]) : []
+      ctas: workflow ? this.generateWorkflowCTAs([workflow]) : [],
+      session_state: 'diagnosis_complete'
     };
   }
 
@@ -723,7 +979,7 @@ app.get('/api/health', (req, res) => {
     },
     server: {
       port: port,
-      uptime: process.uptime(),
+      uptime: Math.round(process.uptime()),
       memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB'
     }
   });
@@ -782,5 +1038,6 @@ app.listen(port, () => {
   console.log(`🧠 Moteur diagnostic: ✅ Opérationnel`);
   console.log(`🤖 Claude AI: ${CLAUDE_API_KEY ? '✅' : '❌'} ${CLAUDE_API_KEY ? 'Configuré' : 'Variable manquante'}`);
   console.log(`🌐 Interface: http://localhost:${port}`);
-  console.log(`✅ SYSTÈME INTÉGRÉ PRÊT !`);
+  console.log(`📊 Logs de debug activés`);
+  console.log(`✅ SYSTÈME COMPLET PRÊT !`);
 });
