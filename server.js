@@ -292,19 +292,20 @@ class FAPDiagnosticEngine {
     return signals;
   }
 
-  // ==================== QUESTIONS INTELLIGENTES ====================
+  // Questions intelligentes avec ordre de priorité strict
   getNextBestQuestion(session) {
     const { collected_signals } = session;
     
     console.log('🔍 Signaux collectés:', Object.keys(collected_signals));
     
-    // Signaux disponibles par ordre de priorité
+    // Ordre de priorité STRICT (codes d'erreur en premier)
     const signalsPriority = [
-      'dashboard_lights',
-      'power_loss', 
-      'exhaust_smoke',
-      'driving_pattern',
-      'vehicle_mileage'
+      'error_codes',        // Priority 0 - Le plus important
+      'dashboard_lights',   // Priority 1 
+      'power_loss',        // Priority 2
+      'exhaust_smoke',     // Priority 3
+      'driving_pattern',   // Priority 4
+      'vehicle_mileage'    // Priority 5
     ];
     
     // Trouver le premier signal non collecté
@@ -316,7 +317,7 @@ class FAPDiagnosticEngine {
     }
     
     console.log('✅ Toutes les questions principales ont été posées');
-    return null; // Toutes les questions importantes ont été posées
+    return null;
   }
 
   // ==================== SÉLECTION DE WORKFLOW ====================
@@ -714,16 +715,27 @@ class FAPDiagnosticEngine {
     // Calculer scores
     session.current_scores = this.calculateProbabilityScores(session.collected_signals);
     
-    // Décider de l'étape suivante
+    // FORCER le mode questions si moins de 3 signaux collectés
+    const collectedCount = Object.keys(session.collected_signals).length;
     const topCause = this.getTopCauses(session.current_scores, 1)[0];
     
-    if (topCause && topCause.score > 0.8) {
+    console.log(`📊 Signaux collectés: ${collectedCount}, Top cause: ${topCause?.name} (${Math.round((topCause?.score || 0) * 100)}%)`);
+    
+    // TOUJOURS forcer au moins 2 questions minimum
+    if (collectedCount < 2) {
+      session.state = 'gathering_info';
+      console.log(`🔍 Mode questions forcé (${collectedCount}/2 signaux minimum)`);
+      return this.generateResponse(session);
+    }
+    
+    // Seuil plus strict : au moins 4 signaux ET confiance > 85%
+    if (collectedCount >= 4 && topCause && topCause.score > 0.85) {
       session.state = 'diagnosis_ready';
       console.log('✅ Diagnostic immédiat possible');
       return this.generateDiagnosisResponse(session, topCause);
     } else {
       session.state = 'gathering_info';
-      console.log('🔍 Collecte d\'informations nécessaire');
+      console.log(`🔍 Collecte d\'informations nécessaire (${collectedCount}/6 signaux)`);
       return this.generateResponse(session);
     }
   }
