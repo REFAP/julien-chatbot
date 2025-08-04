@@ -1,5 +1,5 @@
 // API/chat.js
-// Version corrigée pour le chatbot FAP Expert
+// Version finale pour FAP Expert - Format de réponse corrigé
 
 module.exports = async (req, res) => {
   // Headers CORS
@@ -14,38 +14,125 @@ module.exports = async (req, res) => {
 
   // Accepter seulement POST
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ 
+      success: false,
+      error: 'Method not allowed' 
+    });
   }
 
   try {
     const { message, session_id } = req.body;
 
-    if (!message || !session_id) {
+    if (!message) {
       return res.status(400).json({
         success: false,
-        error: 'Message et session_id sont requis'
+        error: 'Message requis'
       });
     }
 
-    // Analyser le message pour détecter les symptômes FAP
+    // Analyser le message
     const lowerMessage = message.toLowerCase();
-    const symptoms = analyzeSymptoms(lowerMessage);
-    const diagnosis = calculateDiagnosis(symptoms);
     
-    // Générer une réponse appropriée
-    const response = generateResponse(lowerMessage, symptoms, diagnosis);
+    // Réponse par défaut
+    let responseText = "";
+    let confidence = 0.5;
+    let topCauses = [];
+    let ctas = [];
+    let progress = 0;
+    let questionType = null;
+    let options = null;
+    let workflow = null;
 
+    // Logique de réponse selon le message
+    if (lowerMessage.includes('diagnostic rapide') || lowerMessage.includes('commencer')) {
+      responseText = "Parfait ! Je vais diagnostiquer votre problème de FAP rapidement.\n\n**Question 1:** Observez-vous de la fumée à l'échappement ?";
+      questionType = 'multiple_choice';
+      options = [
+        { id: 'black_smoke', label: '💨 Fumée noire' },
+        { id: 'white_smoke', label: '☁️ Fumée blanche' },
+        { id: 'blue_smoke', label: '🔵 Fumée bleue' },
+        { id: 'no_smoke', label: '✅ Pas de fumée' }
+      ];
+      progress = 10;
+      ctas = [
+        { type: 'info', title: '💡 Besoin d\'aide ?', action: 'help' }
+      ];
+    }
+    else if (lowerMessage.includes('fumée noire') || lowerMessage.includes('fumee noire')) {
+      responseText = "La fumée noire indique généralement un **FAP encrassé**. C'est le problème le plus courant.\n\nAvez-vous également remarqué une perte de puissance ?";
+      confidence = 0.75;
+      topCauses = [
+        { name: 'FAP encrassé', score: 0.8, description: 'Accumulation de suie dans le filtre' },
+        { name: 'Régénération nécessaire', score: 0.15, description: 'Le FAP a besoin d\'un cycle de nettoyage' }
+      ];
+      ctas = [
+        { type: 'primary', title: '✅ Oui, perte de puissance', action: 'confirm_power_loss' },
+        { type: 'primary', title: '❌ Non, pas de perte', action: 'no_power_loss' }
+      ];
+      progress = 40;
+    }
+    else if (lowerMessage.includes('perte de puissance') || lowerMessage.includes('oui')) {
+      responseText = "⚠️ **Diagnostic confirmé : FAP très encrassé**\n\nLa combinaison fumée noire + perte de puissance nécessite une intervention rapide. Je recommande un nettoyage professionnel urgent.";
+      confidence = 0.9;
+      topCauses = [
+        { name: 'FAP très encrassé', score: 0.9, description: 'Nécessite intervention rapide' },
+        { name: 'Risque de casse moteur', score: 0.1, description: 'Si non traité rapidement' }
+      ];
+      ctas = [
+        { type: 'urgent', title: '🚨 Nettoyage urgent FAP', action: 'book_cleaning' },
+        { type: 'primary', title: '🛣️ Essayer régénération autoroute', action: 'highway_regeneration' },
+        { type: 'professional', title: '👨‍🔧 Contacter un pro', action: 'contact_expert' }
+      ];
+      workflow = {
+        name: 'Nettoyage FAP professionnel',
+        category: 'professional',
+        success_probability: 0.85,
+        steps: [
+          { step: 1, title: 'Diagnostic complet', instructions: 'Vérification codes erreur et état FAP' },
+          { step: 2, title: 'Nettoyage chimique', instructions: 'Application produit nettoyant Re-Fap' },
+          { step: 3, title: 'Régénération forcée', instructions: 'Cycle de régénération haute température' }
+        ]
+      };
+      progress = 80;
+    }
+    else if (lowerMessage.includes('voyant') || lowerMessage.includes('témoin')) {
+      responseText = "Un voyant moteur allumé peut indiquer plusieurs problèmes FAP.\n\n**De quelle couleur est le voyant ?**\n• 🟠 Orange : Problème non urgent\n• 🔴 Rouge : Intervention immédiate";
+      confidence = 0.6;
+      ctas = [
+        { type: 'primary', title: '🟠 Voyant orange', action: 'orange_light' },
+        { type: 'urgent', title: '🔴 Voyant rouge', action: 'red_light' }
+      ];
+      progress = 30;
+    }
+    else {
+      // Réponse par défaut
+      responseText = "Bonjour ! Je suis Julien, votre expert FAP.\n\nJe peux diagnostiquer précisément votre problème de filtre à particules. Pour commencer, décrivez-moi vos symptômes :\n\n• Fumée à l'échappement ?\n• Voyants allumés ?\n• Perte de puissance ?\n• Codes d'erreur ?";
+      ctas = [
+        { type: 'primary', title: '🚀 Diagnostic rapide', action: 'quick_diagnosis' },
+        { type: 'secondary', title: '📋 Analyse complète', action: 'full_analysis' }
+      ];
+      progress = 0;
+    }
+
+    // IMPORTANT: Retourner le format exact attendu par le frontend
     return res.status(200).json({
       success: true,
-      response: response.text,
-      confidence: response.confidence,
-      top_causes: response.topCauses,
-      ctas: response.ctas,
+      response: responseText,  // PAS "message" mais "response"
+      confidence: confidence,
+      top_causes: topCauses,   // PAS "topCauses" mais "top_causes"
+      ctas: ctas,
       session_state: 'active',
-      current_progress: response.progress,
-      question_type: response.questionType,
-      options: response.options,
-      recommended_workflow: response.workflow
+      current_progress: progress,
+      question_type: questionType,
+      options: options,
+      recommended_workflow: workflow,
+      
+      // Champs optionnels
+      requires_confirmation: false,
+      post_diagnostic_active: false,
+      external_link: null,
+      form_active: false,
+      garages_found: null
     });
 
   } catch (error) {
@@ -53,213 +140,7 @@ module.exports = async (req, res) => {
     return res.status(500).json({
       success: false,
       error: 'Erreur serveur',
-      message: error.message
+      details: error.message
     });
   }
 };
-
-// Fonction pour analyser les symptômes
-function analyzeSymptoms(message) {
-  const symptoms = {
-    smoke_color: null,
-    power_loss: false,
-    warning_light: false,
-    error_code: null,
-    high_consumption: false
-  };
-
-  // Détection de fumée
-  if (message.includes('fumée noire') || message.includes('fumee noire')) {
-    symptoms.smoke_color = 'black';
-  } else if (message.includes('fumée blanche') || message.includes('fumee blanche')) {
-    symptoms.smoke_color = 'white';
-  } else if (message.includes('fumée bleue') || message.includes('fumee bleue')) {
-    symptoms.smoke_color = 'blue';
-  }
-
-  // Perte de puissance
-  if (message.includes('perte de puissance') || message.includes('perte puissance')) {
-    symptoms.power_loss = true;
-  }
-
-  // Voyants
-  if (message.includes('voyant') || message.includes('témoin')) {
-    symptoms.warning_light = true;
-  }
-
-  // Codes erreur
-  const errorMatch = message.match(/p[0-9]{4}/i);
-  if (errorMatch) {
-    symptoms.error_code = errorMatch[0].toUpperCase();
-  }
-
-  // Consommation excessive
-  if (message.includes('consomm') || message.includes('essence') || message.includes('diesel')) {
-    symptoms.high_consumption = true;
-  }
-
-  return symptoms;
-}
-
-// Fonction pour calculer le diagnostic
-function calculateDiagnosis(symptoms) {
-  const scores = {
-    clogged_filter: 0,
-    sensor_failure: 0,
-    additive_issue: 0,
-    regeneration_needed: 0
-  };
-
-  // Calcul basé sur les symptômes
-  if (symptoms.smoke_color === 'black') {
-    scores.clogged_filter += 0.4;
-    scores.regeneration_needed += 0.2;
-  }
-
-  if (symptoms.power_loss) {
-    scores.clogged_filter += 0.3;
-    scores.regeneration_needed += 0.2;
-  }
-
-  if (symptoms.warning_light) {
-    scores.sensor_failure += 0.2;
-    scores.clogged_filter += 0.2;
-  }
-
-  if (symptoms.error_code) {
-    if (['P2002', 'P2003'].includes(symptoms.error_code)) {
-      scores.clogged_filter += 0.5;
-    } else if (['P2452', 'P2453'].includes(symptoms.error_code)) {
-      scores.sensor_failure += 0.5;
-    }
-  }
-
-  // Normaliser les scores
-  const total = Object.values(scores).reduce((a, b) => a + b, 0) || 1;
-  for (const key in scores) {
-    scores[key] = scores[key] / total;
-  }
-
-  return scores;
-}
-
-// Fonction pour générer la réponse
-function generateResponse(message, symptoms, diagnosis) {
-  const response = {
-    text: '',
-    confidence: 0,
-    topCauses: [],
-    ctas: [],
-    progress: 0,
-    questionType: null,
-    options: null,
-    workflow: null
-  };
-
-  // Trier les causes par score
-  const sortedCauses = Object.entries(diagnosis)
-    .sort(([, a], [, b]) => b - a)
-    .map(([cause, score]) => ({
-      name: getCauseName(cause),
-      score: score,
-      description: getCauseDescription(cause)
-    }));
-
-  response.topCauses = sortedCauses.slice(0, 3);
-  response.confidence = sortedCauses[0].score;
-
-  // Logique de réponse selon le contexte
-  if (message.includes('diagnostic rapide') || message.includes('commencer')) {
-    response.text = "Parfait ! Je vais analyser votre problème de FAP rapidement.\n\n**Question 1:** Observez-vous de la fumée à l'échappement ?";
-    response.questionType = 'multiple_choice';
-    response.options = [
-      { id: 'black_smoke', label: '💨 Fumée noire' },
-      { id: 'white_smoke', label: '☁️ Fumée blanche' },
-      { id: 'blue_smoke', label: '🔵 Fumée bleue' },
-      { id: 'no_smoke', label: '✅ Pas de fumée' }
-    ];
-    response.progress = 10;
-    response.ctas = [
-      { type: 'info', title: '💡 Besoin d\'aide ?', action: 'help' }
-    ];
-  }
-  else if (symptoms.smoke_color || symptoms.power_loss || symptoms.warning_light) {
-    // Diagnostic basé sur les symptômes
-    const topCause = sortedCauses[0];
-    
-    if (topCause.score > 0.7) {
-      response.text = `D'après mon analyse, le problème principal est : **${topCause.name}**\n\n`;
-      response.text += `Probabilité: ${Math.round(topCause.score * 100)}%\n\n`;
-      
-      if (symptoms.smoke_color === 'black' && symptoms.power_loss) {
-        response.text += "⚠️ **Situation urgente** : La combinaison fumée noire + perte de puissance indique un FAP très encrassé nécessitant une intervention rapide.";
-        response.ctas = [
-          { type: 'urgent', title: '🚨 Nettoyage urgent', action: 'book_cleaning' },
-          { type: 'primary', title: '🛣️ Régénération autoroute', action: 'highway_regeneration' }
-        ];
-        response.progress = 80;
-      } else {
-        response.text += "Je recommande d'agir rapidement pour éviter des dommages plus importants.";
-        response.ctas = [
-          { type: 'primary', title: '🔧 Voir les solutions', action: 'show_solutions' },
-          { type: 'secondary', title: '📊 Diagnostic complet', action: 'full_diagnosis' }
-        ];
-        response.progress = 60;
-      }
-      
-      // Ajouter un workflow si pertinent
-      if (diagnosis.clogged_filter > 0.5) {
-        response.workflow = {
-          name: 'Nettoyage FAP professionnel',
-          category: 'professional',
-          success_probability: 0.85,
-          steps: [
-            { step: 1, title: 'Diagnostic', instructions: 'Vérification codes et état FAP', duration: '30 min' },
-            { step: 2, title: 'Nettoyage', instructions: 'Application produit Re-Fap', duration: '2h' },
-            { step: 3, title: 'Test', instructions: 'Vérification après nettoyage', duration: '30 min' }
-          ]
-        };
-      }
-    } else {
-      response.text = "J'ai besoin de plus d'informations pour affiner le diagnostic.\n\n**Avez-vous aussi une perte de puissance ?**";
-      response.questionType = 'yes_no';
-      response.ctas = [
-        { type: 'primary', title: '✅ Oui', action: 'answer_yes' },
-        { type: 'primary', title: '❌ Non', action: 'answer_no' }
-      ];
-      response.progress = 40;
-    }
-  }
-  else {
-    // Message par défaut
-    response.text = "Je suis Julien, expert FAP. Je peux diagnostiquer précisément votre problème de filtre à particules.\n\nPour commencer, décrivez-moi vos symptômes :\n• Fumée à l'échappement ?\n• Voyants allumés ?\n• Perte de puissance ?\n• Codes d'erreur ?";
-    response.ctas = [
-      { type: 'primary', title: '🚀 Diagnostic rapide', action: 'quick_diagnosis' },
-      { type: 'secondary', title: '📋 Analyse complète', action: 'full_analysis' }
-    ];
-    response.progress = 0;
-  }
-
-  return response;
-}
-
-// Fonctions utilitaires
-function getCauseName(cause) {
-  const names = {
-    clogged_filter: 'FAP encrassé',
-    sensor_failure: 'Défaillance capteur',
-    additive_issue: 'Problème d\'additif FAP',
-    regeneration_needed: 'Régénération nécessaire'
-  };
-  return names[cause] || cause;
-}
-
-function getCauseDescription(cause) {
-  const descriptions = {
-    clogged_filter: 'Le filtre est obstrué par les particules de suie',
-    sensor_failure: 'Un capteur du système FAP dysfonctionne',
-    additive_issue: 'Le niveau d\'additif FAP est insuffisant',
-    regeneration_needed: 'Le FAP a besoin d\'un cycle de régénération'
-  };
-  return descriptions[cause] || '';
-}
