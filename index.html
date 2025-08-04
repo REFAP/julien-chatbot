@@ -120,8 +120,9 @@
             gap: 5px;
         }
 
-        .source-airtable { color: #059669; }
-        .source-ai { color: #7c3aed; }
+        .source-fap_expert { color: #059669; font-weight: bold; }
+        .source-database { color: #059669; }
+        .source-AI { color: #7c3aed; }
 
         .confidence-bar {
             width: 30px;
@@ -213,7 +214,69 @@
             transform: none;
         }
 
-        /* Mobile responsive */
+        /* CTA Buttons */
+        .cta-container {
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .cta-button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+
+        .cta-emergency {
+            background: #fee2e2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        .cta-professional {
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #dbeafe;
+        }
+
+        .cta-self_service {
+            background: #f0fdf4;
+            color: #16a34a;
+            border: 1px solid #dcfce7;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Quick responses for conversations */
+        .quick-responses {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .quick-response {
+            padding: 6px 12px;
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-response:hover {
+            background: #e5e7eb;
+        }
+
         @media (max-width: 480px) {
             .chat-container {
                 width: 100vw;
@@ -238,8 +301,8 @@
         <div class="chat-messages" id="messages">
             <div class="message bot">
                 <div>Bonjour ! Je suis Julien, votre expert FAP Re-Fap. Je consulte d'abord ma base de connaissances pour vous donner les meilleures réponses. Comment puis-je vous aider ?</div>
-                <div class="message-source source-airtable">
-                    📊 Base de données • 
+                <div class="message-source source-fap_expert">
+                    🔧 Expert FAP conversationnel
                     <div class="confidence-bar">
                         <div class="confidence-fill" style="width: 100%"></div>
                     </div>
@@ -248,7 +311,7 @@
         </div>
         
         <div class="typing-indicator" id="typing">
-            <span>Julien consulte sa base de données</span>
+            <span>Julien analyse votre problème</span>
             <div class="typing-dots">
                 <div class="typing-dot"></div>
                 <div class="typing-dot"></div>
@@ -261,7 +324,7 @@
                 type="text" 
                 class="chat-input" 
                 id="messageInput" 
-                placeholder="Posez votre question..."
+                placeholder="Décrivez votre problème..."
                 maxlength="500"
             >
             <button class="send-button" id="sendButton" onclick="sendMessage()">
@@ -276,10 +339,10 @@
         const sendButton = document.getElementById('sendButton');
         const typingIndicator = document.getElementById('typing');
 
-        // Configuration
         const API_BASE = window.location.origin;
+        let sessionId = 'session_' + Date.now();
+        let currentConversationState = null;
 
-        // Gestion de l'input
         messageInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -287,54 +350,68 @@
             }
         });
 
-        // Fonction principale d'envoi
-        async function sendMessage() {
-            const message = messageInput.value.trim();
+        async function sendMessage(messageText = null) {
+            const message = messageText || messageInput.value.trim();
             if (!message || sendButton.disabled) return;
 
-            // Afficher le message utilisateur
             addMessage(message, 'user');
-            messageInput.value = '';
-            
-            // Désactiver l'input et afficher typing
+            if (!messageText) messageInput.value = '';
             setLoading(true);
 
             try {
+                console.log('Envoi du message:', message);
+                
+                const requestBody = { 
+                    message: message,
+                    sessionId: sessionId
+                };
+
                 const response = await fetch(`${API_BASE}/api/chat`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ message })
+                    body: JSON.stringify(requestBody)
                 });
 
+                console.log('Réponse status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
                 const data = await response.json();
+                console.log('Données reçues:', data);
 
                 if (data.success) {
-                    addMessage(data.response, 'bot', {
+                    // Mettre à jour l'état de conversation
+                    currentConversationState = data.conversationState;
+                    
+                    addMessage(data.message, 'bot', {
                         source: data.source,
                         confidence: data.confidence,
-                        table: data.table
+                        type: data.type,
+                        ctas: data.ctas,
+                        options: data.options
                     });
                 } else {
                     addMessage('Désolé, une erreur s\'est produite.', 'bot', { source: 'error' });
                 }
 
             } catch (error) {
-                console.error('Erreur:', error);
-                addMessage('Impossible de se connecter au serveur.', 'bot', { source: 'error' });
+                console.error('Erreur complète:', error);
+                addMessage('Impossible de se connecter au serveur. Vérifiez la console pour plus de détails.', 'bot', { source: 'error' });
             }
 
             setLoading(false);
         }
 
-        // Ajouter un message à la conversation
         function addMessage(text, sender, metadata = {}) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${sender}`;
             
             const textDiv = document.createElement('div');
-            textDiv.textContent = text;
+            textDiv.innerHTML = formatMessageText(text);
             messageDiv.appendChild(textDiv);
 
             // Ajouter les métadonnées pour les messages bot
@@ -346,29 +423,94 @@
                 let sourceClass = '';
                 
                 switch(metadata.source) {
-                    case 'airtable':
-                        sourceText = `📊 Base de données${metadata.table ? ` • ${metadata.table}` : ''}`;
-                        sourceClass = 'source-airtable';
+                    case 'fap_expert':
+                        sourceText = '🔧 Expert FAP conversationnel';
+                        sourceClass = 'source-fap_expert';
+                        break;
+                    case 'database':
+                        sourceText = '📊 Base de données';
+                        sourceClass = 'source-database';
                         break;
                     case 'AI':
                         sourceText = '🤖 Intelligence Artificielle';
-                        sourceClass = 'source-ai';
+                        sourceClass = 'source-AI';
                         break;
                     default:
                         sourceText = '💭 Réponse générée';
-                        sourceClass = 'source-ai';
+                        sourceClass = 'source-AI';
                 }
                 
                 sourceDiv.className += ` ${sourceClass}`;
-                sourceDiv.innerHTML = `${sourceText} • <div class="confidence-bar"><div class="confidence-fill" style="width: ${(metadata.confidence || 0.8) * 100}%"></div></div>`;
+                sourceDiv.innerHTML = `${sourceText} <div class="confidence-bar"><div class="confidence-fill" style="width: ${(metadata.confidence || 0.8) * 100}%"></div></div>`;
                 messageDiv.appendChild(sourceDiv);
+
+                // Ajouter les CTA si présents
+                if (metadata.ctas && metadata.ctas.length > 0) {
+                    const ctaContainer = document.createElement('div');
+                    ctaContainer.className = 'cta-container';
+                    
+                    metadata.ctas.forEach(cta => {
+                        const ctaButton = document.createElement('button');
+                        ctaButton.className = `cta-button cta-${cta.type}`;
+                        ctaButton.textContent = cta.text;
+                        ctaButton.onclick = () => handleCTA(cta);
+                        ctaContainer.appendChild(ctaButton);
+                    });
+                    
+                    messageDiv.appendChild(ctaContainer);
+                }
+
+                // Ajouter les réponses rapides pour les conversations
+                if (metadata.type === 'fap_conversation' && metadata.options) {
+                    const quickContainer = document.createElement('div');
+                    quickContainer.className = 'quick-responses';
+                    
+                    Object.keys(metadata.options).forEach(option => {
+                        const quickBtn = document.createElement('button');
+                        quickBtn.className = 'quick-response';
+                        quickBtn.textContent = option === 'oui' ? 'Oui' : 
+                                              option === 'non' ? 'Non' : 
+                                              option === 'ne_sais_pas' ? 'Je ne sais pas' : option;
+                        quickBtn.onclick = () => sendMessage(quickBtn.textContent);
+                        quickContainer.appendChild(quickBtn);
+                    });
+                    
+                    messageDiv.appendChild(quickContainer);
+                }
             }
 
             messagesContainer.appendChild(messageDiv);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
-        // Gestion de l'état de chargement
+        function formatMessageText(text) {
+            // Convertir les ** en <strong>
+            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Convertir les retours à la ligne en <br>
+            text = text.replace(/\n/g, '<br>');
+            
+            return text;
+        }
+
+        function handleCTA(cta) {
+            console.log('CTA cliqué:', cta);
+            
+            switch(cta.action) {
+                case 'emergency_call':
+                    alert('🚨 Appel d\'urgence : 01 23 45 67 89');
+                    break;
+                case 'book_cleaning':
+                    alert('🔧 Redirection vers prise de RDV nettoyage FAP');
+                    break;
+                case 'highway_regeneration':
+                    sendMessage('Je vais essayer la régénération autoroute');
+                    break;
+                default:
+                    alert(`Action: ${cta.action}`);
+            }
+        }
+
         function setLoading(loading) {
             sendButton.disabled = loading;
             messageInput.disabled = loading;
@@ -381,24 +523,31 @@
             }
         }
 
-        // Test de connexion au démarrage
         async function testConnection() {
             try {
+                console.log('Test de connexion...');
                 const response = await fetch(`${API_BASE}/api/health`);
                 const data = await response.json();
-                console.log('🟢 Connexion établie:', data);
-                
-                // Mettre à jour le statut si nécessaire
-                if (!data.services?.airtable) {
-                    console.warn('⚠️ Airtable non configuré');
-                }
+                console.log('🟢 Connexion OK:', data);
             } catch (error) {
                 console.error('🔴 Erreur de connexion:', error);
             }
         }
 
-        // Initialisation
+        // Reset session function
+        function resetSession() {
+            sessionId = 'session_' + Date.now();
+            currentConversationState = null;
+            
+            fetch(`${API_BASE}/api/reset-session`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: sessionId })
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('Page chargée, test de connexion...');
             testConnection();
             messageInput.focus();
         });
