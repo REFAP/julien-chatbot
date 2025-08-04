@@ -557,7 +557,18 @@
         </div>
     </div>
 
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <script>
+        // Configuration Supabase
+        const SUPABASE_URL = 'https://ipoxyhgfnzcggohugzzh.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlwb3h5aGdmbnpjZ2dvaHVnenpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyMDU2OTksImV4cCI6MjA2OTc4MTY5OX0.PmS4a7jWFEGoUcxJiPSuNAByNAclW8vSz14UsgOANq0';
+        
+        // Initialisation Supabase
+        const { createClient } = supabase;
+        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
         class FAPExpertChat {
             constructor() {
                 this.sessionId = null;
@@ -565,9 +576,31 @@
                 this.messageHistory = [];
                 this.currentProgress = 0;
                 this.awaitingResponse = false;
+                this.useDatabase = true; // Flag pour activer/désactiver la DB
                 
                 this.initializeEventListeners();
                 this.generateSessionId();
+                this.testDatabaseConnection();
+            }
+
+            async testDatabaseConnection() {
+                try {
+                    const { data, error } = await supabaseClient
+                        .from('chat_sessions')
+                        .select('count')
+                        .limit(1);
+                    
+                    if (error) throw error;
+                    console.log('✅ Connexion Supabase OK');
+                    this.useDatabase = true;
+                } catch (error) {
+                    console.error('❌ Erreur Supabase:', error);
+                    this.useDatabase = false;
+                    this.displayMessage('assistant', 
+                        "⚠️ Mode hors ligne activé. Les conversations ne seront pas sauvegardées.",
+                        { ctas: [{ type: 'warning', title: '🔄 Réessayer', action: 'retry_connection' }] }
+                    );
+                }
             }
 
             initializeEventListeners() {
@@ -604,9 +637,36 @@
                 if (sessionInfo) {
                     sessionInfo.textContent = `Session: ${this.sessionId.split('_')[1]}`;
                 }
+                
+                // Créer la session dans Supabase si connecté
+                if (this.useDatabase) {
+                    this.createDatabaseSession();
+                }
             }
 
-            // FONCTION MODIFIÉE POUR MODE DÉMO
+            async createDatabaseSession() {
+                try {
+                    const { data, error } = await supabaseClient
+                        .from('chat_sessions')
+                        .insert([{
+                            session_id: this.sessionId,
+                            created_at: new Date().toISOString(),
+                            user_agent: navigator.userAgent,
+                            status: 'active'
+                        }])
+                        .select();
+
+                    if (error) {
+                        console.error('Erreur création session:', error);
+                    } else {
+                        console.log('✅ Session créée dans Supabase');
+                    }
+                } catch (error) {
+                    console.error('Erreur Supabase:', error);
+                }
+            }
+
+            // FONCTION MODIFIÉE POUR SUPABASE
             async sendMessage(message = null) {
                 const messageInput = document.getElementById('messageInput');
                 const userMessage = message || messageInput.value.trim();
@@ -624,106 +684,159 @@
                     messageInput.style.height = 'auto';
                 }
 
-                // MODE DÉMO - Réponses locales sans serveur
-                setTimeout(() => {
-                    const lowerMessage = userMessage.toLowerCase();
-                    let response = {
-                        success: true,
-                        response: '',
-                        confidence: 0.5,
-                        top_causes: [],
-                        ctas: [],
-                        session_state: 'active',
-                        current_progress: 0
-                    };
+                try {
+                    // Sauvegarder dans Supabase si connecté
+                    if (this.useDatabase) {
+                        const { data: messageData, error: messageError } = await supabaseClient
+                            .from('chat_messages')
+                            .insert([{
+                                session_id: this.sessionId,
+                                sender: 'user',
+                                content: userMessage,
+                                created_at: new Date().toISOString()
+                            }])
+                            .select();
 
-                    // Logique de réponse détaillée
-                    if (lowerMessage.includes('diagnostic rapide') || lowerMessage.includes('commencer')) {
-                        response.response = "Parfait ! Je vais diagnostiquer votre problème de FAP rapidement.\n\n**Question 1:** Observez-vous de la fumée à l'échappement ?";
-                        response.ctas = [
-                            { type: 'primary', title: '💨 Fumée noire', action: 'black_smoke' },
-                            { type: 'primary', title: '☁️ Fumée blanche', action: 'white_smoke' },
-                            { type: 'primary', title: '🔵 Fumée bleue', action: 'blue_smoke' },
-                            { type: 'secondary', title: '✅ Pas de fumée', action: 'no_smoke' }
-                        ];
-                        response.current_progress = 20;
+                        if (messageError) {
+                            console.error('Erreur sauvegarde message:', messageError);
+                        }
                     }
-                    else if (lowerMessage.includes('fumée noire') || lowerMessage.includes('fumee noire')) {
-                        response.response = "La fumée noire indique généralement un **FAP encrassé**. C'est le problème le plus courant sur les véhicules diesel.\n\n**Question 2:** Avez-vous également une perte de puissance ?";
-                        response.confidence = 0.75;
-                        response.top_causes = [
-                            { name: 'FAP encrassé', score: 0.8, description: 'Accumulation de suie dans le filtre' },
-                            { name: 'Régénération incomplète', score: 0.15, description: 'Cycles de régénération interrompus' }
-                        ];
-                        response.ctas = [
-                            { type: 'primary', title: '✅ Oui, perte de puissance', action: 'confirm_power_loss' },
-                            { type: 'primary', title: '❌ Non, pas de perte', action: 'no_power_loss' }
-                        ];
-                        response.current_progress = 50;
-                    }
-                    else if (lowerMessage.includes('oui') || lowerMessage.includes('perte de puissance')) {
-                        response.response = "⚠️ **Diagnostic confirmé : FAP très encrassé**\n\nLa combinaison fumée noire + perte de puissance nécessite une intervention rapide pour éviter des dommages au moteur.\n\n**Estimation des coûts :**\n• Nettoyage professionnel : 150-250€\n• Remplacement FAP : 800-1500€";
-                        response.confidence = 0.9;
-                        response.top_causes = [
-                            { name: 'FAP très encrassé', score: 0.9, description: 'Nécessite intervention urgente' },
-                            { name: 'Risque turbo', score: 0.1, description: 'Contre-pression dangereuse' }
-                        ];
-                        response.ctas = [
-                            { type: 'urgent', title: '🚨 Nettoyage urgent FAP', action: 'book_cleaning' },
-                            { type: 'primary', title: '🛣️ Essayer régénération autoroute', action: 'highway_regeneration' },
-                            { type: 'professional', title: '👨‍🔧 Contacter un pro', action: 'contact_expert' }
-                        ];
-                        response.recommended_workflow = {
-                            name: 'Nettoyage FAP professionnel',
-                            category: 'professional',
-                            success_probability: 0.85,
-                            steps: [
-                                { step: 1, title: 'Diagnostic complet', instructions: 'Vérification codes erreur et état FAP', duration: '30 min' },
-                                { step: 2, title: 'Nettoyage chimique', instructions: 'Application produit nettoyant Re-Fap', duration: '2h' },
-                                { step: 3, title: 'Test route', instructions: 'Vérification après nettoyage', duration: '30 min' }
-                            ]
-                        };
-                        response.current_progress = 80;
-                    }
-                    else if (lowerMessage.includes('voyant') || lowerMessage.includes('témoin')) {
-                        response.response = "Un voyant allumé est un signal d'alerte important.\n\n**De quelle couleur est le voyant ?**";
-                        response.ctas = [
-                            { type: 'warning', title: '🟠 Voyant orange', action: 'orange_light' },
-                            { type: 'urgent', title: '🔴 Voyant rouge', action: 'red_light' },
-                            { type: 'info', title: '🟡 Voyant jaune', action: 'yellow_light' }
-                        ];
-                        response.current_progress = 30;
-                    }
-                    else if (lowerMessage.includes('code') || lowerMessage.includes('p2002') || lowerMessage.includes('p2003')) {
-                        response.response = "Les codes P2002/P2003 confirment un problème FAP.\n\n**Analyse des codes :**\n• P2002 : FAP encrassé banque 1\n• P2003 : FAP encrassé banque 2\n\nCes codes nécessitent une action rapide.";
-                        response.confidence = 0.95;
-                        response.top_causes = [
-                            { name: 'FAP obstrué confirmé', score: 0.95, description: 'Diagnostic électronique confirmé' }
-                        ];
-                        response.ctas = [
-                            { type: 'urgent', title: '🔧 Solutions immédiates', action: 'show_solutions' },
-                            { type: 'info', title: '📊 Voir autres codes', action: 'other_codes' }
-                        ];
-                        response.current_progress = 70;
-                    }
-                    else if (lowerMessage.includes('aide') || lowerMessage.includes('help')) {
-                        response.response = "**💡 Comment utiliser l'expert FAP :**\n\n• Décrivez vos symptômes précisément\n• Mentionnez la couleur de fumée\n• Indiquez les voyants allumés\n• Précisez les codes d'erreur\n\n**Exemples :**\n• 'Fumée noire + perte de puissance'\n• 'Voyant moteur orange allumé'\n• 'Code erreur P2002'";
-                        response.ctas = [
-                            { type: 'primary', title: '🚀 Commencer diagnostic', action: 'quick_diagnosis' }
-                        ];
-                    }
-                    else {
-                        response.response = "Je suis Julien, votre expert FAP. Pour un diagnostic précis, décrivez-moi vos symptômes :\n\n• Fumée à l'échappement ? (couleur)\n• Voyants allumés ?\n• Perte de puissance ?\n• Codes d'erreur ?\n• Type de conduite (ville/route) ?";
-                        response.ctas = [
-                            { type: 'primary', title: '🚀 Diagnostic rapide', action: 'quick_diagnosis' },
-                            { type: 'secondary', title: '📋 Analyse complète', action: 'full_analysis' }
-                        ];
+
+                    // Générer la réponse (logique locale pour l'instant)
+                    const response = await this.generateLocalResponse(userMessage);
+                    
+                    // Sauvegarder la réponse dans Supabase
+                    if (this.useDatabase && response.response) {
+                        const { error: responseError } = await supabaseClient
+                            .from('chat_messages')
+                            .insert([{
+                                session_id: this.sessionId,
+                                sender: 'assistant',
+                                content: response.response,
+                                metadata: {
+                                    confidence: response.confidence,
+                                    top_causes: response.top_causes
+                                },
+                                created_at: new Date().toISOString()
+                            }]);
+
+                        if (responseError) {
+                            console.error('Erreur sauvegarde réponse:', responseError);
+                        }
                     }
 
                     // Afficher la réponse
                     this.handleResponse(response);
+                    
+                } catch (error) {
+                    console.error('Erreur:', error);
+                    this.displayError('Une erreur est survenue. Mode hors ligne activé.');
+                    this.useDatabase = false;
+                } finally {
                     this.setLoading(false);
-                }, 1000); // Délai simulé de 1 seconde
+                }
+            }
+
+            // Nouvelle fonction pour générer les réponses localement
+            async generateLocalResponse(userMessage) {
+                // Simuler un délai de traitement
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                const lowerMessage = userMessage.toLowerCase();
+                let response = {
+                    success: true,
+                    response: '',
+                    confidence: 0.5,
+                    top_causes: [],
+                    ctas: [],
+                    session_state: 'active',
+                    current_progress: 0
+                };
+
+                // Logique de réponse (identique à avant)
+                if (lowerMessage.includes('diagnostic rapide') || lowerMessage.includes('commencer')) {
+                    response.response = "Parfait ! Je vais diagnostiquer votre problème de FAP rapidement.\n\n**Question 1:** Observez-vous de la fumée à l'échappement ?";
+                    response.ctas = [
+                        { type: 'primary', title: '💨 Fumée noire', action: 'black_smoke' },
+                        { type: 'primary', title: '☁️ Fumée blanche', action: 'white_smoke' },
+                        { type: 'primary', title: '🔵 Fumée bleue', action: 'blue_smoke' },
+                        { type: 'secondary', title: '✅ Pas de fumée', action: 'no_smoke' }
+                    ];
+                    response.current_progress = 20;
+                }
+                else if (lowerMessage.includes('fumée noire') || lowerMessage.includes('fumee noire')) {
+                    response.response = "La fumée noire indique généralement un **FAP encrassé**. C'est le problème le plus courant sur les véhicules diesel.\n\n**Question 2:** Avez-vous également une perte de puissance ?";
+                    response.confidence = 0.75;
+                    response.top_causes = [
+                        { name: 'FAP encrassé', score: 0.8, description: 'Accumulation de suie dans le filtre' },
+                        { name: 'Régénération incomplète', score: 0.15, description: 'Cycles de régénération interrompus' }
+                    ];
+                    response.ctas = [
+                        { type: 'primary', title: '✅ Oui, perte de puissance', action: 'confirm_power_loss' },
+                        { type: 'primary', title: '❌ Non, pas de perte', action: 'no_power_loss' }
+                    ];
+                    response.current_progress = 50;
+                }
+                else if (lowerMessage.includes('oui') || lowerMessage.includes('perte de puissance')) {
+                    response.response = "⚠️ **Diagnostic confirmé : FAP très encrassé**\n\nLa combinaison fumée noire + perte de puissance nécessite une intervention rapide pour éviter des dommages au moteur.\n\n**Estimation des coûts :**\n• Nettoyage professionnel : 150-250€\n• Remplacement FAP : 800-1500€";
+                    response.confidence = 0.9;
+                    response.top_causes = [
+                        { name: 'FAP très encrassé', score: 0.9, description: 'Nécessite intervention urgente' },
+                        { name: 'Risque turbo', score: 0.1, description: 'Contre-pression dangereuse' }
+                    ];
+                    response.ctas = [
+                        { type: 'urgent', title: '🚨 Nettoyage urgent FAP', action: 'book_cleaning' },
+                        { type: 'primary', title: '🛣️ Essayer régénération autoroute', action: 'highway_regeneration' },
+                        { type: 'professional', title: '👨‍🔧 Contacter un pro', action: 'contact_expert' }
+                    ];
+                    response.recommended_workflow = {
+                        name: 'Nettoyage FAP professionnel',
+                        category: 'professional',
+                        success_probability: 0.85,
+                        steps: [
+                            { step: 1, title: 'Diagnostic complet', instructions: 'Vérification codes erreur et état FAP', duration: '30 min' },
+                            { step: 2, title: 'Nettoyage chimique', instructions: 'Application produit nettoyant Re-Fap', duration: '2h' },
+                            { step: 3, title: 'Test route', instructions: 'Vérification après nettoyage', duration: '30 min' }
+                        ]
+                    };
+                    response.current_progress = 80;
+                }
+                else if (lowerMessage.includes('voyant') || lowerMessage.includes('témoin')) {
+                    response.response = "Un voyant allumé est un signal d'alerte important.\n\n**De quelle couleur est le voyant ?**";
+                    response.ctas = [
+                        { type: 'warning', title: '🟠 Voyant orange', action: 'orange_light' },
+                        { type: 'urgent', title: '🔴 Voyant rouge', action: 'red_light' },
+                        { type: 'info', title: '🟡 Voyant jaune', action: 'yellow_light' }
+                    ];
+                    response.current_progress = 30;
+                }
+                else if (lowerMessage.includes('code') || lowerMessage.includes('p2002') || lowerMessage.includes('p2003')) {
+                    response.response = "Les codes P2002/P2003 confirment un problème FAP.\n\n**Analyse des codes :**\n• P2002 : FAP encrassé banque 1\n• P2003 : FAP encrassé banque 2\n\nCes codes nécessitent une action rapide.";
+                    response.confidence = 0.95;
+                    response.top_causes = [
+                        { name: 'FAP obstrué confirmé', score: 0.95, description: 'Diagnostic électronique confirmé' }
+                    ];
+                    response.ctas = [
+                        { type: 'urgent', title: '🔧 Solutions immédiates', action: 'show_solutions' },
+                        { type: 'info', title: '📊 Voir autres codes', action: 'other_codes' }
+                    ];
+                    response.current_progress = 70;
+                }
+                else if (lowerMessage.includes('aide') || lowerMessage.includes('help')) {
+                    response.response = "**💡 Comment utiliser l'expert FAP :**\n\n• Décrivez vos symptômes précisément\n• Mentionnez la couleur de fumée\n• Indiquez les voyants allumés\n• Précisez les codes d'erreur\n\n**Exemples :**\n• 'Fumée noire + perte de puissance'\n• 'Voyant moteur orange allumé'\n• 'Code erreur P2002'";
+                    response.ctas = [
+                        { type: 'primary', title: '🚀 Commencer diagnostic', action: 'quick_diagnosis' }
+                    ];
+                }
+                else {
+                    response.response = "Je suis Julien, votre expert FAP. Pour un diagnostic précis, décrivez-moi vos symptômes :\n\n• Fumée à l'échappement ? (couleur)\n• Voyants allumés ?\n• Perte de puissance ?\n• Codes d'erreur ?\n• Type de conduite (ville/route) ?";
+                    response.ctas = [
+                        { type: 'primary', title: '🚀 Diagnostic rapide', action: 'quick_diagnosis' },
+                        { type: 'secondary', title: '📋 Analyse complète', action: 'full_analysis' }
+                    ];
+                }
+
+                return response;
             }
 
             handleResponse(data) {
