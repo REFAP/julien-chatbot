@@ -666,7 +666,7 @@
                 }
             }
 
-            // FONCTION MODIFIÉE POUR SUPABASE
+            // FONCTION MODIFIÉE POUR UTILISER LA BASE DE DONNÉES
             async sendMessage(message = null) {
                 const messageInput = document.getElementById('messageInput');
                 const userMessage = message || messageInput.value.trim();
@@ -702,8 +702,23 @@
                         }
                     }
 
-                    // Générer la réponse (logique locale pour l'instant)
-                    const response = await this.generateLocalResponse(userMessage);
+                    // NOUVELLE LOGIQUE : Chercher d'abord dans la base
+                    let response;
+                    if (this.useDatabase) {
+                        // Chercher des conversations similaires
+                        const historicalResponse = await this.searchSimilarConversations(userMessage);
+                        
+                        if (historicalResponse) {
+                            console.log('✅ Réponse trouvée dans l\'historique');
+                            response = historicalResponse;
+                        } else {
+                            console.log('🔄 Génération de réponse locale');
+                            response = await this.generateLocalResponse(userMessage);
+                        }
+                    } else {
+                        // Mode hors ligne
+                        response = await this.generateLocalResponse(userMessage);
+                    }
                     
                     // Sauvegarder la réponse dans Supabase
                     if (this.useDatabase && response.response) {
@@ -715,7 +730,8 @@
                                 content: response.response,
                                 metadata: {
                                     confidence: response.confidence,
-                                    top_causes: response.top_causes
+                                    top_causes: response.top_causes,
+                                    source: response.source || 'generated'
                                 },
                                 created_at: new Date().toISOString()
                             }]);
@@ -734,6 +750,147 @@
                     this.useDatabase = false;
                 } finally {
                     this.setLoading(false);
+                }
+            }
+
+            // NOUVELLE FONCTION : Recherche dans l'historique
+            async searchSimilarConversations(userMessage) {
+                try {
+                    const lowerMessage = userMessage.toLowerCase();
+                    const keywords = this.extractKeywords(lowerMessage);
+                    
+                    console.log('🔍 Recherche avec mots-clés:', keywords);
+                    
+                    // Construire la requête de recherche
+                    let query = supabaseClient
+                        .from('chat_messages')
+                        .select('*')
+                        .eq('sender', 'user');
+                    
+                    // Recherche par mots-clés
+                    if (keywords.length > 0) {
+                        const searchPattern = keywords.join('|');
+                        query = query.ilike('content', `%${searchPattern}%`);
+                    }
+                    
+                    const { data: userMessages, error } = await query.limit(10);
+                    
+                    if (error || !userMessages || userMessages.length === 0) {
+                        return null;
+                    }
+                    
+                    // Calculer la similarité et trouver la meilleure correspondance
+                    let bestMatch = null;
+                    let bestScore = 0;
+                    
+                    for (const msg of userMessages) {
+                        const score = this.calculateSimilarity(lowerMessage, msg.content.toLowerCase());
+                        if (score > bestScore && score > 0.5) { // Seuil de similarité
+                            bestScore = score;
+                            bestMatch = msg;
+                        }
+                    }
+                    
+                    if (!bestMatch) {
+                        return null;
+                    }
+                    
+                    console.log(`✅ Correspondance trouvée (score: ${bestScore.toFixed(2)}):`, bestMatch.content);
+                    
+                    // Récupérer la réponse associée
+                    const { data: assistantResponse } = await supabaseClient
+                        .from('chat_messages')
+                        .select('*')
+                        .eq('session_id', bestMatch.session_id)
+                        .eq('sender', 'assistant')
+                        .order('created_at', { ascending: true })
+                        .limit(1);
+                    
+                    if (!assistantResponse || assistantResponse.length === 0) {
+                        return null;
+                    }
+                    
+                    // Adapter la réponse
+                    const response = assistantResponse[0];
+                    return {
+                        success: true,
+                        response: this.adaptResponse(response.content, bestScore),
+                        confidence: Math.min(bestScore + 0.2, 0.95), // Boost de confiance
+                        source: 'database',
+                        original_question: bestMatch.content,
+                        similarity_score: bestScore,
+                        ...response.metadata
+                    };
+                    
+                } catch (error) {
+                    console.error('Erreur recherche:', error);
+                    return null;
+                }
+            }
+
+            // Extraire les mots-clés importants
+            extractKeywords(text) {
+                const keywords = [];
+                
+                // Mots-clés FAP spécifiques
+                const fapKeywords = [
+                    'fumée', 'noire', 'blanche', 'bleue',
+                    'voyant', 'orange', 'rouge', 'moteur',
+                    'p2002', 'p2003', 'code', 'erreur',
+                    'perte', 'puissance', 'régénération',
+                    'encrassé', 'bouché', 'colmaté',
+                    'nettoyage', 'additif', 'turbo',
+                    'consommation', 'ville', 'autoroute'
+                ];
+                
+                // Extraire les mots-clés présents
+                for (const keyword of fapKeywords) {
+                    if (text.includes(keyword)) {
+                        keywords.push(keyword);
+                    }
+                }
+                
+                // Ajouter les codes d'erreur
+                const errorCodes = text.match(/p\d{4}/gi);
+                if (errorCodes) {
+                    keywords.push(...errorCodes);
+                }
+                
+                return keywords;
+            }
+
+            // Calculer la similarité entre deux textes
+            calculateSimilarity(text1, text2) {
+                // Méthode simple : ratio de mots communs
+                const words1 = text1.split(/\s+/);
+                const words2 = text2.split(/\s+/);
+                
+                const commonWords = words1.filter(word => 
+                    words2.some(w => w.includes(word) || word.includes(w))
+                );
+                
+                const similarity = commonWords.length / Math.max(words1.length, words2.length);
+                
+                // Bonus pour mots-clés importants
+                const importantWords = ['fumée', 'noire', 'voyant', 'p2002', 'p2003', 'encrassé'];
+                const hasImportantMatch = importantWords.some(word => 
+                    text1.includes(word) && text2.includes(word)
+                );
+                
+                return hasImportantMatch ? Math.min(similarity + 0.2, 1) : similarity;
+            }
+
+            // Adapter une réponse trouvée dans la base
+            adaptResponse(originalResponse, similarity) {
+                if (similarity > 0.9) {
+                    // Très similaire : utiliser telle quelle
+                    return originalResponse;
+                } else if (similarity > 0.7) {
+                    // Similaire : ajouter une note
+                    return `D'après un cas similaire :\n\n${originalResponse}\n\n💡 *Note : Cette réponse est basée sur un problème similaire. Votre cas peut nécessiter un diagnostic spécifique.*`;
+                } else {
+                    // Moyennement similaire : adapter davantage
+                    return `Voici ce que je peux vous dire basé sur mon expérience :\n\n${originalResponse}\n\n⚠️ *Important : Cette réponse provient d'un cas partiellement similaire. Je recommande une vérification approfondie pour votre situation spécifique.*`;
                 }
             }
 
@@ -916,6 +1073,17 @@
                         </div>
                         <small>Confiance du diagnostic: ${confidencePercent}%</small>
                     `;
+                    
+                    // Indicateur de source si disponible
+                    if (metadata.source === 'database') {
+                        html += `<small style="color: #10b981; margin-left: 10px;">📚 Basé sur l'historique</small>`;
+                    }
+                    
+                    // Afficher la similarité si disponible
+                    if (metadata.similarity_score) {
+                        const simPercent = Math.round(metadata.similarity_score * 100);
+                        html += `<br><small style="color: #6b7280;">Question similaire trouvée (${simPercent}% de correspondance)</small>`;
+                    }
                 }
 
                 // Affichage des causes principales
