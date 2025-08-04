@@ -300,22 +300,56 @@ class ConversationalFAPEngine {
     const isFAPRelated = this.isFAPRelated(userMessage);
     
     if (isFAPRelated) {
-      console.log('🔧 Détection problème FAP -> Mode conversationnel');
+      console.log('🔧 Détection mots-clés FAP -> Mode d\'écoute expert');
       return {
-        message: this.fapDB.conversation_steps.fap_symptom_detection.message,
-        type: 'fap_conversation',
+        message: "Je vois que vous avez un problème avec votre véhicule. Pouvez-vous me décrire précisément les symptômes que vous observez ?",
+        type: 'general_listening',
         source: 'fap_expert',
         conversationState: {
-          step: 'fap_symptom_detection',
-          category: 'fap',
+          step: 'symptom_analysis',
+          category: 'listening',
+          collectedData: { initial_query: userMessage },
+          confidence: 0,
+          suspected_issues: this.analyzePotentialIssues(userMessage)
+        }
+      };
+    } else {
+      console.log('🔍 Problème général -> Écoute ouverte');
+      return {
+        message: "Bonjour ! Décrivez-moi le problème que vous rencontrez avec votre véhicule. Plus vous me donnez de détails, mieux je pourrai vous aider.",
+        type: 'open_listening',
+        source: 'general_expert',
+        conversationState: {
+          step: 'open_analysis',
+          category: 'general',
           collectedData: { initial_query: userMessage },
           confidence: 0
         }
       };
-    } else {
-      console.log('🔍 Problème non-FAP -> Recherche base générale');
-      return this.handleNonFAPIssue(userMessage);
     }
+  }
+
+  analyzePotentialIssues(message) {
+    const issues = [];
+    const messageLower = message.toLowerCase();
+    
+    // Détection FAP
+    if (this.isFAPRelated(message)) {
+      issues.push({ type: 'fap', confidence: 0.7, keywords: ['fap', 'particules', 'regeneration'] });
+    }
+    
+    // Détection autres problèmes
+    if (messageLower.includes('turbo') || messageLower.includes('siffle')) {
+      issues.push({ type: 'turbo', confidence: 0.8 });
+    }
+    if (messageLower.includes('egr') || messageLower.includes('prechauffage')) {
+      issues.push({ type: 'egr', confidence: 0.8 });
+    }
+    if (messageLower.includes('adblue') || messageLower.includes('uree')) {
+      issues.push({ type: 'adblue', confidence: 0.9 });
+    }
+    
+    return issues;
   }
 
   isFAPRelated(message) {
