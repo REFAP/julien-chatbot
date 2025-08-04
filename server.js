@@ -33,18 +33,22 @@ class AirtableService {
     try {
       console.log(`🔍 Recherche Airtable pour: "${query}"`);
       
-      // Recherche dans plusieurs tables selon votre structure
+      // Recherche dans vos tables spécifiques
       const searches = await Promise.all([
-        this.searchInTable('FAQ', query),
-        this.searchInTable('Knowledge', query),
-        this.searchInTable('Products', query) // Adaptez selon vos tables
+        this.searchInTable('CAS_DIAGNOSTIC', query),
+        this.searchInTable('DIAGNOSTICS', query),
+        this.searchInTable('LEADS', query),
+        this.searchInTable('KNOWLEDGE_BASE', query),
+        this.searchInTable('VEHICULES_SENSIBLES', query)
       ]);
 
       const allResults = searches.flat();
       const scoredResults = this.scoreResults(allResults, query);
       
+      console.log(`📊 Résultats trouvés: ${scoredResults.length}, Meilleur score: ${scoredResults[0]?.score || 0}`);
+      
       return {
-        hasRelevantData: scoredResults.length > 0 && scoredResults[0].score > 0.6,
+        hasRelevantData: scoredResults.length > 0 && scoredResults[0].score > 0.3, // Seuil abaissé
         results: scoredResults,
         bestMatch: scoredResults[0] || null
       };
@@ -56,58 +60,95 @@ class AirtableService {
 
   async searchInTable(tableName, query) {
     const url = `${this.baseUrl}/${tableName}`;
-    const queryWords = query.toLowerCase().split(' ');
-    
-    // Construire la formule de recherche Airtable
-    const searchFormula = this.buildSearchFormula(queryWords);
+    const queryWords = query.toLowerCase().split(' ').filter(word => word.length > 2); // Ignorer mots trop courts
     
     try {
-      const response = await fetch(`${url}?filterByFormula=${encodeURIComponent(searchFormula)}`, {
+      // Recherche simple sans filtres complexes pour éviter les erreurs
+      const response = await fetch(url, {
         headers: this.headers
       });
 
       if (!response.ok) {
-        console.log(`⚠️ Table ${tableName} non trouvée ou erreur`);
+        console.log(`⚠️ Table ${tableName} non trouvée ou erreur: ${response.status}`);
         return [];
       }
 
       const data = await response.json();
-      return data.records.map(record => ({
-        ...record,
-        tableName,
-        relevanceScore: this.calculateRelevance(record, queryWords)
-      }));
+      
+      // Filtrage et scoring côté serveur
+      return data.records
+        .map(record => ({
+          ...record,
+          tableName,
+          relevanceScore: this.calculateRelevance(record, queryWords, query)
+        }))
+        .filter(record => record.relevanceScore > 0); // Garder seulement les pertinents
+        
     } catch (error) {
       console.log(`⚠️ Erreur table ${tableName}:`, error.message);
       return [];
     }
   }
 
-  buildSearchFormula(queryWords) {
-    // Recherche dans les champs texte principaux
-    const searchFields = ['Name', 'Question', 'Description', 'Keywords', 'Content', 'Answer', 'Response'];
-    const conditions = [];
-
-    queryWords.forEach(word => {
-      const fieldConditions = searchFields.map(field => 
-        `FIND("${word}", LOWER({${field}})) > 0`
-      );
-      conditions.push(`OR(${fieldConditions.join(', ')})`);
-    });
-
-    return `AND(${conditions.join(', ')})`;
-  }
-
-  calculateRelevance(record, queryWords) {
+  calculateRelevance(record, queryWords, originalQuery) {
     let score = 0;
     const fields = record.fields;
-    const searchText = Object.values(fields).join(' ').toLowerCase();
+    
+    // Tous les champs de votre Airtable à analyser
+    const searchableFields = [
+      'ID_Cas', 'Symptomes', 'Codes_Erreur', 'Causes_probables', 
+      'Diagnostic_conseille', 'Solution_Proposee', 'Conseils_utiles',
+      'Erreurs_a_eviter', 'Ton_de_reponse'
+    ];
 
+    // Créer le texte de recherche
+    const searchText = searchableFields
+      .map(field => fields[field] || '')
+      .join(' ')
+      .toLowerCase();
+
+    // Score basé sur les mots individuels
     queryWords.forEach(word => {
       const wordCount = (searchText.match(new RegExp(word, 'g')) || []).length;
-      score += wordCount;
+      score += wordCount * 2; // Bonus pour chaque occurrence
     });
 
+    // Bonus énorme pour correspondance exacte ou partielle dans les symptômes
+    if (fields.Symptomes) {
+      const symptoms = fields.Symptomes.toLowerCase();
+      
+      // Correspondance exacte de la requête complète
+      if (symptoms.includes(originalQuery.toLowerCase())) {
+        score += 50;
+      }
+      
+      // Correspondance partielle forte (plusieurs mots consécutifs)
+      const queryPhrase = originalQuery.toLowerCase();
+      const words = queryPhrase.split(' ');
+      for (let i = 0; i < words.length - 1; i++) {
+        const phrase = words.slice(i, i + 2).join(' ');
+        if (symptoms.includes(phrase)) {
+          score += 25;
+        }
+      }
+    }
+
+    // Bonus pour correspondance dans les codes d'erreur
+    if (fields.Codes_Erreur) {
+      queryWords.forEach(word => {
+        if (fields.Codes_Erreur.toLowerCase().includes(word)) {
+          score += 15;
+        }
+      });
+    }
+
+    // Bonus pour ID_Cas correspondant
+    if (fields.ID_Cas && originalQuery.toLowerCase().includes(fields.ID_Cas.toLowerCase())) {
+      score += 30;
+    }
+
+    console.log(`📋 ${fields.ID_Cas || 'Unknown'}: "${fields.Symptomes?.substring(0, 50)}..." → Score: ${score}`);
+    
     return score;
   }
 
@@ -122,25 +163,10 @@ class AirtableService {
   }
 
   calculateFinalScore(result, query) {
-    const queryWords = query.toLowerCase().split(' ');
-    let score = result.relevanceScore || 0;
-
-    // Bonus pour correspondance exacte dans le titre
-    if (result.fields.Name && 
-        result.fields.Name.toLowerCase().includes(query.toLowerCase())) {
-      score += 10;
-    }
-
-    // Bonus pour correspondance dans les mots-clés
-    if (result.fields.Keywords) {
-      queryWords.forEach(word => {
-        if (result.fields.Keywords.toLowerCase().includes(word)) {
-          score += 5;
-        }
-      });
-    }
-
-    return Math.min(score / queryWords.length, 1); // Normaliser entre 0 et 1
+    const baseScore = result.relevanceScore || 0;
+    
+    // Normaliser le score (plus flexible)
+    return Math.min(baseScore / 10, 1); // Divisé par 10 au lieu de query length
   }
 }
 
@@ -151,6 +177,11 @@ class AIService {
     if (!OPENAI_API_KEY) return null;
     
     try {
+      const systemPrompt = `Tu es Julien, expert FAP Re-Fap. Tu aides avec les problèmes de moteur et diagnostic automobile.
+${context ? `Contexte de la base de données (ne pas reproduire exactement): ${context}` : ''}
+
+Réponds de manière claire et professionnelle. Si tu as un contexte de la base de données, inspire-toi en mais reformule avec tes propres mots.`;
+
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -160,10 +191,7 @@ class AIService {
         body: JSON.stringify({
           model: 'gpt-4',
           messages: [
-            {
-              role: 'system',
-              content: `Tu es Julien, expert FAP Re-Fap. ${context ? `Contexte: ${context}` : ''}`
-            },
+            { role: 'system', content: systemPrompt },
             { role: 'user', content: message }
           ],
           max_tokens: 500,
@@ -172,7 +200,7 @@ class AIService {
       });
 
       const data = await response.json();
-      return data.choices[0].message.content;
+      return data.choices?.[0]?.message?.content;
     } catch (error) {
       console.error('❌ Erreur ChatGPT:', error);
       return null;
@@ -183,6 +211,9 @@ class AIService {
     if (!CLAUDE_API_KEY) return null;
     
     try {
+      const systemPrompt = `Tu es Julien, expert FAP Re-Fap. Tu aides avec les problèmes de moteur et diagnostic automobile.
+${context ? `Contexte de la base de données: ${context}` : ''}`;
+
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -196,14 +227,14 @@ class AIService {
           messages: [
             {
               role: 'user',
-              content: `Tu es Julien, expert FAP Re-Fap. ${context ? `Contexte: ${context}` : ''}\n\nQuestion: ${message}`
+              content: `${systemPrompt}\n\nQuestion: ${message}`
             }
           ]
         })
       });
 
       const data = await response.json();
-      return data.content[0].text;
+      return data.content?.[0]?.text;
     } catch (error) {
       console.error('❌ Erreur Claude:', error);
       return null;
@@ -232,14 +263,14 @@ class ChatbotController {
     console.log('🤖 Fallback vers IA...');
 
     // 🥈 ÉTAPE 2: Enrichissement avec IA si nécessaire
-    const contextData = airtableResults.results.slice(0, 3)
-      .map(r => r.fields.Name || r.fields.Question || '')
-      .join(', ');
+    const contextData = airtableResults.results.slice(0, 2)
+      .map(r => `${r.fields.ID_Cas}: ${r.fields.Symptomes} -> ${r.fields.Causes_probables}`)
+      .join('\n');
 
     // Essayer ChatGPT en premier
     let aiResponse = await AIService.getChatGPTResponse(
       userMessage, 
-      contextData ? `Données disponibles: ${contextData}` : ''
+      contextData ? `Données similaires trouvées:\n${contextData}` : ''
     );
 
     // Fallback vers Claude si ChatGPT échoue
@@ -259,15 +290,41 @@ class ChatbotController {
     const fields = match.fields;
     let response = '';
 
-    // Format adaptatif selon le type de contenu
-    if (fields.Answer || fields.Response) {
-      response = fields.Answer || fields.Response;
-    } else if (fields.Content) {
-      response = fields.Content;
-    } else if (fields.Description) {
-      response = fields.Description;
-    } else {
-      response = fields.Name || "Information trouvée dans la base de données.";
+    // Format adapté à votre structure Airtable
+    const casId = fields.ID_Cas || '';
+    const symptoms = fields.Symptomes || '';
+    const errorCodes = fields.Codes_Erreur || '';
+    const probableCauses = fields.Causes_probables || '';
+    const diagnosis = fields.Diagnostic_conseille || '';
+    const solution = fields.Solution_Proposee || '';
+    const tips = fields.Conseils_utiles || '';
+    const avoidErrors = fields.Erreurs_a_eviter || '';
+
+    // Construction de la réponse experte
+    response = `🔧 **${casId}** - ${symptoms}`;
+    
+    if (errorCodes) {
+      response += `\n\n📟 **Code d'erreur**: ${errorCodes}`;
+    }
+    
+    if (probableCauses) {
+      response += `\n\n🔍 **Causes probables**: ${probableCauses}`;
+    }
+    
+    if (diagnosis) {
+      response += `\n\n🎯 **Diagnostic conseillé**: ${diagnosis}`;
+    }
+    
+    if (solution) {
+      response += `\n\n✅ **Solution proposée**: ${solution}`;
+    }
+    
+    if (tips) {
+      response += `\n\n💡 **Conseils utiles**: ${tips}`;
+    }
+    
+    if (avoidErrors) {
+      response += `\n\n⚠️ **Erreurs à éviter**: ${avoidErrors}`;
     }
 
     return {
@@ -275,7 +332,8 @@ class ChatbotController {
       source: 'airtable',
       confidence: match.score,
       table: match.tableName,
-      recordId: match.id
+      recordId: match.id,
+      casId: casId
     };
   }
 }
@@ -314,7 +372,11 @@ app.post('/api/chat', async (req, res) => {
 app.get('/api/test-airtable/:query', async (req, res) => {
   try {
     const results = await chatbot.airtableService.searchKnowledgeBase(req.params.query);
-    res.json(results);
+    res.json({
+      query: req.params.query,
+      ...results,
+      debug: true
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -329,7 +391,8 @@ app.get('/api/health', (req, res) => {
       airtable: !!AIRTABLE_API_KEY,
       openai: !!OPENAI_API_KEY,
       claude: !!CLAUDE_API_KEY
-    }
+    },
+    airtable_base: AIRTABLE_BASE_ID ? 'Configuré' : 'Manquant'
   });
 });
 
@@ -343,4 +406,5 @@ app.listen(port, () => {
   console.log(`🚀 Serveur démarré sur le port ${port}`);
   console.log(`📊 Dashboard: http://localhost:${port}`);
   console.log(`🔧 Test API: http://localhost:${port}/api/health`);
+  console.log(`🔍 Test Airtable: http://localhost:${port}/api/test-airtable/voyant%20moteur`);
 });
