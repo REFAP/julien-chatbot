@@ -467,11 +467,23 @@
                 max-width: 2000px;
             }
         }
+
+        .demo-mode-indicator {
+            background: #fbbf24;
+            color: #1f2937;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+        }
     </style>
 </head>
 <body>
     <div class="chat-container">
         <div class="chat-header">
+            <div class="demo-mode-indicator">Mode Démo</div>
             <div class="session-info" id="sessionInfo">Session: Nouvelle</div>
             <div class="expert-avatar">👨‍🔧</div>
             <div class="expert-name">Julien</div>
@@ -594,6 +606,7 @@
                 }
             }
 
+            // FONCTION MODIFIÉE POUR MODE DÉMO
             async sendMessage(message = null) {
                 const messageInput = document.getElementById('messageInput');
                 const userMessage = message || messageInput.value.trim();
@@ -611,35 +624,106 @@
                     messageInput.style.height = 'auto';
                 }
 
-                try {
-                    // Appel API - IMPORTANT: URL relative pour Vercel
-                    const response = await fetch('/api/chat', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            message: userMessage,
-                            session_id: this.sessionId
-                        })
-                    });
+                // MODE DÉMO - Réponses locales sans serveur
+                setTimeout(() => {
+                    const lowerMessage = userMessage.toLowerCase();
+                    let response = {
+                        success: true,
+                        response: '',
+                        confidence: 0.5,
+                        top_causes: [],
+                        ctas: [],
+                        session_state: 'active',
+                        current_progress: 0
+                    };
 
-                    if (!response.ok) {
-                        throw new Error(`Erreur HTTP ${response.status}`);
+                    // Logique de réponse détaillée
+                    if (lowerMessage.includes('diagnostic rapide') || lowerMessage.includes('commencer')) {
+                        response.response = "Parfait ! Je vais diagnostiquer votre problème de FAP rapidement.\n\n**Question 1:** Observez-vous de la fumée à l'échappement ?";
+                        response.ctas = [
+                            { type: 'primary', title: '💨 Fumée noire', action: 'black_smoke' },
+                            { type: 'primary', title: '☁️ Fumée blanche', action: 'white_smoke' },
+                            { type: 'primary', title: '🔵 Fumée bleue', action: 'blue_smoke' },
+                            { type: 'secondary', title: '✅ Pas de fumée', action: 'no_smoke' }
+                        ];
+                        response.current_progress = 20;
+                    }
+                    else if (lowerMessage.includes('fumée noire') || lowerMessage.includes('fumee noire')) {
+                        response.response = "La fumée noire indique généralement un **FAP encrassé**. C'est le problème le plus courant sur les véhicules diesel.\n\n**Question 2:** Avez-vous également une perte de puissance ?";
+                        response.confidence = 0.75;
+                        response.top_causes = [
+                            { name: 'FAP encrassé', score: 0.8, description: 'Accumulation de suie dans le filtre' },
+                            { name: 'Régénération incomplète', score: 0.15, description: 'Cycles de régénération interrompus' }
+                        ];
+                        response.ctas = [
+                            { type: 'primary', title: '✅ Oui, perte de puissance', action: 'confirm_power_loss' },
+                            { type: 'primary', title: '❌ Non, pas de perte', action: 'no_power_loss' }
+                        ];
+                        response.current_progress = 50;
+                    }
+                    else if (lowerMessage.includes('oui') || lowerMessage.includes('perte de puissance')) {
+                        response.response = "⚠️ **Diagnostic confirmé : FAP très encrassé**\n\nLa combinaison fumée noire + perte de puissance nécessite une intervention rapide pour éviter des dommages au moteur.\n\n**Estimation des coûts :**\n• Nettoyage professionnel : 150-250€\n• Remplacement FAP : 800-1500€";
+                        response.confidence = 0.9;
+                        response.top_causes = [
+                            { name: 'FAP très encrassé', score: 0.9, description: 'Nécessite intervention urgente' },
+                            { name: 'Risque turbo', score: 0.1, description: 'Contre-pression dangereuse' }
+                        ];
+                        response.ctas = [
+                            { type: 'urgent', title: '🚨 Nettoyage urgent FAP', action: 'book_cleaning' },
+                            { type: 'primary', title: '🛣️ Essayer régénération autoroute', action: 'highway_regeneration' },
+                            { type: 'professional', title: '👨‍🔧 Contacter un pro', action: 'contact_expert' }
+                        ];
+                        response.recommended_workflow = {
+                            name: 'Nettoyage FAP professionnel',
+                            category: 'professional',
+                            success_probability: 0.85,
+                            steps: [
+                                { step: 1, title: 'Diagnostic complet', instructions: 'Vérification codes erreur et état FAP', duration: '30 min' },
+                                { step: 2, title: 'Nettoyage chimique', instructions: 'Application produit nettoyant Re-Fap', duration: '2h' },
+                                { step: 3, title: 'Test route', instructions: 'Vérification après nettoyage', duration: '30 min' }
+                            ]
+                        };
+                        response.current_progress = 80;
+                    }
+                    else if (lowerMessage.includes('voyant') || lowerMessage.includes('témoin')) {
+                        response.response = "Un voyant allumé est un signal d'alerte important.\n\n**De quelle couleur est le voyant ?**";
+                        response.ctas = [
+                            { type: 'warning', title: '🟠 Voyant orange', action: 'orange_light' },
+                            { type: 'urgent', title: '🔴 Voyant rouge', action: 'red_light' },
+                            { type: 'info', title: '🟡 Voyant jaune', action: 'yellow_light' }
+                        ];
+                        response.current_progress = 30;
+                    }
+                    else if (lowerMessage.includes('code') || lowerMessage.includes('p2002') || lowerMessage.includes('p2003')) {
+                        response.response = "Les codes P2002/P2003 confirment un problème FAP.\n\n**Analyse des codes :**\n• P2002 : FAP encrassé banque 1\n• P2003 : FAP encrassé banque 2\n\nCes codes nécessitent une action rapide.";
+                        response.confidence = 0.95;
+                        response.top_causes = [
+                            { name: 'FAP obstrué confirmé', score: 0.95, description: 'Diagnostic électronique confirmé' }
+                        ];
+                        response.ctas = [
+                            { type: 'urgent', title: '🔧 Solutions immédiates', action: 'show_solutions' },
+                            { type: 'info', title: '📊 Voir autres codes', action: 'other_codes' }
+                        ];
+                        response.current_progress = 70;
+                    }
+                    else if (lowerMessage.includes('aide') || lowerMessage.includes('help')) {
+                        response.response = "**💡 Comment utiliser l'expert FAP :**\n\n• Décrivez vos symptômes précisément\n• Mentionnez la couleur de fumée\n• Indiquez les voyants allumés\n• Précisez les codes d'erreur\n\n**Exemples :**\n• 'Fumée noire + perte de puissance'\n• 'Voyant moteur orange allumé'\n• 'Code erreur P2002'";
+                        response.ctas = [
+                            { type: 'primary', title: '🚀 Commencer diagnostic', action: 'quick_diagnosis' }
+                        ];
+                    }
+                    else {
+                        response.response = "Je suis Julien, votre expert FAP. Pour un diagnostic précis, décrivez-moi vos symptômes :\n\n• Fumée à l'échappement ? (couleur)\n• Voyants allumés ?\n• Perte de puissance ?\n• Codes d'erreur ?\n• Type de conduite (ville/route) ?";
+                        response.ctas = [
+                            { type: 'primary', title: '🚀 Diagnostic rapide', action: 'quick_diagnosis' },
+                            { type: 'secondary', title: '📋 Analyse complète', action: 'full_analysis' }
+                        ];
                     }
 
-                    const data = await response.json();
-                    
-                    // Traiter la réponse
-                    this.handleResponse(data);
-
-                } catch (error) {
-                    console.error('Erreur API:', error);
-                    // Message d'erreur corrigé - pas de mention du port 3000
-                    this.displayError('Problème de connexion avec le serveur. Veuillez vérifier votre connexion internet et réessayer.');
-                }
-
-                this.setLoading(false);
+                    // Afficher la réponse
+                    this.handleResponse(response);
+                    this.setLoading(false);
+                }, 1000); // Délai simulé de 1 seconde
             }
 
             handleResponse(data) {
@@ -903,297 +987,72 @@
             async executeCTA(action, title, ctaData) {
                 console.log(`Exécution CTA: ${action} - ${title}`, ctaData);
                 
-                // Gestion des nouvelles actions post-diagnostic
+                // Gestion des actions
                 switch (action) {
-                    // Actions post-diagnostic
-                    case 'choose_garage_option':
-                        this.sendMessage('Je veux un garage de confiance');
+                    case 'black_smoke':
+                        this.sendMessage('Fumée noire');
                         break;
                     
-                    case 'choose_diy_option':
-                        this.sendMessage('Je suis bricoleur et peux démonter mon FAP');
+                    case 'white_smoke':
+                        this.sendMessage('Fumée blanche');
                         break;
                     
-                    case 'choose_carter_cash':
-                        this.sendMessage('Je préfère l\'option Carter-Cash');
+                    case 'blue_smoke':
+                        this.sendMessage('Fumée bleue');
                         break;
                     
-                    case 'request_callback':
-                        this.showCallbackForm();
+                    case 'no_smoke':
+                        this.sendMessage('Pas de fumée');
                         break;
                     
-                    case 'order_refap_cleaning':
-                        window.open('https://re-fap.fr/commander', '_blank');
-                        this.displayMessage('assistant', "🛒 J'ai ouvert la page de commande Re-Fap dans un nouvel onglet !");
+                    case 'confirm_power_loss':
+                        this.sendMessage('Oui, j\'ai une perte de puissance');
                         break;
                     
-                    case 'open_carter_cash_link':
-                        window.open('https://auto.re-fap.fr/', '_blank');
-                        this.displayMessage('assistant', "🗺️ J'ai ouvert la carte des points Carter-Cash dans un nouvel onglet !");
+                    case 'no_power_loss':
+                        this.sendMessage('Non, pas de perte de puissance');
                         break;
                     
-                    case 'back_to_options':
-                        this.sendMessage('Montrez-moi les autres options');
-                        break;
-                    
-                    case 'call_garage_1':
-                        this.showContactInfo('garage_martin');
-                        break;
-                    
-                    case 'book_online':
-                        this.displayMessage('assistant', "📅 Fonctionnalité de réservation en ligne bientôt disponible ! En attendant, appelez directement le garage.");
-                        break;
-                    
-                    case 'show_all_garages':
-                        this.showAllGaragesDetails();
-                        break;
-                    
-                    // Actions existantes
-                    case 'confirm_diagnosis':
-                        this.sendMessage('Oui, c\'est exactement ça');
-                        break;
-                    
-                    case 'gather_more_info':
-                        this.sendMessage('Non, ce n\'est pas tout à fait ça');
-                        break;
-                    
-                    case 'contact_expert':
-                    case 'contact_support':
-                        this.showContactInfo();
+                    case 'book_cleaning':
+                        this.displayMessage('assistant', "🧽 **Nettoyage professionnel FAP**\n\nJe vous recommande un nettoyage professionnel avec le produit Re-Fap.\n\n**Avantages :**\n• Économie de 80% vs remplacement\n• Garantie 1 an\n• Résultat en 2-3h\n\n**Tarif moyen :** 150-250€\n\n📞 Contactez un garage partenaire Re-Fap près de chez vous.");
                         break;
                     
                     case 'highway_regeneration':
-                    case 'start_highway_regeneration':
-                        this.startHighwayRegeneration();
+                        this.displayMessage('assistant', "🛣️ **Guide régénération autoroute**\n\n**Instructions :**\n1. Réservoir > 1/4 plein\n2. Moteur chaud\n3. Roulez 30-45 min à 90-110 km/h\n4. Régime moteur > 2500 tr/min\n\n⚠️ **Important :** Ne pas s'arrêter pendant le trajet !");
                         break;
                     
-                    case 'additive_treatment':
-                    case 'start_additive_first':
-                        this.startAdditiveGuide();
+                    case 'contact_expert':
+                        this.showContactInfo();
                         break;
                     
-                    case 'start_highway_drive':
-                        this.sendMessage('Je commence le trajet autoroute maintenant');
+                    case 'quick_diagnosis':
+                        this.sendMessage('Je veux un diagnostic rapide');
                         break;
                     
-                    case 'workflow_success':
-                        this.sendMessage('✅ Ça marche ! Le problème est résolu');
-                        break;
-                    
-                    case 'workflow_partial':
-                        this.sendMessage('🤔 C\'est un peu mieux mais pas complètement résolu');
-                        break;
-                    
-                    case 'workflow_failure':
-                        this.sendMessage('❌ Malheureusement ça n\'a pas fonctionné');
-                        break;
-                    
-                    case 'continue_additive_guide':
-                        this.sendMessage('J\'ai l\'additif FAP, que dois-je faire ?');
-                        break;
-                    
-                    case 'book_appointment':
-                    case 'book_diagnostic':
-                        this.showContactInfo('appointment');
-                        break;
-                    
-                    case 'skip_to_professional':
-                        this.showProfessionalOptions();
+                    case 'full_analysis':
+                        this.sendMessage('Je veux une analyse complète');
                         break;
                     
                     default:
-                        // Pour les workflows et autres actions
-                        if (action.startsWith('answer_')) {
-                            const answer = action.split('_').slice(2).join(' ');
-                            this.sendMessage(answer);
-                        } else {
-                            const confirmed = confirm(`Voulez-vous exécuter: ${title} ?`);
-                            if (confirmed) {
-                                this.sendMessage(`Je veux exécuter: ${title}`);
-                            }
-                        }
+                        this.sendMessage(`Je choisis : ${title}`);
                 }
             }
 
-            showCallbackForm() {
+            showContactInfo() {
                 this.displayMessage('assistant', `
-                    📞 **Demande de rappel**
+                    📞 **Contact Expert FAP Re-Fap**
                     
-                    Un conseiller Re-Fap va vous rappeler rapidement pour :
-                    • Vous expliquer le process de nettoyage
-                    • Répondre à vos questions techniques
-                    • Vous aider avec la commande
+                    **Julien - Expert FAP Certifié**
+                    • 📱 Téléphone: 06 XX XX XX XX
+                    • 📧 Email: contact@re-fap.fr
+                    • 🏢 Atelier: Paris et région
                     
-                    **Merci de m'indiquer dans le chat :**
-                    • Votre prénom
-                    • Votre numéro de téléphone
-                    • Le meilleur créneau pour vous joindre (matin/après-midi)
+                    **Horaires:**
+                    • Lun-Ven: 8h-18h
+                    • Sam: 8h-12h
                     
-                    Exemple : "Je suis Pierre, 06 12 34 56 78, disponible le matin"
+                    💡 **Mentionnez le code "CHATBOT" pour -10%**
                 `);
-            }
-
-            showAllGaragesDetails() {
-                this.displayMessage('assistant', `
-                    📋 **Détails complets des garages partenaires**
-                    
-                    **🏭 Garage Martin**
-                    📍 12 rue de la République, 75015 Paris
-                    📞 01 23 45 67 89
-                    ⏰ Lun-Ven: 8h-18h, Sam: 9h-12h
-                    💰 Diagnostic: 30€, Nettoyage: 180-250€
-                    ⭐ Spécialiste FAP diesel, 15 ans d'expérience
-                    
-                    **🏭 Auto Service Pro**
-                    📍 45 avenue Jean Jaurès, 75015 Paris
-                    📞 01 98 76 54 32
-                    ⏰ Lun-Sam: 8h30-19h
-                    💰 Forfait nettoyage: 180€ tout compris
-                    ⭐ Nettoyage sur place en 4h
-                    
-                    **🏭 FAP Express**
-                    📍 78 boulevard Victor Hugo, 75015 Paris
-                    📞 01 11 22 33 44
-                    ⏰ 7j/7 sur RDV, urgences possibles
-                    💰 Intervention express +20%
-                    ⭐ Partenaire officiel Re-Fap
-                    
-                    💡 **Code promo "CHATBOT-FAP" = -10% dans tous ces garages**
-                `);
-            }
-
-            startHighwayRegeneration() {
-                this.displayMessage('assistant', `
-                    🛣️ **Guide de Régénération Autoroute**
-                    
-                    Je vais vous accompagner étape par étape :
-                    
-                    **Étape 1/3 : Préparation** ✅
-                    • Vérifiez le niveau de carburant (> 1/4 plein)
-                    • Température extérieure acceptable
-                    • Route dégagée prévue
-                    
-                    Êtes-vous prêt à commencer le trajet de 30-45 minutes ?
-                `, {
-                    ctas: [
-                        {
-                            type: 'primary',
-                            title: '🚗 Commencer le trajet',
-                            action: 'start_highway_drive'
-                        },
-                        {
-                            type: 'secondary',
-                            title: '⏰ Plus tard',
-                            action: 'postpone_regeneration'
-                        }
-                    ]
-                });
-            }
-
-            startAdditiveGuide() {
-                this.displayMessage('assistant', `
-                    🧴 **Guide Traitement Additif FAP**
-                    
-                    **Vous aurez besoin de :**
-                    • 1 flacon d'additif FAP Re-Fap
-                    • Carburant pour faire le plein après
-                    
-                    **Étape 1 : Préparation**
-                    • Réservoir entre 1/4 et 3/4 plein
-                    • Moteur froid de préférence
-                    
-                    Avez-vous l'additif FAP Re-Fap ?
-                `, {
-                    ctas: [
-                        {
-                            type: 'primary',
-                            title: '✅ Oui, j\'ai l\'additif',
-                            action: 'continue_additive_guide'
-                        },
-                        {
-                            type: 'secondary',
-                            title: '🛒 Commander l\'additif',
-                            action: 'order_additive'
-                        }
-                    ]
-                });
-            }
-
-            showProfessionalOptions() {
-                this.displayMessage('assistant', `
-                    👨‍🔧 **Options Professionnelles**
-                    
-                    **Ateliers FAP Re-Fap partenaires :**
-                    
-                    🏪 **Atelier Principal**
-                    • 📍 [Votre adresse]
-                    • 📞 [Votre téléphone]
-                    • ⏰ Lun-Ven 8h-18h, Sam 8h-12h
-                    • 💰 Devis gratuit
-                    
-                    **Services disponibles :**
-                    • 🔍 Diagnostic complet (30€)
-                    • 🧽 Nettoyage FAP (150-250€)
-                    • 🔄 Remplacement FAP (800-1500€)
-                    
-                    💡 **Mentionnez le code "CHATBOT" pour 10% de réduction**
-                `, {
-                    ctas: [
-                        {
-                            type: 'primary',
-                            title: '📞 Prendre RDV',
-                            action: 'book_appointment'
-                        },
-                        {
-                            type: 'secondary',
-                            title: '💬 Poser une question',
-                            action: 'ask_expert'
-                        }
-                    ]
-                });
-            }
-
-            showContactInfo(type = 'general') {
-                let contactMessage = `📞 **Contact Expert FAP Re-Fap**\n\n`;
-                
-                if (type === 'appointment') {
-                    contactMessage += `**🗓️ Prise de Rendez-vous**\n\n`;
-                    contactMessage += `**Julien - Expert FAP Certifié**\n`;
-                    contactMessage += `• 📞 Téléphone: [Votre numéro]\n`;
-                    contactMessage += `• 📧 Email: [Votre email]\n`;
-                    contactMessage += `• 📍 Atelier: [Votre adresse]\n\n`;
-                    contactMessage += `**Créneaux disponibles :**\n`;
-                    contactMessage += `• Lun-Ven: 8h-18h\n`;
-                    contactMessage += `• Sam: 8h-12h\n`;
-                    contactMessage += `• Urgences: 7j/7 sur RDV\n\n`;
-                    contactMessage += `💰 **Tarifs :**\n`;
-                    contactMessage += `• Diagnostic: 30€ (déduit si intervention)\n`;
-                    contactMessage += `• Nettoyage FAP: 150-250€\n`;
-                    contactMessage += `• Remplacement: 800-1500€\n\n`;
-                    contactMessage += `🎁 **Code promo "CHATBOT" : -10%**`;
-                } else if (type === 'garage_martin') {
-                    contactMessage = `📞 **Garage Martin - Appel direct**\n\n`;
-                    contactMessage += `☎️ **01 23 45 67 89**\n\n`;
-                    contactMessage += `**Mentionnez :**\n`;
-                    contactMessage += `• Code promo "CHATBOT-FAP" pour -10%\n`;
-                    contactMessage += `• Votre numéro de session: ${this.sessionId}\n`;
-                    contactMessage += `• Diagnostic FAP via chatbot Julien\n\n`;
-                    contactMessage += `**Horaires d'appel :**\n`;
-                    contactMessage += `• Lun-Ven: 8h-18h\n`;
-                    contactMessage += `• Sam: 9h-12h`;
-                } else {
-                    contactMessage += `**Julien - Expert FAP**\n`;
-                    contactMessage += `• Téléphone: [Votre numéro]\n`;
-                    contactMessage += `• Email: [Votre email]\n`;
-                    contactMessage += `• Atelier: [Votre adresse]\n\n`;
-                    contactMessage += `**Horaires:**\n`;
-                    contactMessage += `• Lun-Ven: 8h-18h\n`;
-                    contactMessage += `• Sam: 8h-12h\n\n`;
-                }
-                
-                contactMessage += `\n\n💡 **Mentionnez votre numéro de session:** ${this.sessionId}`;
-                
-                this.displayMessage('assistant', contactMessage);
             }
 
             showHelp() {
