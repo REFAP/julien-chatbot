@@ -1,0 +1,357 @@
+{
+  "version": "2.0.0",
+  "metadata": {
+    "name": "FAP Re-Fap Expert Knowledge Base",
+    "description": "Base de connaissances complète pour diagnostic FAP",
+    "last_updated": "2025-01-01",
+    "author": "Julien - Expert FAP Re-Fap"
+  },
+  
+  "signals": {
+    "dashboard_lights": {
+      "id": "dashboard_lights",
+      "name": "Voyants tableau de bord",
+      "type": "multiple_choice",
+      "question": "Quels voyants sont allumés sur votre tableau de bord ?",
+      "explanation": "Les voyants nous donnent des indices précis sur le système défaillant",
+      "priority": 1,
+      "options": [
+        {"id": "engine_light", "label": "🔶 Voyant moteur", "weight": 3},
+        {"id": "dpf_light", "label": "🟡 Voyant FAP", "weight": 5},
+        {"id": "adblue_light", "label": "🔵 Voyant AdBlue", "weight": 2},
+        {"id": "glow_plug", "label": "🟠 Voyant préchauffage", "weight": 2},
+        {"id": "oil_light", "label": "🔴 Voyant huile", "weight": 1},
+        {"id": "no_lights", "label": "❌ Aucun voyant", "weight": 0}
+      ]
+    },
+    
+    "power_loss": {
+      "id": "power_loss",
+      "name": "Perte de puissance",
+      "type": "multiple_choice",
+      "question": "Décrivez la perte de puissance que vous ressentez :",
+      "explanation": "Le type de perte de puissance aide à identifier la cause",
+      "priority": 2,
+      "options": [
+        {"id": "acceleration", "label": "🚗 À l'accélération", "weight": 4},
+        {"id": "highway", "label": "🛣️ Sur autoroute", "weight": 3},
+        {"id": "uphill", "label": "⛰️ En montée", "weight": 4},
+        {"id": "permanent", "label": "🔄 Permanente", "weight": 5},
+        {"id": "intermittent", "label": "⚡ Par à-coups", "weight": 2},
+        {"id": "no_loss", "label": "❌ Pas de perte", "weight": 0}
+      ]
+    },
+    
+    "exhaust_smoke": {
+      "id": "exhaust_smoke",
+      "name": "Fumée d'échappement",
+      "type": "multiple_choice",
+      "question": "Observez-vous de la fumée à l'échappement ?",
+      "explanation": "La couleur de fumée indique le type de problème",
+      "priority": 3,
+      "options": [
+        {"id": "black_smoke", "label": "⚫ Fumée noire", "weight": 5},
+        {"id": "white_smoke", "label": "⚪ Fumée blanche", "weight": 2},
+        {"id": "blue_smoke", "label": "🔵 Fumée bleue", "weight": 1},
+        {"id": "no_smoke", "label": "❌ Pas de fumée", "weight": 0}
+      ]
+    },
+    
+    "error_codes": {
+      "id": "error_codes",
+      "name": "Codes d'erreur OBD",
+      "type": "text_input",
+      "question": "Avez-vous des codes d'erreur (P2002, P2463, etc.) ?",
+      "explanation": "Les codes OBD donnent un diagnostic précis du problème",
+      "priority": 0,
+      "patterns": [
+        {"pattern": "P2002", "weight": 10, "urgent": false, "description": "Efficacité FAP insuffisante"},
+        {"pattern": "P2463", "weight": 15, "urgent": true, "description": "Accumulation excessive de suie"},
+        {"pattern": "P244A", "weight": 12, "urgent": true, "description": "Capteur pression différentielle"},
+        {"pattern": "P244B", "weight": 8, "urgent": false, "description": "Capteur pression FAP"},
+        {"pattern": "P2031", "weight": 6, "urgent": false, "description": "Sonde température échappement"}
+      ]
+    },
+    
+    "driving_pattern": {
+      "id": "driving_pattern",
+      "name": "Type de conduite",
+      "type": "multiple_choice",
+      "question": "Quel type de conduite pratiquez-vous principalement ?",
+      "explanation": "Le FAP a besoin de longs trajets pour se régénérer",
+      "priority": 4,
+      "options": [
+        {"id": "city_only", "label": "🏙️ Uniquement ville (< 20 min)", "weight": 5},
+        {"id": "mixed_short", "label": "🔄 Mixte courts trajets", "weight": 3},
+        {"id": "mixed_long", "label": "🛣️ Mixte longs trajets", "weight": 1},
+        {"id": "highway_frequent", "label": "🚀 Autoroute fréquente", "weight": 0}
+      ]
+    },
+    
+    "vehicle_mileage": {
+      "id": "vehicle_mileage",
+      "name": "Kilométrage véhicule",
+      "type": "number",
+      "question": "Quel est le kilométrage de votre véhicule ?",
+      "explanation": "L'âge du FAP influence les solutions possibles",
+      "priority": 5,
+      "ranges": [
+        {"min": 0, "max": 50000, "weight": 1, "label": "Véhicule récent"},
+        {"min": 50001, "max": 150000, "weight": 3, "label": "Véhicule mature"},
+        {"min": 150001, "max": 300000, "weight": 5, "label": "Véhicule ancien"},
+        {"min": 300001, "max": 999999, "weight": 4, "label": "Véhicule très ancien"}
+      ]
+    }
+  },
+  
+  "causes": {
+    "dpf_clogged": {
+      "id": "dpf_clogged",
+      "name": "FAP colmaté",
+      "description": "Filtre à particules saturé en suie",
+      "probability_base": 0.75,
+      "signal_weights": {
+        "dashboard_lights": {"dpf_light": 5, "engine_light": 3},
+        "power_loss": {"acceleration": 4, "permanent": 5, "uphill": 4},
+        "exhaust_smoke": {"black_smoke": 5},
+        "driving_pattern": {"city_only": 5, "mixed_short": 3},
+        "error_codes": {"P2002": 10, "P2463": 15}
+      },
+      "technical_explanation": "La suie s'accumule dans le FAP car la régénération ne peut pas s'effectuer (température insuffisante < 600°C pendant 20+ minutes)",
+      "severity": "moderate"
+    },
+    
+    "dpf_sensor_failure": {
+      "id": "dpf_sensor_failure", 
+      "name": "Capteur FAP défaillant",
+      "description": "Capteur de pression différentielle HS",
+      "probability_base": 0.15,
+      "signal_weights": {
+        "dashboard_lights": {"engine_light": 4},
+        "error_codes": {"P244A": 12, "P244B": 8},
+        "power_loss": {"intermittent": 3}
+      },
+      "technical_explanation": "Le capteur ne peut plus mesurer l'état d'encrassement du FAP",
+      "severity": "low"
+    },
+    
+    "dpf_physical_damage": {
+      "id": "dpf_physical_damage",
+      "name": "FAP endommagé physiquement",
+      "description": "Structure interne du FAP détériorée",
+      "probability_base": 0.10,
+      "signal_weights": {
+        "vehicle_mileage": 5,
+        "error_codes": {"P2463": 10},
+        "exhaust_smoke": {"black_smoke": 4}
+      },
+      "technical_explanation": "Fissures ou destruction des canaux internes du FAP",
+      "severity": "high"
+    },
+    
+    "egr_related": {
+      "id": "egr_related",
+      "name": "Problème EGR lié",
+      "description": "Vanne EGR impactant le FAP",
+      "probability_base": 0.20,
+      "signal_weights": {
+        "dashboard_lights": {"glow_plug": 4, "engine_light": 2},
+        "power_loss": {"intermittent": 3},
+        "driving_pattern": {"city_only": 2}
+      },
+      "technical_explanation": "La vanne EGR encrassée perturbe la combustion et surcharge le FAP",
+      "severity": "moderate"
+    }
+  },
+  
+  "workflows": {
+    "highway_regeneration": {
+      "id": "highway_regeneration",
+      "name": "Régénération autoroute",
+      "category": "self_service",
+      "cost_level": 1,
+      "invasiveness": 1,
+      "conditions": {
+        "required": ["dpf_clogged"],
+        "excluded": ["dpf_physical_damage"],
+        "max_severity": "moderate"
+      },
+      "steps": [
+        {
+          "step": 1,
+          "title": "Préparation",
+          "instructions": "Vérifiez le niveau de carburant (> 1/4 plein)",
+          "duration": "2 min",
+          "safety_notes": ["Carburant suffisant obligatoire"]
+        },
+        {
+          "step": 2,
+          "title": "Trajet autoroute", 
+          "instructions": "Roulez 30+ km à 90+ km/h en 4ème/5ème vitesse",
+          "duration": "30-45 min",
+          "safety_notes": ["Respectez les limitations", "Restez sur voie de droite"]
+        },
+        {
+          "step": 3,
+          "title": "Vérification",
+          "instructions": "Vérifiez si les voyants se sont éteints",
+          "duration": "1 min"
+        }
+      ],
+      "success_criteria": [
+        "Disparition du voyant FAP/moteur",
+        "Retour de la puissance normale",
+        "Absence de fumée noire"
+      ],
+      "next_workflows": {
+        "success": "monitor_driving_habits",
+        "partial": "additive_treatment", 
+        "failure": "professional_diagnosis"
+      },
+      "success_probability": 0.65
+    },
+    
+    "additive_treatment": {
+      "id": "additive_treatment",
+      "name": "Traitement additif FAP",
+      "category": "self_service",
+      "cost_level": 2,
+      "invasiveness": 1,
+      "conditions": {
+        "required": ["dpf_clogged"],
+        "previous_attempts": ["highway_regeneration"]
+      },
+      "steps": [
+        {
+          "step": 1,
+          "title": "Choix additif",
+          "instructions": "Utilisez additif FAP Re-Fap (dosage selon notice)",
+          "duration": "5 min"
+        },
+        {
+          "step": 2,
+          "title": "Application",
+          "instructions": "Versez dans le réservoir puis faites le plein",
+          "duration": "10 min"
+        },
+        {
+          "step": 3,
+          "title": "Cycle de traitement",
+          "instructions": "Roulez normalement 300-500 km",
+          "duration": "1 semaine"
+        }
+      ],
+      "success_criteria": [
+        "Amélioration progressive des performances",
+        "Réduction de la fumée"
+      ],
+      "next_workflows": {
+        "success": "monitor_driving_habits",
+        "failure": "professional_cleaning"
+      },
+      "success_probability": 0.45
+    },
+    
+    "professional_cleaning": {
+      "id": "professional_cleaning",
+      "name": "Nettoyage professionnel FAP",
+      "category": "professional",
+      "cost_level": 4,
+      "invasiveness": 3,
+      "conditions": {
+        "any_of": ["dpf_clogged", "dpf_sensor_failure"],
+        "failed_attempts": ["highway_regeneration", "additive_treatment"]
+      },
+      "steps": [
+        {
+          "step": 1,
+          "title": "Diagnostic approfondi",
+          "instructions": "Mesure pression différentielle + codes erreur",
+          "duration": "30 min"
+        },
+        {
+          "step": 2,
+          "title": "Démontage FAP",
+          "instructions": "Dépose du filtre pour nettoyage",
+          "duration": "60 min"
+        },
+        {
+          "step": 3,
+          "title": "Nettoyage machine",
+          "instructions": "Nettoyage haute pression + produits spécialisés",
+          "duration": "120 min"
+        },
+        {
+          "step": 4,
+          "title": "Remontage + test",
+          "instructions": "Remontage + test de fonctionnement",
+          "duration": "30 min"
+        }
+      ],
+      "success_criteria": [
+        "Pression différentielle < 25 mbar",
+        "Disparition des codes erreur",
+        "Test régénération forcée OK"
+      ],
+      "next_workflows": {
+        "success": "monitor_driving_habits",
+        "failure": "dpf_replacement"
+      },
+      "success_probability": 0.85
+    },
+    
+    "emergency_intervention": {
+      "id": "emergency_intervention",
+      "name": "Intervention d'urgence",
+      "category": "urgent",
+      "cost_level": 5,
+      "invasiveness": 4,
+      "conditions": {
+        "error_codes": ["P2463", "P244A"],
+        "severity": "high"
+      },
+      "immediate_actions": [
+        "🚨 ARRÊTEZ de rouler immédiatement",
+        "🔧 Contactez un professionnel dans l'heure",
+        "⚠️ Risque de dommages moteur si conduite prolongée"
+      ],
+      "steps": [
+        {
+          "step": 1,
+          "title": "Diagnostic urgent",
+          "instructions": "Analyse complète OBD + inspection visuelle",
+          "duration": "45 min"
+        },
+        {
+          "step": 2,
+          "title": "Action corrective",
+          "instructions": "Selon diagnostic : nettoyage, remplacement ou reprogrammation",
+          "duration": "120-240 min"
+        }
+      ],
+      "success_probability": 0.95
+    }
+  },
+  
+  "response_templates": {
+    "diagnosis_confidence_high": {
+      "template": "🎯 **Diagnostic avec {confidence}% de certitude**\n\n**Problème identifié :** {cause_name}\n\n**Explication :** {technical_explanation}\n\n**Solution recommandée :** {primary_workflow}",
+      "tone": "confident"
+    },
+    
+    "diagnosis_confidence_medium": {
+      "template": "🔍 **Analyse en cours - {confidence}% de certitude**\n\nBasé sur vos symptômes, voici les causes les plus probables :\n\n{top_causes}\n\nPour affiner le diagnostic, j'ai besoin de :\n{additional_questions}",
+      "tone": "investigative"
+    },
+    
+    "workflow_explanation": {
+      "template": "🔧 **{workflow_name}**\n\n**Pourquoi cette solution :** {rationale}\n\n**Étapes :**\n{steps}\n\n**Taux de succès :** {success_rate}%\n\n**Si ça ne marche pas :** {fallback_plan}",
+      "tone": "instructional"
+    },
+    
+    "gathering_information": {
+      "template": "🔍 **Collecte d'informations ({progress}%)**\n\n{question}\n\n💡 {explanation}",
+      "tone": "questioning"
+    }
+  }
+}
