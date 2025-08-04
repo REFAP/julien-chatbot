@@ -356,6 +356,7 @@
             resize: none;
             outline: none;
             transition: border-color 0.2s ease;
+            font-family: inherit;
         }
 
         .chat-input:focus {
@@ -504,10 +505,10 @@
                         </ul>
                         
                         <div class="cta-buttons">
-                            <button class="cta-button primary" onclick="quickStart()">
+                            <button class="cta-button primary" id="quickStartBtn">
                                 🚀 Diagnostic rapide
                             </button>
-                            <button class="cta-button" onclick="detailedStart()">
+                            <button class="cta-button" id="detailedStartBtn">
                                 🔬 Analyse complète
                             </button>
                         </div>
@@ -534,10 +535,10 @@
             ></textarea>
             <div class="input-actions">
                 <div style="display: flex; gap: 10px;">
-                    <button class="cta-button" onclick="showHelp()">❓ Aide</button>
-                    <button class="cta-button" onclick="resetSession()">🔄 Reset</button>
+                    <button class="cta-button" id="helpBtn">❓ Aide</button>
+                    <button class="cta-button" id="resetBtn">🔄 Reset</button>
                 </div>
-                <button class="send-button" id="sendButton" onclick="sendMessage()">
+                <button class="send-button" id="sendButton">
                     Envoyer
                 </button>
             </div>
@@ -559,20 +560,30 @@
 
             initializeEventListeners() {
                 const messageInput = document.getElementById('messageInput');
+                const sendButton = document.getElementById('sendButton');
 
                 // Enter pour envoyer (Shift+Enter pour nouvelle ligne)
-                messageInput.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        this.sendMessage();
-                    }
-                });
+                if (messageInput) {
+                    messageInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            this.sendMessage();
+                        }
+                    });
 
-                // Auto-resize du textarea
-                messageInput.addEventListener('input', () => {
-                    messageInput.style.height = 'auto';
-                    messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
-                });
+                    // Auto-resize du textarea
+                    messageInput.addEventListener('input', () => {
+                        messageInput.style.height = 'auto';
+                        messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
+                    });
+                }
+
+                // Bouton envoyer
+                if (sendButton) {
+                    sendButton.addEventListener('click', () => {
+                        this.sendMessage();
+                    });
+                }
             }
 
             generateSessionId() {
@@ -594,8 +605,11 @@
                 
                 // Afficher le message utilisateur
                 this.displayMessage('user', userMessage);
-                messageInput.value = '';
-                messageInput.style.height = 'auto';
+                
+                if (messageInput) {
+                    messageInput.value = '';
+                    messageInput.style.height = 'auto';
+                }
 
                 try {
                     // Appel API avec le nouveau système
@@ -732,7 +746,7 @@
                     html += '<div class="question-options">';
                     metadata.options.forEach(option => {
                         html += `
-                            <button class="option-button" onclick="chat.selectOption('${option.id}', '${this.escapeHtml(option.label)}')">
+                            <button class="option-button" onclick="window.chat.selectOption('${option.id}', '${this.escapeHtml(option.label)}')">
                                 ${option.label}
                             </button>
                         `;
@@ -750,8 +764,10 @@
                         const description = cta.description ? `<small style="display: block; margin-top: 2px; opacity: 0.9;">${cta.description}</small>` : '';
                         const successRate = cta.success_rate && !cta.description ? `<small style="display: block; margin-top: 2px; opacity: 0.9;">(${cta.success_rate}% succès)</small>` : '';
                         
+                        const ctaDataStr = JSON.stringify(cta).replace(/"/g, '&quot;');
+                        
                         html += `
-                            <button class="cta-button ${buttonClass}" onclick="chat.executeCTA('${cta.action}', '${this.escapeHtml(cta.title)}', ${this.escapeHtml(JSON.stringify(cta))})">
+                            <button class="cta-button ${buttonClass}" onclick="window.chat.executeCTA('${cta.action}', '${this.escapeHtml(cta.title)}', JSON.parse('${ctaDataStr}'))">
                                 <span>
                                     ${cta.title}
                                     ${description || successRate}
@@ -1179,6 +1195,32 @@
                 this.displayMessage('assistant', contactMessage);
             }
 
+            showHelp() {
+                this.displayMessage('assistant', `
+                    ❓ **Guide d'utilisation FAP Expert v2.0**
+                    
+                    **Types de problèmes que je peux diagnostiquer:**
+                    • 🔶 Voyants allumés (moteur, FAP, AdBlue...)
+                    • ⚡ Perte de puissance
+                    • 💨 Fumée d'échappement
+                    • 🔢 Codes d'erreur OBD
+                    • 🚗 Problèmes liés à la conduite urbaine
+                    
+                    **Comment bien me décrire votre problème:**
+                    • Soyez précis sur les symptômes
+                    • Mentionnez les codes d'erreur si vous en avez
+                    • Décrivez votre type de conduite
+                    • Indiquez le kilométrage de votre véhicule
+                    
+                    **Exemples de messages efficaces:**
+                    • "Voyant FAP allumé + perte de puissance en ville"
+                    • "Code P2002 + fumée noire à l'accélération"
+                    • "Conduite urbaine uniquement, voyant moteur"
+                    
+                    💡 **Plus vous êtes précis, plus mon diagnostic sera exact !**
+                `);
+            }
+
             updateProgress(percentage) {
                 this.currentProgress = percentage;
                 const progressFill = document.getElementById('progressFill');
@@ -1274,7 +1316,7 @@
                 errorDiv.innerHTML = `
                     ⚠️ <strong>Erreur:</strong> ${message}
                     <div style="margin-top: 10px;">
-                        <button class="cta-button" onclick="chat.retryLastMessage()">🔄 Réessayer</button>
+                        <button class="cta-button" onclick="window.chat.retryLastMessage()">🔄 Réessayer</button>
                     </div>
                 `;
                 messagesContainer.appendChild(errorDiv);
@@ -1294,60 +1336,50 @@
         }
 
         // Instance globale
-        const chat = new FAPExpertChat();
+        window.chat = new FAPExpertChat();
 
-        // Fonctions utilitaires globales
-        function sendMessage() {
-            chat.sendMessage();
-        }
-
-        function quickStart() {
-            chat.sendMessage('Je veux un diagnostic rapide de mon problème FAP');
-        }
-
-        function detailedStart() {
-            chat.sendMessage('Je veux une analyse complète et détaillée');
-        }
-
-        function showHelp() {
-            chat.displayMessage('assistant', `
-                ❓ **Guide d'utilisation FAP Expert v2.0**
-                
-                **Types de problèmes que je peux diagnostiquer:**
-                • 🔶 Voyants allumés (moteur, FAP, AdBlue...)
-                • ⚡ Perte de puissance
-                • 💨 Fumée d'échappement
-                • 🔢 Codes d'erreur OBD
-                • 🚗 Problèmes liés à la conduite urbaine
-                
-                **Comment bien me décrire votre problème:**
-                • Soyez précis sur les symptômes
-                • Mentionnez les codes d'erreur si vous en avez
-                • Décrivez votre type de conduite
-                • Indiquez le kilométrage de votre véhicule
-                
-                **Exemples de messages efficaces:**
-                • "Voyant FAP allumé + perte de puissance en ville"
-                • "Code P2002 + fumée noire à l'accélération"
-                • "Conduite urbaine uniquement, voyant moteur"
-                
-                💡 **Plus vous êtes précis, plus mon diagnostic sera exact !**
-            `);
-        }
-
-        function resetSession() {
-            if (confirm('Voulez-vous vraiment recommencer le diagnostic ?')) {
-                // Réinitialiser la question courante
-                const currentQuestionDiv = document.getElementById('currentQuestion');
-                if (currentQuestionDiv) {
-                    currentQuestionDiv.style.display = 'none';
-                }
-                
-                location.reload();
-            }
-        }
-
-        // Auto-focus sur l'input au chargement
+        // Initialisation au chargement
         window.addEventListener('load', () => {
             const messageInput = document.getElementById('messageInput');
-            if
+            if (messageInput) {
+                messageInput.focus();
+            }
+
+            // Boutons d'action rapide
+            const quickStartBtn = document.getElementById('quickStartBtn');
+            if (quickStartBtn) {
+                quickStartBtn.addEventListener('click', () => {
+                    window.chat.sendMessage('Je veux un diagnostic rapide de mon problème FAP');
+                });
+            }
+
+            const detailedStartBtn = document.getElementById('detailedStartBtn');
+            if (detailedStartBtn) {
+                detailedStartBtn.addEventListener('click', () => {
+                    window.chat.sendMessage('Je veux une analyse complète et détaillée');
+                });
+            }
+
+            const helpBtn = document.getElementById('helpBtn');
+            if (helpBtn) {
+                helpBtn.addEventListener('click', () => {
+                    window.chat.showHelp();
+                });
+            }
+
+            const resetBtn = document.getElementById('resetBtn');
+            if (resetBtn) {
+                resetBtn.addEventListener('click', () => {
+                    if (confirm('Voulez-vous vraiment recommencer le diagnostic ?')) {
+                        const currentQuestionDiv = document.getElementById('currentQuestion');
+                        if (currentQuestionDiv) {
+                            currentQuestionDiv.style.display = 'none';
+                        }
+                        location.reload();
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
