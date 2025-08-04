@@ -658,8 +658,12 @@ class FAPDiagnosticEngine {
           response = await this.handleInformationGathering(session, message);
           break;
           
-        case 'confirming_diagnosis':
-          response = await this.handleDiagnosisConfirmation(session, message);
+        case 'executing_workflow':
+          response = await this.handleWorkflowExecution(session, message);
+          break;
+          
+        case 'workflow_feedback':
+          response = await this.handleWorkflowFeedbackMessage(session, message);
           break;
           
         default:
@@ -788,27 +792,65 @@ class FAPDiagnosticEngine {
     return this.generateResponse(session);
   }
 
-  async handleDiagnosisConfirmation(session, message) {
+  async handleWorkflowExecution(session, message) {
+    // Détection si l'utilisateur signale un résultat
     const messageLower = message.toLowerCase();
     
-    if (messageLower.includes('oui') || messageLower.includes('exactement') || messageLower.includes('correct')) {
-      // Diagnostic confirmé
-      const topCause = this.getTopCauses(session.current_scores, 1)[0];
-      const workflow = this.selectBestWorkflow(session, [topCause]);
-      
-      return {
-        response: `✅ **Diagnostic confirmé !**\n\n🔧 **Solution recommandée :** ${workflow?.name || 'Consultation professionnelle'}\n\nVoulez-vous que je vous guide étape par étape ?`,
-        confidence: topCause?.score || 0.9,
-        recommended_workflow: workflow,
-        ctas: workflow ? this.generateWorkflowCTAs([workflow]) : []
-      };
+    if (messageLower.includes('ça marche') || messageLower.includes('fonctionne') || 
+        messageLower.includes('résolu') || messageLower.includes('plus de voyant')) {
+      session.state = 'workflow_feedback';
+      return this.handleWorkflowFeedback(session.id, 'highway_regeneration', 'success', message);
+    }
+    
+    if (messageLower.includes('ça marche pas') || messageLower.includes('toujours') || 
+        messageLower.includes('encore le problème') || messageLower.includes('pas mieux')) {
+      session.state = 'workflow_feedback';
+      return this.handleWorkflowFeedback(session.id, 'highway_regeneration', 'failure', message);
+    }
+    
+    if (messageLower.includes('un peu mieux') || messageLower.includes('partiellement') || 
+        messageLower.includes('moins fort')) {
+      session.state = 'workflow_feedback';
+      return this.handleWorkflowFeedback(session.id, 'highway_regeneration', 'partial', message);
+    }
+    
+    // Si pas de retour clair, demander le statut
+    return {
+      response: `⏰ **Suivi de votre régénération autoroute**\n\n` +
+                `Comment ça s'est passé ?\n\n` +
+                `• Le trajet de 30+ km est-il terminé ?\n` +
+                `• Les voyants se sont-ils éteints ?\n` +
+                `• Avez-vous retrouvé la puissance ?`,
+      ctas: [
+        {
+          type: 'success',
+          title: '✅ Ça marche !',
+          action: 'workflow_success'
+        },
+        {
+          type: 'partial',
+          title: '🤔 Un peu mieux',
+          action: 'workflow_partial'
+        },
+        {
+          type: 'failure',
+          title: '❌ Toujours le problème',
+          action: 'workflow_failure'
+        }
+      ]
+    };
+  }
+
+  async handleWorkflowFeedbackMessage(session, message) {
+    // Traitement des retours sur les workflows
+    const messageLower = message.toLowerCase();
+    
+    if (messageLower.includes('succès') || messageLower.includes('marche')) {
+      return this.handleWorkflowFeedback(session.id, 'highway_regeneration', 'success', message);
+    } else if (messageLower.includes('partiel') || messageLower.includes('mieux')) {
+      return this.handleWorkflowFeedback(session.id, 'highway_regeneration', 'partial', message);
     } else {
-      // Retour à la collecte d'informations
-      session.state = 'gathering_info';
-      return {
-        response: `D'accord, continuons l'analyse pour être plus précis.\n\n${this.getNextBestQuestion(session)?.question || 'Pouvez-vous me donner plus de détails sur vos symptômes ?'}`,
-        current_progress: this.calculateProgress(session)
-      };
+      return this.handleWorkflowFeedback(session.id, 'highway_regeneration', 'failure', message);
     }
   }
 
@@ -830,7 +872,88 @@ class FAPDiagnosticEngine {
     };
   }
 
-  // Fallback IA (votre système existant)
+  // ==================== GESTION DU SUIVI WORKFLOW ====================
+  async handleWorkflowFeedback(sessionId, workflowId, result, userMessage) {
+    const session = this.getSession(sessionId);
+    
+    console.log(`📊 Feedback workflow ${workflowId}: ${result}`);
+    
+    // Enregistrer le résultat
+    session.attempted_workflows.push({
+      workflow_id: workflowId,
+      result: result,
+      timestamp: new Date(),
+      user_message: userMessage
+    });
+    
+    // Générer la réponse de suivi
+    const workflow = this.kb.workflows[workflowId];
+    const nextWorkflowId = workflow?.next_workflows?.[result];
+    
+    if (result === 'success') {
+      return {
+        response: `🎉 **Excellent !** La ${workflow?.name || 'solution'} a fonctionné !\n\n` +
+                  `✅ **Conseils pour éviter que ça revienne :**\n` +
+                  `• Faites un trajet autoroute 1x/semaine minimum\n` +
+                  `• Évitez les trajets uniquement urbains\n` +
+                  `• Utilisez un additif FAP mensuel en prévention\n\n` +
+                  `💡 **Surveillez ces signaux d'alerte :**\n` +
+                  `• Retour du voyant FAP/moteur\n` +
+                  `• Nouvelle perte de puissance\n` +
+                  `• Fumée noire à l'échappement`,
+        confidence: 0.95,
+        ctas: [
+          {
+            type: 'success',
+            title: '🛒 Commander additif préventif',
+            action: 'order_preventive_additive'
+          },
+          {
+            type: 'info',
+            title: '📚 Guide d\'entretien FAP',
+            action: 'maintenance_guide'
+          }
+        ]
+      };
+      
+    } else if (result === 'partial') {
+      const nextWorkflow = nextWorkflowId ? this.kb.workflows[nextWorkflowId] : null;
+      
+      return {
+        response: `🤔 **Amélioration partielle** - C'est un bon début !\n\n` +
+                  `**Prochaine étape recommandée :**\n` +
+                  `${nextWorkflow ? `🔧 ${nextWorkflow.name}` : '📞 Consultation professionnelle'}\n\n` +
+                  `Cette approche graduée maximise vos chances de succès tout en minimisant les coûts.`,
+        confidence: 0.75,
+        ctas: nextWorkflow ? this.generateWorkflowCTAs([nextWorkflow]) : [
+          {
+            type: 'professional',
+            title: '👨‍🔧 Diagnostic professionnel',
+            action: 'professional_diagnosis'
+          }
+        ]
+      };
+      
+    } else { // failure
+      const nextWorkflow = nextWorkflowId ? this.kb.workflows[nextWorkflowId] : null;
+      
+      return {
+        response: `😔 **La ${workflow?.name || 'solution'} n'a pas fonctionné**\n\n` +
+                  `C'est normal, votre problème FAP est probablement plus avancé.\n\n` +
+                  `**Solution suivante :**\n` +
+                  `${nextWorkflow ? `🔧 ${nextWorkflow.name}` : '👨‍🔧 Intervention professionnelle recommandée'}\n\n` +
+                  `💡 **Pas d'inquiétude :** Ce diagnostic progressif nous permet de trouver la solution exacte !`,
+        confidence: 0.85,
+        ctas: nextWorkflow ? this.generateWorkflowCTAs([nextWorkflow]) : [
+          {
+            type: 'urgent',
+            title: '🚨 Diagnostic professionnel urgent',
+            action: 'urgent_professional'
+          }
+        ]
+      };
+    }
+  }
   async getFallbackResponse(message) {
     if (!CLAUDE_API_KEY) {
       return "Base de diagnostic non disponible. Décrivez vos symptômes FAP pour un conseil général.";
