@@ -365,12 +365,35 @@ class ConversationalFAPEngine {
   }
 
   parseUserResponse(message, stepData) {
-    const messageLower = message.toLowerCase();
+    const messageLower = message.toLowerCase().trim();
+    
+    // Nettoyage des réponses collées (bug des boutons rapides)
+    const cleanMessage = messageLower
+      .replace(/helpno_code/g, 'help')
+      .replace(/urbain_courtmixteautoroute_longtres_varie/g, '')
+      .replace(/ouinon/g, 'oui')
+      .trim();
+    
+    console.log(`🔍 Analyse réponse: "${message}" -> "${cleanMessage}"`);
     
     if (stepData.type === 'yes_no') {
-      if (messageLower.includes('oui') || messageLower.includes('yes')) return 'oui';
-      if (messageLower.includes('non') || messageLower.includes('no')) return 'non';
-      if (messageLower.includes('sais pas') || messageLower.includes('know')) return 'ne_sais_pas';
+      if (cleanMessage === 'oui' || cleanMessage.includes('oui') || cleanMessage === 'yes') return 'oui';
+      if (cleanMessage === 'non' || cleanMessage.includes('non') || cleanMessage === 'no') return 'non';
+      if (cleanMessage.includes('sais pas') || cleanMessage.includes('know') || cleanMessage === 'je ne sais pas') return 'ne_sais_pas';
+    }
+    
+    if (stepData.type === 'multiple_choice') {
+      // Recherche exacte dans les options
+      if (stepData.options) {
+        for (const [key, value] of Object.entries(stepData.options)) {
+          if (cleanMessage === key.toLowerCase() || 
+              cleanMessage.includes(key.toLowerCase()) ||
+              this.matchesOption(cleanMessage, key)) {
+            console.log(`✅ Option trouvée: ${key}`);
+            return key;
+          }
+        }
+      }
     }
     
     if (stepData.validation) {
@@ -378,14 +401,30 @@ class ConversationalFAPEngine {
       if (matches) return matches;
     }
     
-    // Recherche dans les options multiples
-    if (stepData.options) {
-      for (const [key, value] of Object.entries(stepData.options)) {
-        if (messageLower.includes(key.toLowerCase())) return key;
-      }
+    // Recherche de mots-clés spéciaux
+    if (cleanMessage.includes('urbain') || cleanMessage.includes('ville')) return 'urbain_court';
+    if (cleanMessage.includes('mixte')) return 'mixte';
+    if (cleanMessage.includes('autoroute') || cleanMessage.includes('route')) return 'autoroute_long';
+    if (cleanMessage.includes('help') || cleanMessage.includes('aide')) return 'help';
+    if (cleanMessage.includes('code') && cleanMessage.includes('pas')) return 'no_code';
+    
+    return cleanMessage;
+  }
+
+  matchesOption(message, option) {
+    const optionMap = {
+      'urbain_court': ['urbain', 'ville', 'court', 'city'],
+      'mixte': ['mixte', 'mix', 'varié'],
+      'autoroute_long': ['autoroute', 'route', 'highway', 'long'],
+      'help': ['help', 'aide', 'expliquer'],
+      'no_code': ['pas de code', 'no code', 'aucun code']
+    };
+    
+    if (optionMap[option]) {
+      return optionMap[option].some(keyword => message.includes(keyword));
     }
     
-    return message; // Retour brut si pas de correspondance
+    return false;
   }
 
   determineNextFAPStep(userResponse, stepData, conversationState) {
@@ -408,77 +447,88 @@ class ConversationalFAPEngine {
 
   generateFAPDiagnosis(conversationState) {
     const { collectedData, detectedCode } = conversationState;
-    let diagnosis = "🔧 **Diagnostic FAP Re-Fap**\n\n";
+    let diagnosis = "🔧 **Diagnostic FAP Re-Fap Expert**\n\n";
     let confidence = this.calculateFAPConfidence(collectedData);
     let ctas = [];
+
+    console.log('🎯 Génération diagnostic avec:', { collectedData, detectedCode, confidence });
 
     // Diagnostic basé sur le code d'erreur
     if (detectedCode && this.fapDB.fap_error_codes[detectedCode]) {
       const codeData = this.fapDB.fap_error_codes[detectedCode];
-      diagnosis += `**Code détecté :** ${detectedCode} - ${codeData.title}\n\n`;
+      diagnosis += `**🚨 Code détecté :** ${detectedCode} - ${codeData.title}\n\n`;
       diagnosis += `**Description :** ${codeData.description}\n\n`;
       
-      // Cause la plus probable
       const mainCause = codeData.causes.reduce((prev, current) => 
         prev.probability > current.probability ? prev : current
       );
       
       diagnosis += `**Cause principale (${mainCause.probability}%) :** ${mainCause.cause}\n\n`;
       
-      // Solution recommandée
-      const protocol = this.fapDB.fap_solution_protocols[mainCause.solution];
-      if (protocol) {
-        diagnosis += `**Solution recommandée :** ${protocol.title}\n\n`;
-        if (protocol.steps) {
-          diagnosis += protocol.steps.join('\n') + '\n\n';
-        }
-        if (protocol.warning) {
-          diagnosis += `⚠️ ${protocol.warning}\n\n`;
-        }
-      }
-
-      // CTA selon l'urgence
-      if (codeData.emergency || codeData.urgency === 'immediate') {
-        ctas.push({
-          type: 'emergency',
-          text: '🚨 Intervention urgente',
-          action: 'emergency_call'
-        });
-      } else if (protocol?.type === 'self_service') {
-        ctas.push({
-          type: 'self_service',
-          text: '🛣️ Essayer la régénération autoroute',
-          action: 'highway_regeneration'
-        });
-      }
-      
-      ctas.push({
-        type: 'professional',
-        text: '🔧 Nettoyage FAP professionnel',
-        action: 'book_cleaning'
-      });
+      confidence = Math.max(confidence, 0.9); // Code = haute confiance
     }
-
-    // Diagnostic basé sur les symptômes uniquement
+    
+    // Diagnostic basé sur les symptômes et conduite
     else {
-      diagnosis += "**Analyse basée sur vos symptômes :**\n\n";
+      diagnosis += "**📋 Analyse de votre situation :**\n\n";
       
       if (collectedData.fap_symptom_detection === 'oui') {
-        diagnosis += "✅ Voyant FAP allumé\n";
+        diagnosis += "✅ Voyant FAP confirmé allumé\n";
       }
       if (collectedData.fap_physical_symptoms === 'oui') {
         diagnosis += "✅ Perte de puissance confirmée\n";
       }
-      if (collectedData.urban_fap_issue) {
-        diagnosis += "⚠️ Conduite urbaine problématique pour le FAP\n\n";
-        diagnosis += "**Recommandation :** Votre FAP a besoin de régénération urgente.\n\n";
+      
+      // Analyse du pattern de conduite (CRUCIAL pour FAP)
+      const drivingPattern = collectedData.fap_driving_analysis;
+      if (drivingPattern === 'urbain_court') {
+        diagnosis += "🚨 **PROBLÈME IDENTIFIÉ : Conduite urbaine exclusive**\n\n";
+        diagnosis += "**Explication :** Vos trajets courts empêchent la régénération naturelle du FAP. ";
+        diagnosis += "Le FAP a besoin de 600°C pendant 20+ minutes pour brûler la suie, impossible en ville !\n\n";
+        diagnosis += "**Solution immédiate :** Régénération forcée par trajet autoroute.\n\n";
+        
+        confidence = Math.max(confidence, 0.85);
         
         ctas.push({
-          type: 'education',
-          text: '📚 Comprendre la régénération FAP',
-          action: 'learn_regeneration'
+          type: 'self_service',
+          text: '🛣️ Protocole régénération autoroute',
+          action: 'highway_regeneration',
+          description: 'Solution à essayer immédiatement'
+        });
+        
+      } else if (drivingPattern === 'mixte') {
+        diagnosis += "⚠️ **Conduite mixte** - Régénération parfois insuffisante\n\n";
+        diagnosis += "**Recommandation :** Augmenter la fréquence des trajets longs.\n\n";
+        
+      } else if (drivingPattern === 'autoroute_long') {
+        diagnosis += "🤔 **Conduite favorable au FAP** - Problème plus complexe\n\n";
+        diagnosis += "**Analyse :** Malgré vos longs trajets, le FAP pose problème. ";
+        diagnosis += "Possible défaillance capteur ou saturation critique.\n\n";
+        
+        ctas.push({
+          type: 'professional',
+          text: '🔍 Diagnostic professionnel requis',
+          action: 'book_diagnostic'
         });
       }
+    }
+
+    // CTA standard pour tous les cas
+    ctas.push({
+      type: 'professional',
+      text: '🔧 Nettoyage FAP Re-Fap professionnel',
+      action: 'book_cleaning',
+      description: 'Solution garantie'
+    });
+
+    // CTA d'urgence si haute gravité
+    if (detectedCode === 'P244B' || (collectedData.fap_physical_symptoms === 'oui' && drivingPattern === 'urbain_court')) {
+      ctas.unshift({
+        type: 'emergency',
+        text: '🚨 Intervention urgente',
+        action: 'emergency_call',
+        description: 'Situation critique'
+      });
     }
 
     return {
@@ -586,13 +636,37 @@ class ConversationalFAPEngine {
     const { collectedData, detectedCode } = conversationState;
     
     // Si code d'erreur détecté = diagnostic immédiat
-    if (detectedCode) return true;
+    if (detectedCode) {
+      console.log('✅ Diagnostic possible: Code d\'erreur détecté');
+      return true;
+    }
     
-    // Si assez de données collectées
-    const keyData = ['fap_symptom_detection', 'fap_physical_symptoms', 'fap_driving_analysis'];
-    const collectedKeyData = keyData.filter(key => collectedData[key]).length;
+    // Vérifier qu'on a assez de données importantes
+    const hasSymptoms = collectedData.fap_symptom_detection === 'oui';
+    const hasDrivingPattern = collectedData.fap_driving_analysis;
+    const hasPhysicalSymptoms = collectedData.fap_physical_symptoms === 'oui';
     
-    return collectedKeyData >= 2;
+    console.log('🔍 Données collectées:', {
+      hasSymptoms,
+      hasDrivingPattern, 
+      hasPhysicalSymptoms,
+      allData: Object.keys(collectedData)
+    });
+    
+    // Il faut au minimum les symptômes ET le pattern de conduite
+    if (hasSymptoms && hasDrivingPattern) {
+      console.log('✅ Diagnostic possible: Symptômes + pattern de conduite');
+      return true;
+    }
+    
+    // Ou symptômes physiques + pattern
+    if (hasPhysicalSymptoms && hasDrivingPattern) {
+      console.log('✅ Diagnostic possible: Symptômes physiques + pattern');
+      return true;
+    }
+    
+    console.log('❌ Pas assez de données pour diagnostic');
+    return false;
   }
 }
 
