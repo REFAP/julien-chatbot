@@ -122,6 +122,7 @@ class FAPDiagnosticEngine {
     this.sessions = new Map();
     this.learningData = new Map();
     this.loadDecisionTrees(); // Charger les arbres de décision
+    this.loadPostDiagnosticFlows(); // NOUVEAU: Charger les flux post-diagnostic
   }
 
   // ==================== GESTION DE SESSION ====================
@@ -134,7 +135,8 @@ class FAPDiagnosticEngine {
       conversation_history: [],
       current_scores: {},
       attempted_workflows: [],
-      current_progress: 0
+      current_progress: 0,
+      user_data: {} // NOUVEAU: Pour stocker immatriculation, code postal, etc.
     };
     this.sessions.set(sessionId, session);
     console.log(`✅ Nouvelle session créée: ${sessionId}`);
@@ -668,6 +670,14 @@ class FAPDiagnosticEngine {
           response = await this.handleWorkflowFeedbackMessage(session, message);
           break;
           
+        case 'post_diagnostic': // NOUVEAU
+          response = await this.handlePostDiagnosticFlow(session, message);
+          break;
+          
+        case 'collect_user_data': // NOUVEAU
+          response = await this.handleUserDataCollection(session, message);
+          break;
+          
         default:
           response = await this.handleInitialMessage(session, message);
       }
@@ -694,7 +704,8 @@ class FAPDiagnosticEngine {
           type: 'contact',
           title: '📞 Contacter un expert',
           action: 'contact_support'
-        }]
+        }],
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -871,22 +882,26 @@ class FAPDiagnosticEngine {
     const workflow = this.selectBestWorkflow(session, [topCause]);
     const progress = this.calculateProgress(session);
     
-    // Utiliser les CTA de l'arbre de décision
-    const decisionCTAs = this.generateDecisionCTAs(session, topCause);
-    const finalCTAs = decisionCTAs.length > 0 ? decisionCTAs : (workflow ? this.generateWorkflowCTAs([workflow]) : []);
+    // NOUVEAU: Utiliser les CTA post-diagnostic enrichis
+    const postDiagnosticCTAs = this.generatePostDiagnosticCTAs(session, topCause);
+    
+    // Mettre à jour l'état pour le flux post-diagnostic
+    session.state = 'post_diagnostic';
+    session.current_flow = 'fap_related';
+    session.current_step = 'ask_garage';
     
     return {
       response: `🎯 **Diagnostic (${Math.round(topCause.score * 100)}% certitude)**\n\n` +
                 `**Problème :** ${topCause.name}\n\n` +
                 `**Explication :** ${topCause.technical_explanation}\n\n` +
-                `**Solutions recommandées par ordre d'efficacité :**`,
+                `**Comment veux-tu résoudre ton problème FAP ?**`,
       confidence: topCause.score,
       top_causes: [topCause],
       recommended_workflow: workflow,
-      ctas: finalCTAs,
+      ctas: postDiagnosticCTAs,
       current_progress: Math.max(progress, 80),
-      session_state: 'diagnosis_complete',
-      decision_tree_active: decisionCTAs.length > 0
+      session_state: 'post_diagnostic',
+      post_diagnostic_active: true
     };
   }
 
@@ -1057,6 +1072,320 @@ class FAPDiagnosticEngine {
       enhanced: true
     }));
   }
+  
+  // ==================== NOUVEAU: SYSTÈME POST-DIAGNOSTIC ====================
+  
+  loadPostDiagnosticFlows() {
+    this.postDiagnosticFlows = {
+      "fap_related": {
+        "ask_garage": {
+          "question": "As-tu besoin d'un garage de confiance pour confirmer et prendre en charge ton problème de FAP ?",
+          "yes": {
+            "action": "collect_immat_cp",
+            "next": "list_and_offer_garages",
+            "message": "Parfait ! Je vais te trouver les meilleurs garages près de chez toi. J'ai besoin de ton immatriculation et code postal."
+          },
+          "no": {
+            "next": "ask_is_handyman"
+          }
+        },
+        "ask_is_handyman": {
+          "question": "Tu es bricoleur ? Tu peux démonter ton FAP toi-même ?",
+          "yes": {
+            "offer": "refap_cleaning",
+            "options": {
+              "callback": {
+                "question": "Tu veux être rappelé ?",
+                "yes": { "action": "trigger_callback_form" },
+                "no": { "action": "show_order_link" }
+              }
+            }
+          },
+          "no": {
+            "offer_alternative": "carter_cash",
+            "link": "https://auto.re-fap.fr/"
+          }
+        }
+      },
+      "non_fap": {
+        "message": "Même si ce n'est pas un problème de FAP, je recommande de faire un diagnostic professionnel pour être sûr.",
+        "ask_appointment": {
+          "question": "Tu veux organiser un RDV diagnostic près de chez toi rapidement ?",
+          "yes": {
+            "action": "collect_immat_cp",
+            "next": "list_and_offer_garages",
+            "message": "Donne-moi ton immatriculation et ton code postal, je te propose des garages de confiance."
+          },
+          "no": {
+            "message": "Ok, si tu changes d'avis je peux te relancer ou t'envoyer des conseils pour préparer ton diagnostic."
+          }
+        }
+      }
+    };
+
+    // CTA enrichis pour le post-diagnostic
+    this.postDiagnosticCTAs = {
+      "list_and_offer_garages": {
+        "title": "Prendre RDV avec un garage de confiance",
+        "description": "Confirme ton diagnostic et obtiens un devis, incluant nettoyage ou remplacement.",
+        "inputs_required": ["immatriculation", "code_postal"],
+        "next_steps": [
+          "afficher_liste_garages",
+          "prendre_rdv"
+        ]
+      },
+      "refap_cleaning": {
+        "title": "Nettoyage FAP Re-Fap",
+        "description": "Nettoyage comme neuf à partir de 99€ hors frais de port. Tu peux démonter ton FAP et l'envoyer.",
+        "options": ["rappel_conseiller", "commander_directement"],
+        "education_block": "Différence nettoyage vs remplacement, garanties, coût."
+      },
+      "carter_cash": {
+        "title": "Point Carter-Cash",
+        "description": "Alternative de proximité pour démarrer le process.",
+        "link": "https://auto.re-fap.fr/"
+      }
+    };
+  }
+
+  generatePostDiagnosticCTAs(session, topCause) {
+    const isProblemFAP = topCause && (topCause.id.includes('dpf') || topCause.id.includes('fap'));
+    
+    if (isProblemFAP) {
+      // CTA pour problème FAP confirmé
+      return [
+        {
+          type: 'primary',
+          title: '🏭 Garage de confiance',
+          description: 'Confirmation pro + devis',
+          action: 'choose_garage_option'
+        },
+        {
+          type: 'secondary', 
+          title: '🛠️ Je suis bricoleur',
+          description: 'Nettoyage Re-Fap 99€',
+          action: 'choose_diy_option'
+        },
+        {
+          type: 'alternative',
+          title: '📍 Point Carter-Cash',
+          description: 'Dépôt proche de chez toi',
+          action: 'choose_carter_cash'
+        }
+      ];
+    } else {
+      // CTA pour non-FAP
+      return [
+        {
+          type: 'primary',
+          title: '🔍 Diagnostic pro recommandé',
+          description: 'Pour identifier le vrai problème',
+          action: 'book_diagnostic_non_fap'
+        },
+        {
+          type: 'secondary',
+          title: '📞 Parler à un expert',
+          description: 'Conseil personnalisé',
+          action: 'contact_expert'
+        }
+      ];
+    }
+  }
+
+  async handlePostDiagnosticFlow(session, message) {
+    const messageLower = message.toLowerCase();
+    const currentFlow = session.current_flow || 'fap_related';
+    const currentStep = session.current_step || 'ask_garage';
+    
+    console.log(`🔄 Post-diagnostic: ${currentFlow} -> ${currentStep}`);
+    
+    // Gestion des choix utilisateur
+    if (messageLower.includes('garage') || messageLower.includes('confiance') || 
+        message.includes('choose_garage_option')) {
+      session.current_step = 'collect_immat_cp';
+      session.state = 'collect_user_data';
+      session.data_to_collect = ['immatriculation', 'code_postal'];
+      
+      return {
+        response: `🏭 **Garage de confiance**\n\n` +
+                  `Vu ton problème FAP, il faut aller dans un garage pour confirmer ce diagnostic avec un professionnel. ` +
+                  `Il pourra diagnostiquer ta voiture et te donner un devis précis incluant le nettoyage (ou remplacement si nécessaire).\n\n` +
+                  `**J'ai besoin de :**\n` +
+                  `• Ton immatriculation (ex: AB-123-CD)\n` +
+                  `• Ton code postal (ex: 75015)\n\n` +
+                  `Je te proposerai une liste de garages fiables près de chez toi avec prise de RDV rapide.`,
+        ctas: [],
+        form_active: true,
+        current_progress: 90
+      };
+    }
+    
+    if (messageLower.includes('bricoleur') || messageLower.includes('démonter') || 
+        message.includes('choose_diy_option')) {
+      return {
+        response: `🛠️ **Solution Bricoleur - Nettoyage Re-Fap**\n\n` +
+                  `Parfait ! Tu peux démonter ton FAP toi-même. Je te propose un nettoyage comme neuf via Re-Fap :\n\n` +
+                  `✅ **À partir de 99€ HT** (hors frais de port)\n` +
+                  `✅ **Garantie 12 mois**\n` +
+                  `✅ **Retour en 48-72h**\n` +
+                  `✅ **Process certifié**\n\n` +
+                  `💡 **Comment ça marche :**\n` +
+                  `1. Tu démontes ton FAP\n` +
+                  `2. Tu l'envoies dans notre atelier\n` +
+                  `3. On le nettoie comme neuf\n` +
+                  `4. On te le renvoie rapidement\n\n` +
+                  `Tu veux qu'un conseiller t'appelle pour t'expliquer ou tu préfères commander directement ?`,
+        ctas: [
+          {
+            type: 'primary',
+            title: '📞 Me faire rappeler',
+            description: 'Un expert t\'explique tout',
+            action: 'request_callback'
+          },
+          {
+            type: 'success',
+            title: '🛒 Commander directement',
+            description: 'Je connais la procédure',
+            action: 'order_refap_cleaning'
+          }
+        ],
+        current_progress: 95
+      };
+    }
+    
+    if (messageLower.includes('carter') || messageLower.includes('cash') || 
+        message.includes('choose_carter_cash')) {
+      return {
+        response: `📍 **Points de dépôt Carter-Cash**\n\n` +
+                  `Si tu préfères une option de proximité, tu peux te rendre dans un point Carter-Cash. ` +
+                  `Ils peuvent réceptionner ton FAP et t'assister dans le process.\n\n` +
+                  `**Avantages :**\n` +
+                  `• 200+ points en France\n` +
+                  `• Personnel formé FAP\n` +
+                  `• Pas besoin d'expédier toi-même\n` +
+                  `• Conseils sur place\n\n` +
+                  `Clique ci-dessous pour trouver le Carter-Cash le plus proche de chez toi :`,
+        ctas: [
+          {
+            type: 'primary',
+            title: '🗺️ Trouver le plus proche',
+            description: 'Localiser un point Carter-Cash',
+            action: 'open_carter_cash_link'
+          },
+          {
+            type: 'secondary',
+            title: '↩️ Voir autres options',
+            description: 'Garage ou bricoleur',
+            action: 'back_to_options'
+          }
+        ],
+        external_link: 'https://auto.re-fap.fr/',
+        current_progress: 95
+      };
+    }
+    
+    // Gérer le retour aux options
+    if (messageLower.includes('autres options') || message.includes('back_to_options')) {
+      return this.generateDiagnosisResponse(session, this.getTopCauses(session.current_scores, 1)[0]);
+    }
+    
+    // Par défaut, reproposer les options
+    return {
+      response: `Je n'ai pas compris ton choix. Comment préfères-tu résoudre ton problème FAP ?`,
+      ctas: this.generatePostDiagnosticCTAs(session, this.getTopCauses(session.current_scores, 1)[0]),
+      current_progress: 85
+    };
+  }
+
+  async handleUserDataCollection(session, message) {
+    const dataToCollect = session.data_to_collect || [];
+    const collectedData = session.user_data || {};
+    
+    // Parser les données du message
+    const immatPattern = /[A-Z]{2}[-\s]?\d{3}[-\s]?[A-Z]{2}/i;
+    const cpPattern = /\d{5}/;
+    
+    const immatMatch = message.match(immatPattern);
+    const cpMatch = message.match(cpPattern);
+    
+    if (immatMatch) {
+      collectedData.immatriculation = immatMatch[0].toUpperCase();
+      console.log(`✅ Immatriculation collectée: ${collectedData.immatriculation}`);
+    }
+    
+    if (cpMatch) {
+      collectedData.code_postal = cpMatch[0];
+      console.log(`✅ Code postal collecté: ${collectedData.code_postal}`);
+    }
+    
+    session.user_data = collectedData;
+    
+    // Vérifier si toutes les données sont collectées
+    const missingData = dataToCollect.filter(field => !collectedData[field]);
+    
+    if (missingData.length === 0) {
+      // Toutes les données collectées, afficher les garages
+      session.state = 'show_results';
+      
+      return {
+        response: `✅ **Parfait ! J'ai trouvé 3 garages partenaires près de ${collectedData.code_postal}**\n\n` +
+                  `🏭 **Garage Martin** - 2km\n` +
+                  `⭐ 4.8/5 - Spécialiste FAP\n` +
+                  `📅 Dispo demain matin\n` +
+                  `💰 Diagnostic: 30€ (déduit si intervention)\n\n` +
+                  `🏭 **Auto Service Pro** - 3.5km\n` +
+                  `⭐ 4.6/5 - Nettoyage FAP sur place\n` +
+                  `📅 Dispo jeudi\n` +
+                  `💰 Forfait nettoyage: 180€\n\n` +
+                  `🏭 **FAP Express** - 5km\n` +
+                  `⭐ 4.9/5 - Expert Re-Fap certifié\n` +
+                  `📅 Dispo aujourd'hui urgence\n` +
+                  `💰 Intervention rapide\n\n` +
+                  `💡 **Mention le code "CHATBOT-FAP" pour -10% sur l'intervention**`,
+        ctas: [
+          {
+            type: 'primary',
+            title: '📞 Appeler Garage Martin',
+            description: 'Le plus proche et disponible',
+            action: 'call_garage_1'
+          },
+          {
+            type: 'secondary',
+            title: '📅 Prendre RDV en ligne',
+            description: 'Choisir un créneau',
+            action: 'book_online'
+          },
+          {
+            type: 'info',
+            title: '📋 Voir tous les détails',
+            description: 'Tarifs, horaires, avis',
+            action: 'show_all_garages'
+          }
+        ],
+        user_data: collectedData,
+        garages_found: 3,
+        current_progress: 100
+      };
+    } else {
+      // Données manquantes
+      const examples = {
+        immatriculation: 'AB-123-CD',
+        code_postal: '75015'
+      };
+      
+      const missingText = missingData.map(field => 
+        `• ${field === 'immatriculation' ? 'Ton immatriculation' : 'Ton code postal'} (ex: ${examples[field]})`
+      ).join('\n');
+      
+      return {
+        response: `J'ai encore besoin de :\n${missingText}\n\nMerci de me les donner pour que je puisse chercher les meilleurs garages près de chez toi.`,
+        form_active: true,
+        missing_fields: missingData,
+        current_progress: 92
+      };
+    }
+  }
+  
   // ==================== GESTION DU SUIVI WORKFLOW AMÉLIORÉE ====================
   async handleWorkflowFeedback(sessionId, workflowId, result, userMessage) {
     const session = this.getSession(sessionId);
@@ -1186,6 +1515,7 @@ class FAPDiagnosticEngine {
       };
     }
   }
+
   async getFallbackResponse(message) {
     if (!CLAUDE_API_KEY) {
       return "Base de diagnostic non disponible. Décrivez vos symptômes FAP pour un conseil général.";
