@@ -23,8 +23,8 @@
 
         .chat-container {
             width: 100%;
-            max-width: 1200px; /* Augmenté de 800px à 1200px */
-            height: 95vh; /* Augmenté de 90vh à 95vh */
+            max-width: 1600px; /* Augmenté de 1200px à 1600px */
+            height: 98vh; /* Augmenté de 95vh à 98vh */
             background: rgba(255, 255, 255, 0.95);
             border-radius: 20px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
@@ -36,33 +36,33 @@
         .chat-header {
             background: linear-gradient(135deg, #4f46e5, #7c3aed);
             color: white;
-            padding: 15px 20px; /* Réduit de 20px à 15px */
+            padding: 10px 20px; /* Encore plus réduit de 15px à 10px */
             text-align: center;
             position: relative;
-            flex-shrink: 0; /* Empêche la compression */
+            flex-shrink: 0;
         }
 
         .expert-avatar {
-            width: 50px; /* Réduit de 60px à 50px */
-            height: 50px;
+            width: 40px; /* Encore plus réduit de 50px à 40px */
+            height: 40px;
             background: #fbbf24;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px; /* Réduit de 24px à 20px */
-            margin: 0 auto 8px; /* Réduit de 10px à 8px */
+            font-size: 16px; /* Réduit de 20px à 16px */
+            margin: 0 auto 5px; /* Réduit de 8px à 5px */
         }
 
         .expert-name {
-            font-size: 22px; /* Réduit de 24px à 22px */
+            font-size: 18px; /* Réduit de 22px à 18px */
             font-weight: 600;
-            margin-bottom: 3px; /* Réduit de 5px à 3px */
+            margin-bottom: 2px; /* Réduit de 3px à 2px */
         }
 
         .expert-title {
             opacity: 0.9;
-            font-size: 14px; /* Réduit de 16px à 14px */
+            font-size: 12px; /* Réduit de 14px à 12px */
         }
 
         .session-info {
@@ -76,13 +76,14 @@
         .chat-messages {
             flex: 1;
             overflow-y: auto;
-            padding: 15px 20px; /* Réduit le padding vertical */
+            padding: 10px 15px; /* Encore plus réduit */
             background: #f8fafc;
-            min-height: 0; /* Important pour le flex */
+            min-height: 0;
+            font-size: 13px; /* Taille de police globale réduite */
         }
 
         .message {
-            margin-bottom: 15px; /* Réduit de 20px à 15px */
+            margin-bottom: 10px; /* Réduit de 15px à 10px */
             display: flex;
             align-items: flex-start;
             animation: slideIn 0.3s ease-out;
@@ -136,9 +137,24 @@
         .diagnostic-card {
             background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
             border: 2px solid #0ea5e9;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 15px 0;
+            border-radius: 10px; /* Réduit de 12px à 10px */
+            padding: 12px; /* Réduit de 20px à 12px */
+            margin: 8px 0; /* Réduit de 15px à 8px */
+            font-size: 13px; /* Ajout taille de police */
+        }
+
+        .diagnostic-card h3, .diagnostic-card h4 {
+            font-size: 14px; /* Titres plus petits */
+            margin-bottom: 6px; /* Réduit */
+        }
+
+        .diagnostic-card p, .diagnostic-card ul {
+            font-size: 12px; /* Texte encore plus petit */
+            margin: 4px 0; /* Marges réduites */
+        }
+
+        .diagnostic-card ul {
+            padding-left: 15px; /* Réduit de 20px à 15px */
         }
 
         .confidence-bar {
@@ -182,21 +198,21 @@
         .cta-buttons {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 15px;
+            gap: 6px; /* Réduit de 10px à 6px */
+            margin-top: 8px; /* Réduit de 15px à 8px */
         }
 
         .cta-button {
             background: white;
             border: 2px solid #e5e7eb;
-            border-radius: 25px;
-            padding: 10px 20px;
+            border-radius: 20px; /* Réduit de 25px à 20px */
+            padding: 6px 12px; /* Réduit de 10px 20px à 6px 12px */
             cursor: pointer;
             transition: all 0.2s ease;
-            font-size: 14px;
+            font-size: 11px; /* Réduit de 14px à 11px */
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 4px; /* Réduit de 8px à 4px */
         }
 
         .cta-button:hover {
@@ -225,67 +241,70 @@
 
         .workflow-card {
             background: #f8fafc;
-            border-radius: 12px;
-            padding: 15px;
-            margin: 10px 0;
-            border-left: 4px solid #10b981;
+            border-radius: 10px; /* Réduit de 12px à 10px */
+            padding: 10px; /* Réduit de 15px à 10px */
+            margin: 6px 0; /* Réduit de 10px à 6px */
+            border-left: 3px solid #10b981; /* Réduit de 4px à 3px */
+            font-size: 12px; /* Ajout taille de police */
         }
 
         .workflow-steps {
-            margin-top: 10px;
+            margin-top: 6px; /* Réduit de 10px à 6px */
         }
 
         .workflow-step {
             display: flex;
             align-items: center;
-            padding: 8px 0;
+            padding: 4px 0; /* Réduit de 8px à 4px */
             border-bottom: 1px solid #e5e7eb;
+            font-size: 12px; /* Ajout taille de police */
         }
 
         .step-number {
-            width: 24px;
-            height: 24px;
+            width: 20px; /* Réduit de 24px à 20px */
+            height: 20px;
             background: #3b82f6;
             color: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
+            font-size: 10px; /* Réduit de 12px à 10px */
             font-weight: 600;
-            margin-right: 10px;
+            margin-right: 8px; /* Réduit de 10px à 8px */
         }
 
         .chat-input-container {
-            padding: 15px 20px; /* Réduit de 20px à 15px */
+            padding: 10px 15px; /* Encore plus réduit de 15px 20px à 10px 15px */
             background: white;
             border-top: 1px solid #e5e7eb;
-            flex-shrink: 0; /* Empêche la compression */
+            flex-shrink: 0;
         }
 
         .current-question {
             background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
             border: 2px solid #0ea5e9;
-            border-radius: 12px;
-            padding: 12px; /* Réduit de 15px à 12px */
-            margin-bottom: 12px; /* Réduit de 15px à 12px */
+            border-radius: 10px; /* Réduit de 12px à 10px */
+            padding: 8px; /* Réduit de 12px à 8px */
+            margin-bottom: 8px; /* Réduit de 12px à 8px */
             font-weight: 500;
+            font-size: 12px; /* Ajout taille de police */
         }
 
         .current-question .question-label {
             color: #0369a1;
-            font-size: 13px; /* Réduit de 14px à 13px */
+            font-size: 11px; /* Réduit de 13px à 11px */
             font-weight: 600;
-            margin-bottom: 4px; /* Réduit de 5px à 4px */
+            margin-bottom: 3px; /* Réduit de 4px à 3px */
         }
 
         .chat-input {
             width: 100%;
-            min-height: 45px; /* Réduit de 50px à 45px */
+            min-height: 40px; /* Réduit de 45px à 40px */
             border: 2px solid #e5e7eb;
-            border-radius: 25px;
-            padding: 12px 18px; /* Réduit de 15px 20px à 12px 18px */
-            font-size: 15px; /* Réduit de 16px à 15px */
+            border-radius: 20px; /* Réduit de 25px à 20px */
+            padding: 8px 15px; /* Réduit de 12px 18px à 8px 15px */
+            font-size: 13px; /* Réduit de 15px à 13px */
             resize: none;
             outline: none;
             transition: border-color 0.2s ease;
@@ -350,19 +369,20 @@
 
         .question-options {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-            margin-top: 15px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); /* Réduit de 200px à 180px */
+            gap: 6px; /* Réduit de 10px à 6px */
+            margin-top: 8px; /* Réduit de 15px à 8px */
         }
 
         .option-button {
             background: white;
             border: 2px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 15px;
+            border-radius: 10px; /* Réduit de 12px à 10px */
+            padding: 8px; /* Réduit de 15px à 8px */
             cursor: pointer;
             transition: all 0.2s ease;
             text-align: left;
+            font-size: 12px; /* Ajout taille de police */
         }
 
         .option-button:hover {
@@ -374,11 +394,12 @@
             .chat-container {
                 height: 100vh;
                 border-radius: 0;
-                max-width: 100%; /* Utilise toute la largeur sur mobile */
+                max-width: 100%;
             }
             
             .message-content {
-                max-width: 90%; /* Augmenté de 85% à 90% sur mobile */
+                max-width: 92%; /* Encore plus large sur mobile */
+                font-size: 12px; /* Plus petit sur mobile */
             }
             
             .question-options {
@@ -388,7 +409,13 @@
 
         @media (min-width: 1400px) {
             .chat-container {
-                max-width: 1400px; /* Encore plus large sur les grands écrans */
+                max-width: 1800px; /* Encore plus grand sur très grands écrans */
+            }
+        }
+
+        @media (min-width: 1900px) {
+            .chat-container {
+                max-width: 2000px; /* Maximum pour les écrans ultra-larges */
             }
         }
     </style>
