@@ -34,7 +34,9 @@ class AirtableService {
       console.log(`🔍 Recherche Airtable pour: "${query}"`);
       
       // Recherche dans vos tables spécifiques
-      const searches = await Promise.all([
+     const searches = await Promise.all([
+  this.searchInTable('tbl8Dwqc1BNZSgQnU', query), // Votre table principale
+]);
   this.searchInTable('DIAGNOSTICS', query),
   this.searchInTable('LEADS', query),
   this.searchInTable('KNOWLEDGE_BASE', query),
