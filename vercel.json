@@ -1,12 +1,20 @@
 {
-  "rewrites": [
+  "framework": null,
+  "outputDirectory": ".",
+  "buildCommand": "",
+  "devCommand": "",
+  "installCommand": "",
+  "routes": [
     {
-      "source": "/api/chat",
-      "destination": "/API/chat"
+      "src": "/api/(.*)",
+      "dest": "/API/$1"
     },
     {
-      "source": "/api/(.*)",
-      "destination": "/API/$1"
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
