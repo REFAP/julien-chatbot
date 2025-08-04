@@ -312,11 +312,26 @@ class FAPDiagnosticEngine {
     response = response.replace(/\{cause_name\}/g, data.topCauses[0]?.name || 'Indéterminé');
     response = response.replace(/\{technical_explanation\}/g, data.topCauses[0]?.technical_explanation || '');
 
+    // Construire la liste des top causes
+    if (data.topCauses && data.topCauses.length > 0) {
+      const causesText = data.topCauses.map((cause, index) => 
+        `${index + 1}. **${cause.name}** (${Math.round(cause.score * 100)}%)`
+      ).join('\n');
+      response = response.replace(/\{top_causes\}/g, causesText);
+    } else {
+      response = response.replace(/\{top_causes\}/g, 'Analyse en cours...');
+    }
+
     // Question suivante si en mode collecte
     const nextQuestion = this.getNextBestQuestion(data.session);
     if (nextQuestion) {
       response = response.replace(/\{question\}/g, nextQuestion.question);
       response = response.replace(/\{explanation\}/g, nextQuestion.explanation || '');
+      response = response.replace(/\{additional_questions\}/g, nextQuestion.question);
+    } else {
+      response = response.replace(/\{question\}/g, 'Diagnostic en cours...');
+      response = response.replace(/\{explanation\}/g, '');
+      response = response.replace(/\{additional_questions\}/g, 'Plus d\'informations sur vos symptômes');
     }
 
     // Workflows recommandés
@@ -331,7 +346,11 @@ class FAPDiagnosticEngine {
       current_progress: data.progress,
       question_type: nextQuestion?.type,
       options: nextQuestion?.options,
-      session_state: data.session.state
+      session_state: data.session.state,
+      next_question: nextQuestion ? {
+        text: nextQuestion.question,
+        explanation: nextQuestion.explanation
+      } : null
     };
   }
 
@@ -502,14 +521,40 @@ class FAPDiagnosticEngine {
         session.collected_signals[nextQuestion.id] = parsed.selected.id;
       } else if (parsed.type === 'text_analyzed') {
         session.collected_signals[nextQuestion.id] = parsed.detected_patterns;
+      } else if (parsed.type === 'ambiguous') {
+        // Gérer les réponses ambiguës avec aide
+        return {
+          response: `Je n'ai pas bien compris votre réponse "${message}". \n\nPouvez-vous être plus précis ?\n\n**${nextQuestion.question}**\n\n💡 ${nextQuestion.explanation}`,
+          question_type: nextQuestion.type,
+          options: nextQuestion.options,
+          current_progress: this.calculateProgress(session),
+          ctas: [{
+            type: 'help',
+            title: '❓ Besoin d\'aide',
+            action: 'show_help'
+          }]
+        };
       }
     }
 
     // Recalculer scores
     session.current_scores = this.calculateProbabilityScores(session.collected_signals);
     
-    // Générer réponse
+    // Vérifier si on peut conclure
+    const topCause = this.getTopCauses(session.current_scores, 1)[0];
+    if (topCause && topCause.score > 0.8) {
+      session.state = 'diagnosis_ready';
+      return this.generateDiagnosisResponse(session, topCause);
+    }
+    
+    // Continuer la collecte
     return this.generateResponse(session);
+  }
+
+  calculateProgress(session) {
+    const totalSignals = Object.keys(this.kb.signals).length;
+    const collectedSignals = Object.keys(session.collected_signals).length;
+    return Math.round((collectedSignals / totalSignals) * 100);
   }
 
   generateDiagnosisResponse(session, topCause) {
