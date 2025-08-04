@@ -12,611 +12,233 @@ app.use(express.json());
 app.use(express.static('.'));
 
 // Configuration des APIs
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 
-// ==================== BASE CONVERSATIONNELLE FAP COMPLÈTE ====================
-const FAP_CONVERSATION_DATABASE = {
-  
-  conversation_steps: {
-    'welcome': {
-      message: "Bonjour ! Je suis Julien, votre expert FAP Re-Fap. Décrivez-moi le problème que vous rencontrez avec votre véhicule.",
-      type: 'open_text',
-      fap_keywords: ['voyant', 'fap', 'filtre', 'particules', 'fumée', 'puissance', 'P2002', 'P2463', 'régénération', 'colmaté'],
-      next_if_fap: 'fap_symptom_detection',
-      next_if_other: 'general_diagnosis'
-    },
-
-    'fap_symptom_detection': {
-      message: "Parfait, je vais vous aider avec votre problème de FAP. Le témoin de FAP (ou moteur) est-il allumé sur votre tableau de bord ?",
-      type: 'yes_no',
-      options: {
-        'oui': 'get_error_codes',
-        'non': 'fap_physical_symptoms',
-        'ne_sais_pas': 'explain_fap_warning'
-      }
-    },
-
-    'explain_fap_warning': {
-      message: "Le voyant FAP ressemble souvent à un moteur orange, ou parfois à un filtre avec des particules. Voyez-vous un voyant orange/rouge allumé ?",
-      type: 'yes_no',
-      options: {
-        'oui': 'get_error_codes',
-        'non': 'fap_physical_symptoms'
-      }
-    },
-
-    'get_error_codes': {
-      message: "Avez-vous un code d'erreur ? (comme P2002, P2463, P244A, etc.) Si vous ne savez pas, je peux vous expliquer comment l'obtenir.",
-      type: 'text_with_help',
-      validation: /P[0-9A-F]{4}/gi,
-      options: {
-        'help': 'explain_obd_reading',
-        'no_code': 'fap_symptoms_with_light'
-      }
-    },
-
-    'fap_physical_symptoms': {
-      message: "D'accord. Ressentez-vous une perte de puissance, surtout lors des accélérations ?",
-      type: 'yes_no',
-      options: {
-        'oui': 'check_fap_smoke',
-        'non': 'check_fap_consumption'
-      }
-    },
-
-    'check_fap_smoke': {
-      message: "Y a-t-il de la fumée à l'échappement ? Si oui, de quelle couleur ?",
-      type: 'multiple_choice',
-      options: {
-        'aucune': 'fap_consumption_check',
-        'noire': 'black_smoke_fap_analysis',
-        'blanche': 'white_smoke_analysis',
-        'bleue': 'other_engine_issue'
-      }
-    },
-
-    'black_smoke_fap_analysis': {
-      message: "Fumée noire = souvent FAP colmaté ! Cette fumée apparaît-elle principalement à l'accélération ou en permanence ?",
-      type: 'multiple_choice',
-      options: {
-        'acceleration': 'fap_clogged_acceleration',
-        'permanent': 'fap_severely_clogged',
-        'demarrage_froid': 'fap_cold_start_issue'
-      }
-    },
-
-    'fap_driving_analysis': {
-      message: "Voici la question clé ! Faites-vous principalement des trajets urbains courts (moins de 15-20 min) ou des trajets plus longs sur route/autoroute ?",
-      type: 'multiple_choice',
-      options: {
-        'urbain_court': 'urban_fap_issue',
-        'mixte': 'mixed_driving_fap',
-        'autoroute_long': 'highway_fap_ok',
-        'tres_varie': 'varied_driving_fap'
-      }
-    },
-
-    'urban_fap_issue': {
-      message: "🚨 Voilà le problème ! Les trajets urbains courts empêchent la régénération du FAP. Le FAP a besoin de 600°C pour brûler la suie, impossible en ville ! À quelle fréquence faites-vous des trajets d'autoroute de plus de 30 km ?",
-      type: 'multiple_choice',
-      education: "En ville, le moteur ne chauffe jamais assez longtemps. C'est comme essayer de nettoyer un four sale en ne l'allumant que 5 minutes !",
-      options: {
-        'jamais': 'critical_fap_regeneration_issue',
-        'rarement': 'insufficient_fap_regeneration', 
-        'parfois': 'occasional_fap_regeneration',
-        'regulierement': 'sufficient_fap_regeneration'
-      }
-    },
-
-    'critical_fap_regeneration_issue': {
-      message: "🚨 Situation critique ! Sans trajets longs, votre FAP ne peut JAMAIS se régénérer naturellement. Pouvez-vous faire un trajet d'autoroute de 30+ km dans les 48h ?",
-      type: 'yes_no',
-      urgency: 'high',
-      options: {
-        'oui': 'emergency_fap_regeneration_protocol',
-        'non': 'urgent_fap_professional_cleaning'
+// ==================== BASE FAP EXPERTE SIMPLE ====================
+const FAP_EXPERT_DATABASE = [
+  {
+    id: 'FAP001',
+    triggers: ['voyant', 'moteur', 'puissance', 'perte'],
+    symptoms: 'Voyant moteur + perte de puissance',
+    question: "Avez-vous des codes d'erreur comme P2002, P2463, P244A ?",
+    responses: {
+      'P2002': {
+        diagnosis: "🔧 **Code P2002 - FAP colmaté**\n\n**Cause :** Filtre à particules saturé en suie\n**Solution :** Nettoyage FAP professionnel ou régénération forcée",
+        ctas: [
+          { type: 'professional', text: '🔧 Nettoyage FAP Re-Fap', action: 'book_cleaning' },
+          { type: 'self_service', text: '🛣️ Tentative régénération autoroute', action: 'highway_regen' }
+        ]
+      },
+      'P2463': {
+        diagnosis: "🚨 **Code P2463 - Suie excessive**\n\n**Cause :** Accumulation critique de suie\n**Solution :** Intervention professionnelle URGENTE",
+        ctas: [
+          { type: 'emergency', text: '🚨 Intervention urgente', action: 'emergency_call' }
+        ]
+      },
+      'aucun': {
+        diagnosis: "🔍 **Sans code d'erreur**\n\nQuel est votre type de conduite principalement ?",
+        follow_up: 'driving_pattern'
       }
     }
   },
-
-  // Codes d'erreur FAP spécialisés
-  fap_error_codes: {
-    'P2002': {
-      title: "FAP - Efficacité en dessous du seuil",
-      severity: 'high',
-      confidence: 90,
-      description: "Votre FAP ne filtre plus efficacement. Il est probablement colmaté par la suie.",
-      causes: [
-        { cause: "Conduite urbaine exclusive", probability: 70, solution: "fap_regeneration_protocol" },
-        { cause: "FAP saturé en suie", probability: 85, solution: "professional_fap_cleaning" },
-        { cause: "Capteur pression HS", probability: 10, solution: "sensor_replacement" }
-      ],
-      immediate_questions: ['driving_pattern', 'last_regeneration'],
-      next_step: 'p2002_fap_deep_dive'
-    },
-
-    'P2463': {
-      title: "Accumulation excessive de suie FAP",
-      severity: 'critical',
-      confidence: 95,
-      description: "⚠️ Niveau de suie critique ! Intervention urgente nécessaire.",
-      causes: [
-        { cause: "Conduite urbaine excessive", probability: 80, solution: "immediate_regeneration" },
-        { cause: "Injecteurs défectueux", probability: 15, solution: "injector_cleaning" },
-        { cause: "EGR encrassé", probability: 5, solution: "egr_service" }
-      ],
-      urgency: 'immediate',
-      next_step: 'p2463_emergency_protocol'
-    },
-
-    'P244A': {
-      title: "Pression différentielle FAP trop faible",
-      severity: 'medium',
-      confidence: 75,
-      description: "Capteur détecte une pression anormalement basse. Possible fuite ou capteur défectueux.",
-      causes: [
-        { cause: "Capteur pression défectueux", probability: 60, solution: "sensor_diagnosis" },
-        { cause: "Fuites conduits FAP", probability: 30, solution: "leak_inspection" },
-        { cause: "FAP percé", probability: 10, solution: "fap_replacement" }
-      ],
-      next_step: 'p244a_sensor_check'
-    },
-
-    'P244B': {
-      title: "Pression différentielle FAP trop élevée",
-      severity: 'critical',
-      confidence: 98,
-      description: "🚨 FAP COMPLÈTEMENT BOUCHÉ ! Risque de panne immédiate.",
-      emergency: true,
-      causes: [
-        { cause: "FAP totalement colmaté", probability: 90, solution: "emergency_intervention" },
-        { cause: "Capteur défectueux", probability: 10, solution: "sensor_verification" }
-      ],
-      next_step: 'p244b_emergency_protocol'
-    }
-  },
-
-  // Protocoles de solutions FAP
-  fap_solution_protocols: {
-    'emergency_fap_regeneration_protocol': {
-      title: "🛣️ PROTOCOLE RÉGÉNÉRATION D'URGENCE",
-      type: 'self_service',
-      steps: [
-        "1. 🔍 Vérifiez : minimum 1/4 de réservoir + huile OK",
-        "2. 🛣️ Autoroute/route : 90+ km/h pendant 45 minutes MINIMUM",
-        "3. ⚡ Maintenez 3000+ tours/min si possible",
-        "4. 🚫 NE VOUS ARRÊTEZ PAS pendant la régénération",
-        "5. 👀 Observez : fumée blanche = régénération en cours",
-        "6. ✅ Continuez jusqu'à disparition complète des symptômes"
-      ],
-      warning: "⚠️ Si AUCUNE amélioration après 1h d'autoroute : ARRÊTEZ et appelez-nous !",
-      success_rate: 70,
-      cta: {
-        type: 'urgent_self_service',
-        followup_required: true,
-        phone_support: true
-      }
-    },
-
-    'urgent_fap_professional_cleaning': {
-      title: "🔧 NETTOYAGE FAP PROFESSIONNEL URGENT",
-      type: 'professional_service',
-      reason: "Votre FAP est trop colmaté pour une régénération standard.",
-      services: [
-        {
-          name: 'Nettoyage FAP Re-Fap Express',
-          duration: '2h',
-          success_rate: 95,
-          warranty: '6 mois',
-          urgency: 'same_day'
-        },
-        {
-          name: 'Diagnostic complet + Nettoyage',
-          duration: '3h',
-          success_rate: 98,
-          warranty: '12 mois',
-          urgency: 'within_24h'
-        }
-      ],
-      cta: {
-        type: 'urgent_appointment',
-        same_day_available: true
-      }
-    },
-
-    'p244b_emergency_protocol': {
-      title: "🚨 PROTOCOLE D'URGENCE CRITIQUE",
-      type: 'emergency',
-      immediate_actions: [
-        "🚗 LIMITEZ la conduite au strict minimum",
-        "📞 APPELEZ notre atelier IMMÉDIATEMENT",
-        "🚫 N'essayez AUCUNE régénération",
-        "🛑 Si mode dégradé activé : ARRÊTEZ-VOUS EN SÉCURITÉ"
-      ],
-      risk: "Risque de dommages moteur irréversibles",
-      intervention: "Intervention professionnelle OBLIGATOIRE",
-      cta: {
-        type: 'emergency_call',
-        priority: 'critical'
-      }
-    }
-  }
-};
-
-// ==================== AUTRES CAS NON-FAP ====================
-const OTHER_ISSUES_DATABASE = [
   {
-    id: 'TURBO001',
-    keywords: ['turbo', 'siffle', 'sifflement', 'suralimentation'],
-    symptomes: 'Turbo qui siffle fort',
-    causes_probables: 'Turbine en début de jeu, durites percées',
-    solution: 'Contrôle visuel + test pression turbo',
-    confidence: 0.8
+    id: 'FAP002',
+    triggers: ['fumée', 'noire', 'echappement'],
+    symptoms: 'Fumée noire à l\'échappement',
+    diagnosis: "🔧 **Fumée noire = FAP colmaté**\n\n**Explication :** Combustion incomplète due au FAP saturé\n**Action :** Nettoyage professionnel recommandé",
+    ctas: [
+      { type: 'professional', text: '🔧 Diagnostic + Nettoyage FAP', action: 'book_service' }
+    ]
   },
   {
-    id: 'EGR001', 
-    keywords: ['egr', 'vanne', 'prechauffage', 'clignote'],
-    symptomes: 'Voyant préchauffage qui clignote',
-    causes_probables: 'Vanne EGR encrassée, capteur position défaillant',
-    solution: 'Nettoyage ou remplacement vanne EGR',
-    confidence: 0.8
-  },
-  {
-    id: 'ADBLUE001',
-    keywords: ['adblue', 'decompte', 'kilometrage', 'uree'],
-    symptomes: 'Voyant AdBlue avec décompte',
-    causes_probables: 'Qualité AdBlue douteuse, réservoir mal rempli',
-    solution: 'Vidange AdBlue + remplissage certifié',
-    confidence: 0.9
+    id: 'FAP003',
+    triggers: ['urbain', 'ville', 'court', 'trajet'],
+    symptoms: 'Conduite urbaine exclusive',
+    diagnosis: "🚨 **Conduite urbaine = Problème FAP**\n\n**Pourquoi :** Le FAP a besoin de 600°C pendant 20+ minutes pour se régénérer. Impossible en ville !\n\n**Solution immédiate :** Trajet autoroute 30+ km à 90+ km/h",
+    ctas: [
+      { type: 'education', text: '📚 Guide régénération FAP', action: 'learn_regen' },
+      { type: 'professional', text: '🔧 Nettoyage si échec', action: 'book_cleaning' }
+    ]
   }
 ];
 
-// ==================== MOTEUR CONVERSATIONNEL ====================
-class ConversationalFAPEngine {
+// Autres problèmes non-FAP
+const OTHER_ISSUES_DB = [
+  {
+    id: 'TURBO001',
+    triggers: ['turbo', 'siffle', 'sifflement'],
+    diagnosis: "🔧 **Turbo qui siffle**\n\nCause probable : Turbine usée ou fuite durite\nAction : Contrôle pression turbo",
+    ctas: [{ type: 'diagnostic', text: '🔍 Diagnostic turbo', action: 'turbo_check' }]
+  },
+  {
+    id: 'EGR001',
+    triggers: ['egr', 'vanne', 'prechauffage'],
+    diagnosis: "🔧 **Problème EGR/Préchauffage**\n\nCause probable : Vanne EGR encrassée\nAction : Nettoyage vanne EGR",
+    ctas: [{ type: 'service', text: '🔧 Service EGR', action: 'egr_service' }]
+  }
+];
+
+// ==================== MOTEUR SIMPLE ET ROBUSTE ====================
+class SimpleFAPExpert {
   constructor() {
-    this.fapDB = FAP_CONVERSATION_DATABASE;
-    this.otherDB = OTHER_ISSUES_DATABASE;
+    this.fapDB = FAP_EXPERT_DATABASE;
+    this.otherDB = OTHER_ISSUES_DB;
   }
 
-  async processMessage(userMessage, conversationState = null) {
-    console.log(`💬 Message: "${userMessage}"`);
-
-    // Nouveau utilisateur ou conversation terminée
-    if (!conversationState || conversationState.step === 'completed') {
-      return this.initializeConversation(userMessage);
-    }
-
-    // Continuer la conversation FAP en cours
-    if (conversationState.category === 'fap') {
-      return this.continueFAPConversation(userMessage, conversationState);
-    }
-
-    // Fallback général
-    return this.handleGeneralQuery(userMessage);
-  }
-
-  initializeConversation(userMessage) {
-    const isFAPRelated = this.isFAPRelated(userMessage);
-    
-    if (isFAPRelated) {
-      console.log('🔧 Détection mots-clés FAP -> Mode d\'écoute expert');
-      return {
-        message: "Je vois que vous avez un problème avec votre véhicule. Pouvez-vous me décrire précisément les symptômes que vous observez ?",
-        type: 'general_listening',
-        source: 'fap_expert',
-        conversationState: {
-          step: 'symptom_analysis',
-          category: 'listening',
-          collectedData: { initial_query: userMessage },
-          confidence: 0,
-          suspected_issues: this.analyzePotentialIssues(userMessage)
-        }
-      };
-    } else {
-      console.log('🔍 Problème général -> Écoute ouverte');
-      return {
-        message: "Bonjour ! Décrivez-moi le problème que vous rencontrez avec votre véhicule. Plus vous me donnez de détails, mieux je pourrai vous aider.",
-        type: 'open_listening',
-        source: 'general_expert',
-        conversationState: {
-          step: 'open_analysis',
-          category: 'general',
-          collectedData: { initial_query: userMessage },
-          confidence: 0
-        }
-      };
-    }
-  }
-
-  analyzePotentialIssues(message) {
-    const issues = [];
-    const messageLower = message.toLowerCase();
-    
-    // Détection FAP
-    if (this.isFAPRelated(message)) {
-      issues.push({ type: 'fap', confidence: 0.7, keywords: ['fap', 'particules', 'regeneration'] });
-    }
-    
-    // Détection autres problèmes
-    if (messageLower.includes('turbo') || messageLower.includes('siffle')) {
-      issues.push({ type: 'turbo', confidence: 0.8 });
-    }
-    if (messageLower.includes('egr') || messageLower.includes('prechauffage')) {
-      issues.push({ type: 'egr', confidence: 0.8 });
-    }
-    if (messageLower.includes('adblue') || messageLower.includes('uree')) {
-      issues.push({ type: 'adblue', confidence: 0.9 });
-    }
-    
-    return issues;
-  }
-
-  isFAPRelated(message) {
-    const fapKeywords = this.fapDB.conversation_steps.welcome.fap_keywords;
-    const messageLower = message.toLowerCase();
-    
-    return fapKeywords.some(keyword => messageLower.includes(keyword)) ||
-           /P2[0-4][0-9A-F]{2}/i.test(message); // Codes FAP
-  }
-
-  continueFAPConversation(userMessage, conversationState) {
-    const currentStep = conversationState.step;
-    const stepData = this.fapDB.conversation_steps[currentStep];
-    
-    if (!stepData) {
-      console.error(`❌ Étape inconnue: ${currentStep}`);
-      return this.handleGeneralQuery(userMessage);
-    }
-
-    // Analyser la réponse utilisateur
-    const userResponse = this.parseUserResponse(userMessage, stepData);
-    
-    // Mettre à jour les données collectées
-    conversationState.collectedData[currentStep] = userResponse;
-    
-    // Déterminer la prochaine étape
-    const nextStep = this.determineNextFAPStep(userResponse, stepData, conversationState);
-    
-    // Vérifier si on peut faire un diagnostic
-    if (this.canProvideFAPDiagnosis(conversationState)) {
-      return this.generateFAPDiagnosis(conversationState);
-    }
-    
-    // Continuer la conversation
-    const nextStepData = this.fapDB.conversation_steps[nextStep];
-    conversationState.step = nextStep;
-    conversationState.confidence = this.calculateFAPConfidence(conversationState.collectedData);
-    
-    return {
-      message: nextStepData.message,
-      type: 'fap_conversation',
-      source: 'fap_expert',
-      confidence: conversationState.confidence,
-      conversationState: conversationState,
-      options: nextStepData.options
-    };
-  }
-
-  parseUserResponse(message, stepData) {
-    const messageLower = message.toLowerCase().trim();
-    
-    // Nettoyage des réponses collées (bug des boutons rapides)
-    const cleanMessage = messageLower
-      .replace(/helpno_code/g, 'help')
-      .replace(/urbain_courtmixteautoroute_longtres_varie/g, '')
-      .replace(/ouinon/g, 'oui')
-      .trim();
-    
-    console.log(`🔍 Analyse réponse: "${message}" -> "${cleanMessage}"`);
-    
-    if (stepData.type === 'yes_no') {
-      if (cleanMessage === 'oui' || cleanMessage.includes('oui') || cleanMessage === 'yes') return 'oui';
-      if (cleanMessage === 'non' || cleanMessage.includes('non') || cleanMessage === 'no') return 'non';
-      if (cleanMessage.includes('sais pas') || cleanMessage.includes('know') || cleanMessage === 'je ne sais pas') return 'ne_sais_pas';
-    }
-    
-    if (stepData.type === 'multiple_choice') {
-      // Recherche exacte dans les options
-      if (stepData.options) {
-        for (const [key, value] of Object.entries(stepData.options)) {
-          if (cleanMessage === key.toLowerCase() || 
-              cleanMessage.includes(key.toLowerCase()) ||
-              this.matchesOption(cleanMessage, key)) {
-            console.log(`✅ Option trouvée: ${key}`);
-            return key;
-          }
-        }
-      }
-    }
-    
-    if (stepData.validation) {
-      const matches = message.match(stepData.validation);
-      if (matches) return matches;
-    }
-    
-    // Recherche de mots-clés spéciaux
-    if (cleanMessage.includes('urbain') || cleanMessage.includes('ville')) return 'urbain_court';
-    if (cleanMessage.includes('mixte')) return 'mixte';
-    if (cleanMessage.includes('autoroute') || cleanMessage.includes('route')) return 'autoroute_long';
-    if (cleanMessage.includes('help') || cleanMessage.includes('aide')) return 'help';
-    if (cleanMessage.includes('code') && cleanMessage.includes('pas')) return 'no_code';
-    
-    return cleanMessage;
-  }
-
-  matchesOption(message, option) {
-    const optionMap = {
-      'urbain_court': ['urbain', 'ville', 'court', 'city'],
-      'mixte': ['mixte', 'mix', 'varié'],
-      'autoroute_long': ['autoroute', 'route', 'highway', 'long'],
-      'help': ['help', 'aide', 'expliquer'],
-      'no_code': ['pas de code', 'no code', 'aucun code']
-    };
-    
-    if (optionMap[option]) {
-      return optionMap[option].some(keyword => message.includes(keyword));
-    }
-    
-    return false;
-  }
-
-  determineNextFAPStep(userResponse, stepData, conversationState) {
-    if (stepData.options && stepData.options[userResponse]) {
-      return stepData.options[userResponse];
-    }
-    
-    // Logique spéciale pour les codes d'erreur
-    if (Array.isArray(userResponse)) {
-      const errorCode = userResponse[0];
-      if (this.fapDB.fap_error_codes[errorCode]) {
-        conversationState.detectedCode = errorCode;
-        return this.fapDB.fap_error_codes[errorCode].next_step;
-      }
-    }
-    
-    // Par défaut, passer à l'analyse de conduite
-    return 'fap_driving_analysis';
-  }
-
-  generateFAPDiagnosis(conversationState) {
-    const { collectedData, detectedCode } = conversationState;
-    let diagnosis = "🔧 **Diagnostic FAP Re-Fap Expert**\n\n";
-    let confidence = this.calculateFAPConfidence(collectedData);
-    let ctas = [];
-
-    console.log('🎯 Génération diagnostic avec:', { collectedData, detectedCode, confidence });
-
-    // Diagnostic basé sur le code d'erreur
-    if (detectedCode && this.fapDB.fap_error_codes[detectedCode]) {
-      const codeData = this.fapDB.fap_error_codes[detectedCode];
-      diagnosis += `**🚨 Code détecté :** ${detectedCode} - ${codeData.title}\n\n`;
-      diagnosis += `**Description :** ${codeData.description}\n\n`;
-      
-      const mainCause = codeData.causes.reduce((prev, current) => 
-        prev.probability > current.probability ? prev : current
-      );
-      
-      diagnosis += `**Cause principale (${mainCause.probability}%) :** ${mainCause.cause}\n\n`;
-      
-      confidence = Math.max(confidence, 0.9); // Code = haute confiance
-    }
-    
-    // Diagnostic basé sur les symptômes et conduite
-    else {
-      diagnosis += "**📋 Analyse de votre situation :**\n\n";
-      
-      if (collectedData.fap_symptom_detection === 'oui') {
-        diagnosis += "✅ Voyant FAP confirmé allumé\n";
-      }
-      if (collectedData.fap_physical_symptoms === 'oui') {
-        diagnosis += "✅ Perte de puissance confirmée\n";
-      }
-      
-      // Analyse du pattern de conduite (CRUCIAL pour FAP)
-      const drivingPattern = collectedData.fap_driving_analysis;
-      if (drivingPattern === 'urbain_court') {
-        diagnosis += "🚨 **PROBLÈME IDENTIFIÉ : Conduite urbaine exclusive**\n\n";
-        diagnosis += "**Explication :** Vos trajets courts empêchent la régénération naturelle du FAP. ";
-        diagnosis += "Le FAP a besoin de 600°C pendant 20+ minutes pour brûler la suie, impossible en ville !\n\n";
-        diagnosis += "**Solution immédiate :** Régénération forcée par trajet autoroute.\n\n";
-        
-        confidence = Math.max(confidence, 0.85);
-        
-        ctas.push({
-          type: 'self_service',
-          text: '🛣️ Protocole régénération autoroute',
-          action: 'highway_regeneration',
-          description: 'Solution à essayer immédiatement'
-        });
-        
-      } else if (drivingPattern === 'mixte') {
-        diagnosis += "⚠️ **Conduite mixte** - Régénération parfois insuffisante\n\n";
-        diagnosis += "**Recommandation :** Augmenter la fréquence des trajets longs.\n\n";
-        
-      } else if (drivingPattern === 'autoroute_long') {
-        diagnosis += "🤔 **Conduite favorable au FAP** - Problème plus complexe\n\n";
-        diagnosis += "**Analyse :** Malgré vos longs trajets, le FAP pose problème. ";
-        diagnosis += "Possible défaillance capteur ou saturation critique.\n\n";
-        
-        ctas.push({
-          type: 'professional',
-          text: '🔍 Diagnostic professionnel requis',
-          action: 'book_diagnostic'
-        });
-      }
-    }
-
-    // CTA standard pour tous les cas
-    ctas.push({
-      type: 'professional',
-      text: '🔧 Nettoyage FAP Re-Fap professionnel',
-      action: 'book_cleaning',
-      description: 'Solution garantie'
-    });
-
-    // CTA d'urgence si haute gravité
-    if (detectedCode === 'P244B' || (collectedData.fap_physical_symptoms === 'oui' && drivingPattern === 'urbain_court')) {
-      ctas.unshift({
-        type: 'emergency',
-        text: '🚨 Intervention urgente',
-        action: 'emergency_call',
-        description: 'Situation critique'
-      });
-    }
-
-    return {
-      message: diagnosis,
-      source: 'fap_expert',
-      confidence: confidence,
-      ctas: ctas,
-      type: 'fap_diagnosis',
-      conversationState: { ...conversationState, step: 'completed' }
-    };
-  }
-
-  handleNonFAPIssue(userMessage) {
-    console.log('🔍 Recherche dans base autres problèmes...');
-    
+  async processMessage(userMessage, step = 'initial') {
     const messageLower = userMessage.toLowerCase();
-    const matchingIssue = this.otherDB.find(issue => 
-      issue.keywords.some(keyword => messageLower.includes(keyword))
-    );
+    console.log(`💬 Analyse: "${userMessage}" (étape: ${step})`);
 
-    if (matchingIssue) {
-      console.log(`✅ Problème trouvé: ${matchingIssue.id}`);
+    // Étape 1: Détection du problème
+    if (step === 'initial') {
+      return this.detectIssueType(messageLower);
+    }
+
+    // Étape 2: Questions de suivi FAP
+    if (step === 'fap_followup') {
+      return this.handleFAPFollowup(messageLower);
+    }
+
+    // Étape 3: Pattern de conduite
+    if (step === 'driving_pattern') {
+      return this.analyzeDrivingPattern(messageLower);
+    }
+
+    // Fallback
+    return this.handleUnknownIssue(userMessage);
+  }
+
+  detectIssueType(messageLower) {
+    // Recherche FAP en priorité
+    for (const fapCase of this.fapDB) {
+      const matchCount = fapCase.triggers.filter(trigger => 
+        messageLower.includes(trigger)
+      ).length;
+
+      if (matchCount >= 2) {
+        console.log(`✅ FAP détecté: ${fapCase.id} (${matchCount} triggers)`);
+        
+        if (fapCase.question) {
+          return {
+            message: `🔧 **Problème FAP détecté !**\n\n${fapCase.symptoms}\n\n${fapCase.question}`,
+            source: 'fap_expert',
+            nextStep: 'fap_followup',
+            caseId: fapCase.id
+          };
+        } else {
+          return {
+            message: fapCase.diagnosis,
+            source: 'fap_expert',
+            ctas: fapCase.ctas || []
+          };
+        }
+      }
+    }
+
+    // Recherche autres problèmes
+    for (const issue of this.otherDB) {
+      const hasMatch = issue.triggers.some(trigger => 
+        messageLower.includes(trigger)
+      );
+
+      if (hasMatch) {
+        console.log(`✅ Autre problème: ${issue.id}`);
+        return {
+          message: issue.diagnosis,
+          source: 'expert_database',
+          ctas: issue.ctas || []
+        };
+      }
+    }
+
+    // Pas de correspondance -> Questions générales
+    return this.askGeneralQuestions();
+  }
+
+  handleFAPFollowup(messageLower) {
+    // Détection codes d'erreur
+    const errorCodes = messageLower.match(/P[0-9A-F]{4}/gi);
+    
+    if (errorCodes && errorCodes.length > 0) {
+      const code = errorCodes[0].toUpperCase();
+      const fapCase = this.fapDB.find(f => f.responses && f.responses[code]);
+      
+      if (fapCase && fapCase.responses[code]) {
+        const response = fapCase.responses[code];
+        return {
+          message: response.diagnosis,
+          source: 'fap_expert',
+          ctas: response.ctas || [],
+          confidence: 0.9
+        };
+      }
+    }
+
+    // Pas de code -> Analyser conduite
+    if (messageLower.includes('aucun') || messageLower.includes('pas') || messageLower.includes('non')) {
       return {
-        message: `🔧 **${matchingIssue.symptomes}**\n\n🔍 **Causes probables :** ${matchingIssue.causes_probables}\n\n✅ **Solution :** ${matchingIssue.solution}`,
-        source: 'database',
-        confidence: matchingIssue.confidence,
+        message: "D'accord, pas de code d'erreur. Quel est votre type de conduite ?\n\n• Principalement en ville (trajets < 20 min)\n• Mixte ville/route\n• Principalement autoroute/longs trajets",
+        source: 'fap_expert',
+        nextStep: 'driving_pattern'
+      };
+    }
+
+    return this.askGeneralQuestions();
+  }
+
+  analyzeDrivingPattern(messageLower) {
+    if (messageLower.includes('ville') || messageLower.includes('urbain') || messageLower.includes('court')) {
+      const urbanCase = this.fapDB.find(f => f.id === 'FAP003');
+      return {
+        message: urbanCase.diagnosis,
+        source: 'fap_expert',
+        ctas: urbanCase.ctas,
+        confidence: 0.85
+      };
+    }
+
+    if (messageLower.includes('mixte')) {
+      return {
+        message: "🔧 **Conduite mixte**\n\nVotre FAP se régénère parfois mais pas assez.\n\n**Recommandation :** Augmentez la fréquence des longs trajets (30+ km d'affilée)",
+        source: 'fap_expert',
         ctas: [
-          {
-            type: 'diagnostic',
-            text: '🔍 Diagnostic en atelier',
-            action: 'book_diagnostic'
-          }
+          { type: 'education', text: '📚 Guide conduite FAP', action: 'driving_guide' },
+          { type: 'professional', text: '🔧 Nettoyage préventif', action: 'preventive_cleaning' }
         ]
       };
     }
 
-    console.log('🤖 Fallback vers Claude...');
-    return this.handleGeneralQuery(userMessage);
+    if (messageLower.includes('autoroute') || messageLower.includes('long')) {
+      return {
+        message: "🤔 **Conduite favorable au FAP**\n\nMalgré vos longs trajets, le problème persiste.\n\n**Analyse :** Possible défaillance capteur ou FAP très encrassé",
+        source: 'fap_expert',
+        ctas: [
+          { type: 'professional', text: '🔍 Diagnostic approfondi', action: 'deep_diagnostic' }
+        ]
+      };
+    }
+
+    return this.askGeneralQuestions();
   }
 
-  async handleGeneralQuery(userMessage) {
-    // Fallback vers Claude pour les cas non couverts
+  askGeneralQuestions() {
+    return {
+      message: "Pour mieux vous aider, pouvez-vous me dire :\n\n• Quels voyants sont allumés ?\n• Ressentez-vous une perte de puissance ?\n• Y a-t-il de la fumée à l'échappement ?\n• Quel type de conduite faites-vous ?",
+      source: 'fap_expert',
+      nextStep: 'initial'
+    };
+  }
+
+  async handleUnknownIssue(userMessage) {
+    console.log('🤖 Fallback vers Claude...');
+    
     const aiResponse = await this.getClaudeResponse(userMessage);
     
     return {
-      message: aiResponse || "Désolé, je ne peux pas analyser ce problème spécifique. Pouvez-vous me donner plus de détails ou me parler d'un problème de FAP ?",
+      message: aiResponse || "Je ne peux pas analyser ce problème spécifique. Pour les problèmes de FAP, décrivez-moi vos symptômes (voyants, perte de puissance, fumée, etc.)",
       source: 'AI',
-      confidence: 0.7,
       ctas: [
-        {
-          type: 'contact',
-          text: '📞 Parler à un expert',
-          action: 'contact_expert'
-        }
+        { type: 'contact', text: '📞 Parler à un expert', action: 'contact_expert' }
       ]
     };
   }
@@ -634,10 +256,10 @@ class ConversationalFAPEngine {
         },
         body: JSON.stringify({
           model: 'claude-3-sonnet-20240229',
-          max_tokens: 400,
+          max_tokens: 300,
           messages: [{
             role: 'user',
-            content: `Tu es Julien, expert automobile spécialisé FAP Re-Fap. Question: ${message}`
+            content: `Tu es Julien, expert FAP Re-Fap. Réponds brièvement à cette question automobile: ${message}`
           }]
         })
       });
@@ -649,66 +271,13 @@ class ConversationalFAPEngine {
       return null;
     }
   }
-
-  calculateFAPConfidence(collectedData) {
-    let confidence = 0;
-    let dataPoints = 0;
-
-    Object.keys(collectedData).forEach(key => {
-      if (collectedData[key] && key !== 'initial_query') {
-        dataPoints++;
-        if (key === 'detectedCode') confidence += 0.4;
-        else if (key.includes('symptom')) confidence += 0.2;
-        else confidence += 0.1;
-      }
-    });
-
-    return Math.min(confidence, 0.95);
-  }
-
-  canProvideFAPDiagnosis(conversationState) {
-    const { collectedData, detectedCode } = conversationState;
-    
-    // Si code d'erreur détecté = diagnostic immédiat
-    if (detectedCode) {
-      console.log('✅ Diagnostic possible: Code d\'erreur détecté');
-      return true;
-    }
-    
-    // Vérifier qu'on a assez de données importantes
-    const hasSymptoms = collectedData.fap_symptom_detection === 'oui';
-    const hasDrivingPattern = collectedData.fap_driving_analysis;
-    const hasPhysicalSymptoms = collectedData.fap_physical_symptoms === 'oui';
-    
-    console.log('🔍 Données collectées:', {
-      hasSymptoms,
-      hasDrivingPattern, 
-      hasPhysicalSymptoms,
-      allData: Object.keys(collectedData)
-    });
-    
-    // Il faut au minimum les symptômes ET le pattern de conduite
-    if (hasSymptoms && hasDrivingPattern) {
-      console.log('✅ Diagnostic possible: Symptômes + pattern de conduite');
-      return true;
-    }
-    
-    // Ou symptômes physiques + pattern
-    if (hasPhysicalSymptoms && hasDrivingPattern) {
-      console.log('✅ Diagnostic possible: Symptômes physiques + pattern');
-      return true;
-    }
-    
-    console.log('❌ Pas assez de données pour diagnostic');
-    return false;
-  }
 }
 
-// ==================== ROUTES ====================
-const fapEngine = new ConversationalFAPEngine();
+// ==================== ROUTES SIMPLES ====================
+const fapExpert = new SimpleFAPExpert();
 
-// Sessions de conversation (en mémoire pour la démo)
-const conversationSessions = new Map();
+// Sessions simples en mémoire
+const sessions = new Map();
 
 app.post('/api/chat', async (req, res) => {
   try {
@@ -718,20 +287,27 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'Message requis' });
     }
 
-    // Récupérer ou créer session
-    const conversationState = conversationSessions.get(sessionId);
+    // Récupérer l'état de session
+    const sessionData = sessions.get(sessionId) || { step: 'initial' };
     
     // Traiter le message
-    const result = await fapEngine.processMessage(message, conversationState);
+    const result = await fapExpert.processMessage(message, sessionData.step);
     
-    // Sauvegarder l'état de conversation
-    if (result.conversationState) {
-      conversationSessions.set(sessionId, result.conversationState);
+    // Sauvegarder l'état
+    if (result.nextStep) {
+      sessions.set(sessionId, { 
+        step: result.nextStep,
+        caseId: result.caseId,
+        lastMessage: message 
+      });
     }
     
     res.json({
       success: true,
-      ...result,
+      response: result.message,
+      source: result.source,
+      confidence: result.confidence || 0.8,
+      ctas: result.ctas || [],
       sessionId: sessionId,
       timestamp: new Date().toISOString()
     });
@@ -745,53 +321,34 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-// Route de test FAP
-app.get('/api/test-fap/:query', async (req, res) => {
-  try {
-    const result = await fapEngine.processMessage(req.params.query);
-    res.json({
-      query: req.params.query,
-      result: result,
-      debug: true
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+// Reset session
+app.post('/api/reset', (req, res) => {
+  const { sessionId = 'default' } = req.body;
+  sessions.delete(sessionId);
+  res.json({ success: true });
 });
 
-// Route de santé
+// Health check
 app.get('/api/health', (req, res) => {
   res.json({ 
-    status: 'OK', 
+    status: 'OK',
     timestamp: new Date().toISOString(),
     services: {
-      fap_expert: 'Conversationnel intégré',
-      other_issues: `${OTHER_ISSUES_DATABASE.length} cas`,
-      claude: CLAUDE_API_KEY ? 'Configuré' : 'Manquant',
-      openai: OPENAI_API_KEY ? 'Configuré' : 'Manquant'
+      fap_expert: `${FAP_EXPERT_DATABASE.length} cas FAP`,
+      other_issues: `${OTHER_ISSUES_DB.length} autres cas`,
+      claude: CLAUDE_API_KEY ? 'Configuré' : 'Manquant'
     },
-    version: 'FAP Re-Fap Conversationnel Expert',
-    conversation_steps: Object.keys(FAP_CONVERSATION_DATABASE.conversation_steps).length,
-    error_codes: Object.keys(FAP_CONVERSATION_DATABASE.fap_error_codes).length
+    version: 'FAP Expert Simple & Robuste'
   });
 });
 
-// Reset session
-app.post('/api/reset-session', (req, res) => {
-  const { sessionId = 'default' } = req.body;
-  conversationSessions.delete(sessionId);
-  res.json({ success: true, message: 'Session réinitialisée' });
-});
-
-// Servir le fichier HTML
+// Interface HTML
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(port, () => {
-  console.log(`🚀 Serveur FAP Re-Fap conversationnel démarré sur le port ${port}`);
-  console.log(`🔧 Expert FAP: ${Object.keys(FAP_CONVERSATION_DATABASE.conversation_steps).length} étapes conversationnelles`);
-  console.log(`📊 Autres cas: ${OTHER_ISSUES_DATABASE.length} problèmes couverts`);
-  console.log(`🤖 Fallback: Claude API ${CLAUDE_API_KEY ? '✅' : '❌'}`);
-  console.log(`🔍 Test: http://localhost:${port}/api/test-fap/voyant%20fap%20allume`);
+  console.log(`🚀 FAP Expert Simple démarré sur le port ${port}`);
+  console.log(`🔧 ${FAP_EXPERT_DATABASE.length} cas FAP + ${OTHER_ISSUES_DB.length} autres cas`);
+  console.log(`🤖 Claude API: ${CLAUDE_API_KEY ? '✅' : '❌'}`);
 });
