@@ -11,125 +11,190 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.'));
 
-// Configuration des APIs (seulement IA)
+// Configuration des APIs
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ipoxyhgfnzcggohugzzh.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 
-// ==================== BASE DE DONNÉES FICTIVE ====================
+// ==================== SERVICE SUPABASE ====================
 
-const fakeDatabase = [
-  {
-    id: 'CAS001',
-    symptomes: 'Voyant moteur allumé, perte de puissance',
-    codes_erreur: 'P2002',
-    causes_probables: 'FAP colmaté, conduite urbaine exclusive, injecteurs encrassés',
-    diagnostic_conseille: 'Lecture OBD + vérification pression différentielle FAP',
-    solution_proposee: 'Nettoyage FAP Re-Fap recommandé, suivi d\'un cycle de régénération',
-    conseils_utiles: 'Faire un décrassage sur autoroute, utiliser un AdBlue certifié',
-    erreurs_a_eviter: 'Ne pas forcer la régénération sans diagnostic'
-  },
-  {
-    id: 'CAS002',
-    symptomes: 'Voyant préchauffage qui clignote',
-    codes_erreur: 'P0401',
-    causes_probables: 'Vanne EGR encrassée, défaillance capteur de position',
-    diagnostic_conseille: 'Contrôle vanne EGR + débitmètre',
-    solution_proposee: 'Nettoyage ou remplacement vanne EGR',
-    conseils_utiles: 'Éviter la conduite exclusivement urbaine',
-    erreurs_a_eviter: 'Ne pas rouler longtemps avec ce symptôme'
-  },
-  {
-    id: 'CAS003',
-    symptomes: 'Fumée noire à l\'accélération',
-    codes_erreur: 'P2463',
-    causes_probables: 'Filtre à air sale, injecteurs encrassés',
-    diagnostic_conseille: 'Inspection visuelle, contrôle pression carburant',
-    solution_proposee: 'Nettoyage injecteurs + filtre',
-    conseils_utiles: 'Remplacer régulièrement les filtres',
-    erreurs_a_eviter: 'Ne pas ignorer les symptômes'
+class SupabaseService {
+  constructor() {
+    this.baseUrl = `${SUPABASE_URL}/rest/v1`;
+    this.headers = {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    };
   }
-];
 
-// ==================== SERVICE DE RECHERCHE FICTIVE ====================
-
-class MockSearchService {
-  static searchInDatabase(query) {
-    console.log(`🔍 Recherche dans la base fictive pour: "${query}"`);
-    
-    const results = fakeDatabase.filter(item => {
-      const searchText = `${item.symptomes} ${item.codes_erreur} ${item.causes_probables}`.toLowerCase();
-      const queryWords = query.toLowerCase().split(' ');
+  // Recherche intelligente dans Supabase
+  async searchKnowledgeBase(query) {
+    try {
+      console.log(`🔍 Recherche Supabase pour: "${query}"`);
       
-      return queryWords.some(word => searchText.includes(word));
-    });
+      // Recherche dans les tables disponibles
+      const searches = await Promise.all([
+        this.searchInTable('diagnostic', query),
+        this.searchInTable('messages', query, 'robot'), // Messages du robot uniquement
+        this.searchInTable('symptomes', query)
+      ]);
 
-    // Calculer un score simple
-    const scoredResults = results.map(result => ({
-      ...result,
-      score: this.calculateScore(result, query)
-    })).sort((a, b) => b.score - a.score);
-
-    console.log(`📊 ${scoredResults.length} résultats trouvés`);
-    
-    return {
-      hasRelevantData: scoredResults.length > 0 && scoredResults[0].score > 0.3,
-      results: scoredResults,
-      bestMatch: scoredResults[0] || null
-    };
+      const allResults = searches.flat();
+      const scoredResults = this.scoreResults(allResults, query);
+      
+      console.log(`📊 Résultats trouvés: ${scoredResults.length}, Meilleur score: ${scoredResults[0]?.score || 0}`);
+      
+      return {
+        hasRelevantData: scoredResults.length > 0 && scoredResults[0].score > 0.3,
+        results: scoredResults,
+        bestMatch: scoredResults[0] || null
+      };
+    } catch (error) {
+      console.error('❌ Erreur Supabase:', error);
+      return { hasRelevantData: false, results: [], bestMatch: null };
+    }
   }
 
-  static calculateScore(item, query) {
-    const searchText = `${item.symptomes} ${item.codes_erreur}`.toLowerCase();
-    const queryWords = query.toLowerCase().split(' ');
-    
-    let score = 0;
-    queryWords.forEach(word => {
-      if (searchText.includes(word)) {
-        score += 1;
+  async searchInTable(tableName, query, typeFilter = null) {
+    try {
+      let url = `${this.baseUrl}/${tableName}?select=*`;
+      
+      // Filtre par type si spécifié (pour la table messages)
+      if (typeFilter) {
+        url += `&type_expediteur=eq.${typeFilter}`;
       }
-    });
-    
-    // Bonus pour correspondance dans les symptômes
-    if (item.symptomes.toLowerCase().includes(query.toLowerCase())) {
-      score += 5;
+      
+      // Recherche textuelle (Supabase supporte la recherche full-text)
+      const queryWords = query.toLowerCase().split(' ').filter(word => word.length > 2);
+      
+      const response = await fetch(url, {
+        headers: this.headers
+      });
+
+      if (!response.ok) {
+        console.log(`⚠️ Table ${tableName} non trouvée ou erreur: ${response.status}`);
+        return [];
+      }
+
+      const data = await response.json();
+      
+      // Filtrage et scoring côté client
+      return data
+        .map(record => ({
+          ...record,
+          tableName,
+          relevanceScore: this.calculateRelevance(record, queryWords, query)
+        }))
+        .filter(record => record.relevanceScore > 0);
+        
+    } catch (error) {
+      console.log(`⚠️ Erreur table ${tableName}:`, error.message);
+      return [];
     }
-    
-    return score / queryWords.length;
   }
 
-  static formatResponse(match) {
-    let response = `🔧 **${match.id}** - ${match.symptomes}`;
+  calculateRelevance(record, queryWords, originalQuery) {
+    let score = 0;
     
-    if (match.codes_erreur) {
-      response += `\n\n📟 **Code d'erreur**: ${match.codes_erreur}`;
+    // Champs à analyser selon la table
+    let searchableFields = [];
+    
+    if (record.contenu) {
+      searchableFields.push('contenu');
     }
-    
-    if (match.causes_probables) {
-      response += `\n\n🔍 **Causes probables**: ${match.causes_probables}`;
+    if (record.symptomes) {
+      searchableFields.push('symptomes');
     }
-    
-    if (match.diagnostic_conseille) {
-      response += `\n\n🎯 **Diagnostic conseillé**: ${match.diagnostic_conseille}`;
+    if (record.diagnostic) {
+      searchableFields.push('diagnostic');
     }
-    
-    if (match.solution_proposee) {
-      response += `\n\n✅ **Solution proposée**: ${match.solution_proposee}`;
+    if (record.causes) {
+      searchableFields.push('causes');
     }
-    
-    if (match.conseils_utiles) {
-      response += `\n\n💡 **Conseils utiles**: ${match.conseils_utiles}`;
-    }
-    
-    if (match.erreurs_a_eviter) {
-      response += `\n\n⚠️ **Erreurs à éviter**: ${match.erreurs_a_eviter}`;
+    if (record.solution) {
+      searchableFields.push('solution');
     }
 
-    return {
-      response: response,
-      source: 'database',
-      confidence: match.score,
-      casId: match.id
-    };
+    // Créer le texte de recherche
+    const searchText = searchableFields
+      .map(field => record[field] || '')
+      .join(' ')
+      .toLowerCase();
+
+    // Score basé sur les mots individuels
+    queryWords.forEach(word => {
+      const wordCount = (searchText.match(new RegExp(word, 'g')) || []).length;
+      score += wordCount * 2;
+    });
+
+    // Bonus pour correspondance exacte
+    if (searchText.includes(originalQuery.toLowerCase())) {
+      score += 50;
+    }
+
+    // Bonus pour correspondance partielle (phrases de 2 mots)
+    const words = originalQuery.toLowerCase().split(' ');
+    for (let i = 0; i < words.length - 1; i++) {
+      const phrase = words.slice(i, i + 2).join(' ');
+      if (searchText.includes(phrase)) {
+        score += 25;
+      }
+    }
+
+    console.log(`📋 ${record.identifiant || record.id || 'Unknown'}: "${searchText.substring(0, 50)}..." → Score: ${score}`);
+    
+    return score;
+  }
+
+  scoreResults(results, originalQuery) {
+    return results
+      .map(result => ({
+        ...result,
+        score: this.calculateFinalScore(result, originalQuery)
+      }))
+      .filter(result => result.score > 0)
+      .sort((a, b) => b.score - a.score);
+  }
+
+  calculateFinalScore(result, query) {
+    const baseScore = result.relevanceScore || 0;
+    return Math.min(baseScore / 10, 1);
+  }
+
+  // Sauvegarder un message dans Supabase
+  async saveMessage(message, type, response = null) {
+    try {
+      const messages = [];
+      
+      // Message utilisateur
+      messages.push({
+        type_expediteur: 'utilisateur',
+        contenu: message
+      });
+      
+      // Réponse du robot si fournie
+      if (response) {
+        messages.push({
+          type_expediteur: 'robot',
+          contenu: response
+        });
+      }
+      
+      const saveResponse = await fetch(`${this.baseUrl}/messages`, {
+        method: 'POST',
+        headers: this.headers,
+        body: JSON.stringify(messages)
+      });
+      
+      if (saveResponse.ok) {
+        console.log('💾 Messages sauvegardés dans Supabase');
+      }
+    } catch (error) {
+      console.error('❌ Erreur sauvegarde:', error);
+    }
   }
 }
 
@@ -137,10 +202,7 @@ class MockSearchService {
 
 class AIService {
   static async getChatGPTResponse(message, context = '') {
-    if (!OPENAI_API_KEY) {
-      console.log('⚠️ OpenAI API key manquante');
-      return null;
-    }
+    if (!OPENAI_API_KEY) return null;
     
     try {
       const systemPrompt = `Tu es Julien, expert FAP Re-Fap. Tu aides avec les problèmes de moteur et diagnostic automobile.
@@ -165,10 +227,6 @@ Réponds de manière claire et professionnelle.`;
         })
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
       const data = await response.json();
       return data.choices?.[0]?.message?.content;
     } catch (error) {
@@ -178,10 +236,7 @@ Réponds de manière claire et professionnelle.`;
   }
 
   static async getClaudeResponse(message, context = '') {
-    if (!CLAUDE_API_KEY) {
-      console.log('⚠️ Claude API key manquante');
-      return null;
-    }
+    if (!CLAUDE_API_KEY) return null;
     
     try {
       const systemPrompt = `Tu es Julien, expert FAP Re-Fap. Tu aides avec les problèmes de moteur et diagnostic automobile.
@@ -206,10 +261,6 @@ ${context ? `Contexte: ${context}` : ''}`;
         })
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
       const data = await response.json();
       return data.content?.[0]?.text;
     } catch (error) {
@@ -222,28 +273,37 @@ ${context ? `Contexte: ${context}` : ''}`;
 // ==================== LOGIQUE PRINCIPALE ====================
 
 class ChatbotController {
+  constructor() {
+    this.supabaseService = new SupabaseService();
+  }
+
   async processMessage(userMessage) {
     console.log(`💬 Message reçu: "${userMessage}"`);
 
-    // 🏆 ÉTAPE 1: Recherche dans la base fictive
-    const searchResults = MockSearchService.searchInDatabase(userMessage);
+    // 🏆 ÉTAPE 1: Recherche prioritaire dans Supabase
+    const supabaseResults = await this.supabaseService.searchKnowledgeBase(userMessage);
 
-    if (searchResults.hasRelevantData) {
-      console.log('✅ Réponse trouvée dans la base de données');
-      return MockSearchService.formatResponse(searchResults.bestMatch);
+    if (supabaseResults.hasRelevantData) {
+      console.log('✅ Réponse trouvée dans Supabase');
+      const formattedResponse = this.formatSupabaseResponse(supabaseResults.bestMatch);
+      
+      // Sauvegarder la conversation
+      await this.supabaseService.saveMessage(userMessage, 'utilisateur', formattedResponse.response);
+      
+      return formattedResponse;
     }
 
     console.log('🤖 Fallback vers IA...');
 
-    // 🥈 ÉTAPE 2: Utiliser l'IA
-    const contextData = searchResults.results.slice(0, 2)
-      .map(r => `${r.id}: ${r.symptomes}`)
+    // 🥈 ÉTAPE 2: Enrichissement avec IA
+    const contextData = supabaseResults.results.slice(0, 2)
+      .map(r => r.contenu || r.diagnostic || r.symptomes || '')
       .join('\n');
 
     // Essayer ChatGPT en premier
     let aiResponse = await AIService.getChatGPTResponse(
       userMessage, 
-      contextData ? `Données similaires:\n${contextData}` : ''
+      contextData ? `Données similaires: ${contextData}` : ''
     );
 
     // Fallback vers Claude si ChatGPT échoue
@@ -252,10 +312,48 @@ class ChatbotController {
       aiResponse = await AIService.getClaudeResponse(userMessage, contextData);
     }
 
+    const finalResponse = aiResponse || "Désolé, je ne peux pas répondre à cette question pour le moment.";
+    
+    // Sauvegarder la conversation
+    await this.supabaseService.saveMessage(userMessage, 'utilisateur', finalResponse);
+
     return {
-      response: aiResponse || "Désolé, je ne peux pas répondre à cette question pour le moment.",
+      response: finalResponse,
       source: aiResponse ? 'AI' : 'fallback',
-      context: searchResults.results.length > 0 ? 'partial' : 'none'
+      supabaseContext: supabaseResults.results.length > 0 ? 'partial' : 'none'
+    };
+  }
+
+  formatSupabaseResponse(match) {
+    let response = '';
+    
+    // Format adaptatif selon le contenu disponible
+    if (match.contenu) {
+      response = match.contenu;
+    } else if (match.diagnostic) {
+      response = `🔧 **Diagnostic**: ${match.diagnostic}`;
+      
+      if (match.symptomes) {
+        response = `🔧 **Symptômes**: ${match.symptomes}\n\n${response}`;
+      }
+      
+      if (match.causes) {
+        response += `\n\n🔍 **Causes probables**: ${match.causes}`;
+      }
+      
+      if (match.solution) {
+        response += `\n\n✅ **Solution**: ${match.solution}`;
+      }
+    } else {
+      response = "Information trouvée dans la base de données.";
+    }
+
+    return {
+      response: response,
+      source: 'supabase',
+      confidence: match.score,
+      table: match.tableName,
+      recordId: match.identifiant || match.id
     };
   }
 }
@@ -284,21 +382,38 @@ app.post('/api/chat', async (req, res) => {
   } catch (error) {
     console.error('❌ Erreur serveur:', error);
     res.status(500).json({ 
-      error: 'Erreur interne du serveur: ' + error.message,
+      error: 'Erreur interne du serveur',
       success: false
     });
   }
 });
 
-// Route de test de la base fictive
-app.get('/api/test-database/:query', async (req, res) => {
+// Route de test Supabase
+app.get('/api/test-supabase/:query', async (req, res) => {
   try {
-    const results = MockSearchService.searchInDatabase(req.params.query);
+    const results = await chatbot.supabaseService.searchKnowledgeBase(req.params.query);
     res.json({
       query: req.params.query,
       ...results,
       debug: true
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Route pour voir les messages récents
+app.get('/api/messages', async (req, res) => {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/messages?select=*&order=cree_a.desc&limit=10`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    
+    const messages = await response.json();
+    res.json(messages);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -310,11 +425,12 @@ app.get('/api/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     services: {
-      database: 'Fictive (OK)',
+      supabase: SUPABASE_KEY ? 'Configuré' : 'Manquant',
       openai: OPENAI_API_KEY ? 'Configuré' : 'Manquant',
       claude: CLAUDE_API_KEY ? 'Configuré' : 'Manquant'
     },
-    version: 'Sans Airtable'
+    supabase_url: SUPABASE_URL,
+    version: 'Avec Supabase'
   });
 });
 
@@ -328,5 +444,5 @@ app.listen(port, () => {
   console.log(`🚀 Serveur démarré sur le port ${port}`);
   console.log(`📊 Dashboard: http://localhost:${port}`);
   console.log(`🔧 Test API: http://localhost:${port}/api/health`);
-  console.log(`🔍 Test base: http://localhost:${port}/api/test-database/voyant%20moteur`);
+  console.log(`🔍 Test Supabase: http://localhost:${port}/api/test-supabase/voyant%20moteur`);
 });
