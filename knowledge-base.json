@@ -206,7 +206,7 @@
       "next_workflows": {
         "success": "monitor_driving_habits",
         "partial": "additive_treatment", 
-        "failure": "professional_diagnosis"
+        "failure": "professional_cleaning"
       },
       "success_probability": 0.65
     },
