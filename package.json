@@ -1,7 +1,7 @@
 {
   "name": "julien-chatbot",
-  "version": "2.0.0",
-  "description": "Chatbot Julien FAP Expert avec CTA Post-Diagnostic",
+  "version": "2.1.0",
+  "description": "Chatbot Julien FAP Expert avec Supabase",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,7 +11,8 @@
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "@supabase/supabase-js": "^2.39.0"
   },
   "engines": {
     "node": "20.x"
@@ -24,7 +25,8 @@
     "chatbot",
     "fap",
     "diagnostic",
-    "automobile"
+    "automobile",
+    "supabase"
   ],
   "author": "Votre Nom",
   "license": "MIT"
