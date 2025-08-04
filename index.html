@@ -767,6 +767,38 @@
                         this.showContactInfo();
                         break;
                     
+                    case 'highway_regeneration':
+                        this.startHighwayRegeneration();
+                        break;
+                    
+                    case 'additive_treatment':
+                        this.startAdditiveGuide();
+                        break;
+                    
+                    case 'start_highway_drive':
+                        this.sendMessage('Je commence le trajet autoroute maintenant');
+                        break;
+                    
+                    case 'workflow_success':
+                        this.sendMessage('✅ Ça marche ! Le problème est résolu');
+                        break;
+                    
+                    case 'workflow_partial':
+                        this.sendMessage('🤔 C\'est un peu mieux mais pas complètement résolu');
+                        break;
+                    
+                    case 'workflow_failure':
+                        this.sendMessage('❌ Malheureusement ça n\'a pas fonctionné');
+                        break;
+                    
+                    case 'continue_additive_guide':
+                        this.sendMessage('J\'ai l\'additif FAP, que dois-je faire ?');
+                        break;
+                    
+                    case 'book_appointment':
+                        this.showContactInfo('appointment');
+                        break;
+                    
                     default:
                         // Pour les workflows et autres actions
                         if (action.startsWith('answer_')) {
@@ -781,21 +813,128 @@
                 }
             }
 
-            showContactInfo() {
+            startHighwayRegeneration() {
                 this.displayMessage('assistant', `
-                    📞 **Contact Expert FAP Re-Fap**
+                    🛣️ **Guide de Régénération Autoroute**
                     
-                    **Julien - Expert FAP**
-                    • Téléphone: [Votre numéro]
-                    • Email: [Votre email]
-                    • Atelier: [Votre adresse]
+                    Je vais vous accompagner étape par étape :
                     
-                    **Horaires:**
-                    • Lun-Ven: 8h-18h
-                    • Sam: 8h-12h
+                    **Étape 1/3 : Préparation** ✅
+                    • Vérifiez le niveau de carburant (> 1/4 plein)
+                    • Température extérieure acceptable
+                    • Route dégagée prévue
                     
-                    💡 **Mentionnez votre numéro de session:** ${this.sessionId}
-                `);
+                    Êtes-vous prêt à commencer le trajet de 30-45 minutes ?
+                `, {
+                    ctas: [
+                        {
+                            type: 'primary',
+                            title: '🚗 Commencer le trajet',
+                            action: 'start_highway_drive'
+                        },
+                        {
+                            type: 'secondary',
+                            title: '⏰ Plus tard',
+                            action: 'postpone_regeneration'
+                        }
+                    ]
+                });
+            }
+
+            startAdditiveGuide() {
+                this.displayMessage('assistant', `
+                    🧴 **Guide Traitement Additif FAP**
+                    
+                    **Vous aurez besoin de :**
+                    • 1 flacon d'additif FAP Re-Fap
+                    • Carburant pour faire le plein après
+                    
+                    **Étape 1 : Préparation**
+                    • Réservoir entre 1/4 et 3/4 plein
+                    • Moteur froid de préférence
+                    
+                    Avez-vous l'additif FAP Re-Fap ?
+                `, {
+                    ctas: [
+                        {
+                            type: 'primary',
+                            title: '✅ Oui, j\'ai l\'additif',
+                            action: 'continue_additive_guide'
+                        },
+                        {
+                            type: 'secondary',
+                            title: '🛒 Commander l\'additif',
+                            action: 'order_additive'
+                        }
+                    ]
+                });
+            }
+
+            showProfessionalOptions() {
+                this.displayMessage('assistant', `
+                    👨‍🔧 **Options Professionnelles**
+                    
+                    **Ateliers FAP Re-Fap partenaires :**
+                    
+                    🏪 **Atelier Principal**
+                    • 📍 [Votre adresse]
+                    • 📞 [Votre téléphone]
+                    • ⏰ Lun-Ven 8h-18h, Sam 8h-12h
+                    • 💰 Devis gratuit
+                    
+                    **Services disponibles :**
+                    • 🔍 Diagnostic complet (30€)
+                    • 🧽 Nettoyage FAP (150-250€)
+                    • 🔄 Remplacement FAP (800-1500€)
+                    
+                    💡 **Mentionnez le code "CHATBOT" pour 10% de réduction**
+                `, {
+                    ctas: [
+                        {
+                            type: 'primary',
+                            title: '📞 Prendre RDV',
+                            action: 'book_appointment'
+                        },
+                        {
+                            type: 'secondary',
+                            title: '💬 Poser une question',
+                            action: 'ask_expert'
+                        }
+                    ]
+                });
+            }
+
+            showContactInfo(type = 'general') {
+                let contactMessage = `📞 **Contact Expert FAP Re-Fap**\n\n`;
+                
+                if (type === 'appointment') {
+                    contactMessage += `**🗓️ Prise de Rendez-vous**\n\n`;
+                    contactMessage += `**Julien - Expert FAP Certifié**\n`;
+                    contactMessage += `• 📞 Téléphone: [Votre numéro]\n`;
+                    contactMessage += `• 📧 Email: [Votre email]\n`;
+                    contactMessage += `• 📍 Atelier: [Votre adresse]\n\n`;
+                    contactMessage += `**Créneaux disponibles :**\n`;
+                    contactMessage += `• Lun-Ven: 8h-18h\n`;
+                    contactMessage += `• Sam: 8h-12h\n`;
+                    contactMessage += `• Urgences: 7j/7 sur RDV\n\n`;
+                    contactMessage += `💰 **Tarifs :**\n`;
+                    contactMessage += `• Diagnostic: 30€ (déduit si intervention)\n`;
+                    contactMessage += `• Nettoyage FAP: 150-250€\n`;
+                    contactMessage += `• Remplacement: 800-1500€\n\n`;
+                    contactMessage += `🎁 **Code promo "CHATBOT" : -10%**`;
+                } else {
+                    contactMessage += `**Julien - Expert FAP**\n`;
+                    contactMessage += `• Téléphone: [Votre numéro]\n`;
+                    contactMessage += `• Email: [Votre email]\n`;
+                    contactMessage += `• Atelier: [Votre adresse]\n\n`;
+                    contactMessage += `**Horaires:**\n`;
+                    contactMessage += `• Lun-Ven: 8h-18h\n`;
+                    contactMessage += `• Sam: 8h-12h\n\n`;
+                }
+                
+                contactMessage += `💡 **Mentionnez votre numéro de session:** ${this.sessionId}`;
+                
+                this.displayMessage('assistant', contactMessage);
             }
 
             updateProgress(percentage) {
