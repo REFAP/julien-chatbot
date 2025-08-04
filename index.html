@@ -612,7 +612,7 @@
                 }
 
                 try {
-                    // Appel API avec le nouveau système
+                    // Appel API - IMPORTANT: URL relative pour Vercel
                     const response = await fetch('/api/chat', {
                         method: 'POST',
                         headers: {
@@ -630,12 +630,13 @@
 
                     const data = await response.json();
                     
-                    // Traiter la réponse selon le nouveau format
+                    // Traiter la réponse
                     this.handleResponse(data);
 
                 } catch (error) {
                     console.error('Erreur API:', error);
-                    this.displayError('Problème de connexion au serveur. Vérifiez que le serveur est démarré sur le port 3000.');
+                    // Message d'erreur corrigé - pas de mention du port 3000
+                    this.displayError('Problème de connexion avec le serveur. Veuillez vérifier votre connexion internet et réessayer.');
                 }
 
                 this.setLoading(false);
