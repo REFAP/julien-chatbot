@@ -260,6 +260,22 @@
             border-top: 1px solid #e5e7eb;
         }
 
+        .current-question {
+            background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+            border: 2px solid #0ea5e9;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        .current-question .question-label {
+            color: #0369a1;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
         .chat-input {
             width: 100%;
             min-height: 50px;
@@ -420,6 +436,11 @@
         </div>
 
         <div class="chat-input-container">
+            <div class="current-question" id="currentQuestion" style="display: none;">
+                <div class="question-label">Question en cours :</div>
+                <div id="currentQuestionText"></div>
+            </div>
+            
             <textarea 
                 class="chat-input" 
                 id="messageInput" 
@@ -531,6 +552,9 @@
                 if (data.current_progress !== undefined) {
                     this.updateProgress(data.current_progress);
                 }
+
+                // Mettre à jour la question courante si présente
+                this.updateCurrentQuestion(data);
 
                 // Afficher la réponse principale
                 this.displayMessage('assistant', data.response, {
@@ -787,6 +811,55 @@
                 }
             }
 
+            updateCurrentQuestion(data) {
+                const currentQuestionDiv = document.getElementById('currentQuestion');
+                const currentQuestionText = document.getElementById('currentQuestionText');
+                
+                if (!currentQuestionDiv || !currentQuestionText) return;
+
+                // Si on a une question en attente ou des options
+                if (data.question_type && data.options) {
+                    // Extraire la question de la réponse
+                    const questionMatch = data.response.match(/\*\*(.*?)\*\*/);
+                    const question = questionMatch ? questionMatch[1] : 'Question en cours...';
+                    
+                    currentQuestionText.textContent = question;
+                    currentQuestionDiv.style.display = 'block';
+                    
+                    // Mettre à jour le placeholder
+                    const messageInput = document.getElementById('messageInput');
+                    if (messageInput) {
+                        messageInput.placeholder = "Votre réponse...";
+                    }
+                } else if (data.response.includes('j\'ai besoin de')) {
+                    // Si la réponse contient "j'ai besoin de", extraire la question
+                    const needMatch = data.response.match(/j'ai besoin de\s*:?\s*(.*?)(?:\n|$)/i);
+                    if (needMatch) {
+                        currentQuestionText.textContent = needMatch[1];
+                        currentQuestionDiv.style.display = 'block';
+                        
+                        const messageInput = document.getElementById('messageInput');
+                        if (messageInput) {
+                            messageInput.placeholder = "Répondez à la question ci-dessus...";
+                        }
+                    } else {
+                        currentQuestionDiv.style.display = 'none';
+                        this.resetInputPlaceholder();
+                    }
+                } else {
+                    // Masquer la question si diagnostic terminé
+                    currentQuestionDiv.style.display = 'none';
+                    this.resetInputPlaceholder();
+                }
+            }
+
+            resetInputPlaceholder() {
+                const messageInput = document.getElementById('messageInput');
+                if (messageInput) {
+                    messageInput.placeholder = "Décrivez votre problème FAP (voyants, perte puissance, fumée, codes erreur...)";
+                }
+            }
+
             setLoading(loading) {
                 this.awaitingResponse = loading;
                 const sendButton = document.getElementById('sendButton');
@@ -872,6 +945,12 @@
 
         function resetSession() {
             if (confirm('Voulez-vous vraiment recommencer le diagnostic ?')) {
+                // Réinitialiser la question courante
+                const currentQuestionDiv = document.getElementById('currentQuestion');
+                if (currentQuestionDiv) {
+                    currentQuestionDiv.style.display = 'none';
+                }
+                
                 location.reload();
             }
         }
