@@ -227,11 +227,59 @@
             border-color: #3b82f6;
         }
 
+        .cta-button.secondary {
+            background: #6b7280;
+            color: white;
+            border-color: #6b7280;
+        }
+
         .cta-button.urgent {
             background: #ef4444;
             color: white;
             border-color: #ef4444;
             animation: pulse 2s infinite;
+        }
+
+        .cta-button.professional {
+            background: #8b5cf6;
+            color: white;
+            border-color: #8b5cf6;
+        }
+
+        .cta-button.prevention {
+            background: #10b981;
+            color: white;
+            border-color: #10b981;
+        }
+
+        .cta-button.subscription {
+            background: #f59e0b;
+            color: white;
+            border-color: #f59e0b;
+        }
+
+        .cta-button.success {
+            background: #22c55e;
+            color: white;
+            border-color: #22c55e;
+        }
+
+        .cta-button.info {
+            background: #06b6d4;
+            color: white;
+            border-color: #06b6d4;
+        }
+
+        .cta-button.warning {
+            background: #f97316;
+            color: white;
+            border-color: #f97316;
+        }
+
+        .cta-button.alternative {
+            background: #64748b;
+            color: white;
+            border-color: #64748b;
         }
 
         @keyframes pulse {
@@ -688,19 +736,29 @@
                     html += '</div>';
                 }
 
-                // Boutons CTA
+                // Boutons CTA avec gestion des CTA enrichis
                 if (metadata.ctas && metadata.ctas.length > 0) {
                     html += '<div class="cta-buttons">';
                     metadata.ctas.forEach(cta => {
                         const buttonClass = this.getCTAButtonClass(cta.type);
+                        
+                        // Description enrichie si disponible
+                        const description = cta.description ? `<small>${cta.description}</small>` : '';
+                        const successRate = cta.success_rate ? `<small>(${cta.success_rate}% succès)</small>` : '';
+                        
                         html += `
-                            <button class="cta-button ${buttonClass}" onclick="chat.executeCTA('${cta.action}', '${this.escapeHtml(cta.title)}')">
+                            <button class="cta-button ${buttonClass}" onclick="chat.executeCTA('${cta.action}', '${this.escapeHtml(cta.title)}', ${this.escapeHtml(JSON.stringify(cta))})">
                                 ${cta.title}
-                                ${cta.success_rate ? `<small>(${cta.success_rate}% succès)</small>` : ''}
+                                ${description || successRate}
                             </button>
                         `;
                     });
                     html += '</div>';
+                    
+                    // Ajouter info sur l'arbre de décision si actif
+                    if (metadata.decision_tree_active) {
+                        html += '<div style="margin-top: 8px; font-size: 11px; color: #6b7280; font-style: italic;">💡 Solutions personnalisées selon votre situation</div>';
+                    }
                 }
 
                 return html;
@@ -749,10 +807,19 @@
 
             getCTAButtonClass(type) {
                 const classes = {
+                    'primary': 'primary',
+                    'secondary': 'secondary',
                     'confirmation': 'primary',
                     'urgent': 'urgent',
                     'emergency': 'urgent',
-                    'answer': 'primary'
+                    'answer': 'primary',
+                    'professional': 'professional',
+                    'prevention': 'prevention',
+                    'subscription': 'subscription',
+                    'success': 'success',
+                    'info': 'info',
+                    'warning': 'warning',
+                    'alternative': 'alternative'
                 };
                 return classes[type] || '';
             }
