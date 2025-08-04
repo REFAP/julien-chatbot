@@ -1,7 +1,7 @@
 {
   "name": "julien-chatbot",
-  "version": "1.0.0",
-  "description": "Chatbot Julien avec priorité Airtable",
+  "version": "2.0.0",
+  "description": "Chatbot Julien FAP Expert avec CTA Post-Diagnostic",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -15,5 +15,17 @@
   },
   "engines": {
     "node": "20.x"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/votre-username/julien-chatbot"
+  },
+  "keywords": [
+    "chatbot",
+    "fap",
+    "diagnostic",
+    "automobile"
+  ],
+  "author": "Votre Nom",
+  "license": "MIT"
 }
