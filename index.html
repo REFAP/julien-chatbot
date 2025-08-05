@@ -10,7 +10,12 @@
             padding: 0;
             box-sizing: border-box;
         }
-
+<meta http-equiv="Content-Security-Policy" content="
+    default-src 'self' https:;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net;
+    style-src 'self' 'unsafe-inline';
+    connect-src 'self' https://*.supabase.co;
+">
         body {
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -1684,4 +1689,5 @@
                     console.error('Erreur recherche:', error);
                     return null;
                 }
+
 
