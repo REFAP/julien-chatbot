@@ -753,7 +753,7 @@
                 }
             }
 
-            // NOUVELLE FONCTION : Recherche dans l'historique
+            // NOUVELLE FONCTION : Recherche dans l'historique améliorée
             async searchSimilarConversations(userMessage) {
                 try {
                     const lowerMessage = userMessage.toLowerCase();
@@ -761,21 +761,75 @@
                     
                     console.log('🔍 Recherche avec mots-clés:', keywords);
                     
-                    // Construire la requête de recherche
-                    let query = supabaseClient
+                    // Stratégie de recherche multiple
+                    let results = [];
+                    
+                    // 1. Recherche exacte d'abord
+                    const { data: exactMatches } = await supabaseClient
                         .from('chat_messages')
                         .select('*')
-                        .eq('sender', 'user');
+                        .eq('sender', 'user')
+                        .ilike('content', `%${lowerMessage}%`)
+                        .limit(5);
                     
-                    // Recherche par mots-clés
-                    if (keywords.length > 0) {
-                        const searchPattern = keywords.join('|');
-                        query = query.ilike('content', `%${searchPattern}%`);
+                    if (exactMatches && exactMatches.length > 0) {
+                        results = exactMatches;
+                        console.log(`✅ ${exactMatches.length} correspondances exactes trouvées`);
                     }
                     
-                    const { data: userMessages, error } = await query.limit(10);
+                    // 2. Si pas de résultats exacts, recherche par mots-clés
+                    if (results.length === 0 && keywords.length > 0) {
+                        for (const keyword of keywords) {
+                            const { data: keywordMatches } = await supabaseClient
+                                .from('chat_messages')
+                                .select('*')
+                                .eq('sender', 'user')
+                                .ilike('content', `%${keyword}%`)
+                                .limit(10);
+                            
+                            if (keywordMatches) {
+                                results = [...results, ...keywordMatches];
+                            }
+                        }
+                        
+                        // Dédupliquer les résultats
+                        results = Array.from(new Map(results.map(item => [item.id, item])).values());
+                        console.log(`✅ ${results.length} correspondances par mots-clés`);
+                    }
                     
-                    if (error || !userMessages || userMessages.length === 0) {
+                    // 3. Recherche par métadonnées si disponibles
+                    if (results.length === 0) {
+                        // Extraire marque/modèle si mentionné
+                        const vehicleInfo = this.extractVehicleInfo(lowerMessage);
+                        if (vehicleInfo.make || vehicleInfo.model) {
+                            const { data: metadataMatches } = await supabaseClient
+                                .from('chat_messages')
+                                .select('*')
+                                .eq('sender', 'assistant')
+                                .or(`metadata->vehicle.ilike.%${vehicleInfo.make}%,metadata->vehicle.ilike.%${vehicleInfo.model}%`)
+                                .limit(10);
+                            
+                            if (metadataMatches && metadataMatches.length > 0) {
+                                // Récupérer les questions associées
+                                for (const match of metadataMatches) {
+                                    const { data: userMsg } = await supabaseClient
+                                        .from('chat_messages')
+                                        .select('*')
+                                        .eq('session_id', match.session_id)
+                                        .eq('sender', 'user')
+                                        .single();
+                                    
+                                    if (userMsg) {
+                                        results.push(userMsg);
+                                    }
+                                }
+                                console.log(`✅ ${results.length} correspondances par véhicule`);
+                            }
+                        }
+                    }
+                    
+                    if (results.length === 0) {
+                        console.log('❌ Aucune correspondance trouvée');
                         return null;
                     }
                     
@@ -783,19 +837,20 @@
                     let bestMatch = null;
                     let bestScore = 0;
                     
-                    for (const msg of userMessages) {
+                    for (const msg of results) {
                         const score = this.calculateSimilarity(lowerMessage, msg.content.toLowerCase());
-                        if (score > bestScore && score > 0.5) { // Seuil de similarité
+                        if (score > bestScore) {
                             bestScore = score;
                             bestMatch = msg;
                         }
                     }
                     
-                    if (!bestMatch) {
+                    // Seuil de similarité plus bas pour accepter plus de résultats
+                    if (!bestMatch || bestScore < 0.3) {
                         return null;
                     }
                     
-                    console.log(`✅ Correspondance trouvée (score: ${bestScore.toFixed(2)}):`, bestMatch.content);
+                    console.log(`✅ Meilleure correspondance (score: ${bestScore.toFixed(2)}):`, bestMatch.content);
                     
                     // Récupérer la réponse associée
                     const { data: assistantResponse } = await supabaseClient
@@ -810,15 +865,16 @@
                         return null;
                     }
                     
-                    // Adapter la réponse
+                    // Adapter la réponse avec plus de contexte
                     const response = assistantResponse[0];
                     return {
                         success: true,
                         response: this.adaptResponse(response.content, bestScore),
-                        confidence: Math.min(bestScore + 0.2, 0.95), // Boost de confiance
+                        confidence: Math.min(bestScore + 0.2, 0.95),
                         source: 'database',
                         original_question: bestMatch.content,
                         similarity_score: bestScore,
+                        needs_clarification: bestScore < 0.5, // Demander des précisions si score faible
                         ...response.metadata
                     };
                     
@@ -828,19 +884,57 @@
                 }
             }
 
-            // Extraire les mots-clés importants
+            // Extraire les informations de véhicule
+            extractVehicleInfo(text) {
+                const vehiclePatterns = {
+                    makes: ['audi', 'bmw', 'mercedes', 'volkswagen', 'vw', 'peugeot', 'renault', 'citroen', 'ford', 'opel', 'nissan', 'toyota'],
+                    models: ['a3', 'a4', 'a6', 'q7', 'q5', '320d', '520d', 'x3', 'x5', 'c220', 'e220', 'golf', 'passat', 'tiguan', '308', '3008', '508', 'megane', 'scenic', 'c4', 'c5', 'focus', 'mondeo']
+                };
+                
+                let info = { make: null, model: null, engine: null };
+                
+                // Rechercher la marque
+                for (const make of vehiclePatterns.makes) {
+                    if (text.includes(make)) {
+                        info.make = make.toUpperCase();
+                        break;
+                    }
+                }
+                
+                // Rechercher le modèle
+                for (const model of vehiclePatterns.models) {
+                    if (text.includes(model)) {
+                        info.model = model.toUpperCase();
+                        break;
+                    }
+                }
+                
+                // Rechercher le moteur
+                const engineMatch = text.match(/\d+\.?\d*\s*(tdi|hdi|dci|cdi|tdci|bluehdi|bluetec)/i);
+                if (engineMatch) {
+                    info.engine = engineMatch[0].toUpperCase();
+                }
+                
+                return info;
+            }
+
+            // Extraire les mots-clés importants (version améliorée)
             extractKeywords(text) {
                 const keywords = [];
                 
-                // Mots-clés FAP spécifiques
+                // Mots-clés FAP spécifiques étendus
                 const fapKeywords = [
-                    'fumée', 'noire', 'blanche', 'bleue',
-                    'voyant', 'orange', 'rouge', 'moteur',
-                    'p2002', 'p2003', 'code', 'erreur',
-                    'perte', 'puissance', 'régénération',
-                    'encrassé', 'bouché', 'colmaté',
-                    'nettoyage', 'additif', 'turbo',
-                    'consommation', 'ville', 'autoroute'
+                    'fumée', 'noire', 'blanche', 'bleue', 'fumee',
+                    'voyant', 'orange', 'rouge', 'moteur', 'témoin', 'temoin',
+                    'p2002', 'p2003', 'p242f', 'p2452', 'p244b', 'code', 'erreur',
+                    'perte', 'puissance', 'régénération', 'regeneration',
+                    'encrassé', 'bouché', 'colmaté', 'encrasse', 'bouche', 'colmate',
+                    'nettoyage', 'additif', 'turbo', 'nettoyer',
+                    'consommation', 'ville', 'autoroute', 'surconsommation',
+                    'garantie', 'prix', 'coût', 'cout', 'tarif', 'devis',
+                    'diagnostic', 'vidange', 'huile', 'adblue',
+                    'mode', 'dégradé', 'degrade', 'urgence',
+                    'démarrage', 'demarrage', 'démarre', 'demarre'
                 ];
                 
                 // Extraire les mots-clés présents
@@ -853,44 +947,74 @@
                 // Ajouter les codes d'erreur
                 const errorCodes = text.match(/p\d{4}/gi);
                 if (errorCodes) {
-                    keywords.push(...errorCodes);
+                    keywords.push(...errorCodes.map(code => code.toLowerCase()));
                 }
                 
-                return keywords;
+                // Ajouter les marques de véhicules
+                const vehicleInfo = this.extractVehicleInfo(text);
+                if (vehicleInfo.make) keywords.push(vehicleInfo.make.toLowerCase());
+                if (vehicleInfo.model) keywords.push(vehicleInfo.model.toLowerCase());
+                
+                return [...new Set(keywords)]; // Supprimer les doublons
             }
 
-            // Calculer la similarité entre deux textes
+            // Calculer la similarité entre deux textes (version améliorée)
             calculateSimilarity(text1, text2) {
-                // Méthode simple : ratio de mots communs
-                const words1 = text1.split(/\s+/);
-                const words2 = text2.split(/\s+/);
+                // Normaliser les textes
+                const normalize = (text) => text
+                    .toLowerCase()
+                    .replace(/[^\w\s]/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
                 
-                const commonWords = words1.filter(word => 
-                    words2.some(w => w.includes(word) || word.includes(w))
-                );
+                const norm1 = normalize(text1);
+                const norm2 = normalize(text2);
                 
-                const similarity = commonWords.length / Math.max(words1.length, words2.length);
+                // Si textes identiques
+                if (norm1 === norm2) return 1;
                 
-                // Bonus pour mots-clés importants
-                const importantWords = ['fumée', 'noire', 'voyant', 'p2002', 'p2003', 'encrassé'];
-                const hasImportantMatch = importantWords.some(word => 
-                    text1.includes(word) && text2.includes(word)
-                );
+                // Méthode 1 : Mots communs
+                const words1 = norm1.split(' ');
+                const words2 = norm2.split(' ');
+                const commonWords = words1.filter(word => words2.includes(word));
+                const wordScore = commonWords.length / Math.max(words1.length, words2.length);
                 
-                return hasImportantMatch ? Math.min(similarity + 0.2, 1) : similarity;
+                // Méthode 2 : Mots-clés importants
+                const keywords1 = this.extractKeywords(text1);
+                const keywords2 = this.extractKeywords(text2);
+                const commonKeywords = keywords1.filter(k => keywords2.includes(k));
+                const keywordScore = keywords1.length > 0 ? commonKeywords.length / keywords1.length : 0;
+                
+                // Méthode 3 : Distance de Levenshtein normalisée (simplifiée)
+                const maxLength = Math.max(norm1.length, norm2.length);
+                let distance = 0;
+                for (let i = 0; i < maxLength; i++) {
+                    if (norm1[i] !== norm2[i]) distance++;
+                }
+                const distanceScore = 1 - (distance / maxLength);
+                
+                // Score final pondéré
+                const finalScore = (wordScore * 0.3) + (keywordScore * 0.5) + (distanceScore * 0.2);
+                
+                return Math.min(finalScore, 1);
             }
 
-            // Adapter une réponse trouvée dans la base
+            // Adapter une réponse trouvée dans la base (version conversationnelle)
             adaptResponse(originalResponse, similarity) {
-                if (similarity > 0.9) {
-                    // Très similaire : utiliser telle quelle
-                    return originalResponse;
-                } else if (similarity > 0.7) {
-                    // Similaire : ajouter une note
-                    return `D'après un cas similaire :\n\n${originalResponse}\n\n💡 *Note : Cette réponse est basée sur un problème similaire. Votre cas peut nécessiter un diagnostic spécifique.*`;
+                // Nettoyer la réponse de certains patterns
+                let cleanResponse = originalResponse
+                    .replace(/Sur \w+ \d+\.\d+ \w+,/g, '') // Enlever "Sur A4 2.0 TDI,"
+                    .trim();
+                
+                if (similarity > 0.8) {
+                    // Très similaire : utiliser avec confiance
+                    return cleanResponse;
+                } else if (similarity > 0.5) {
+                    // Similaire : ajouter contexte
+                    return `D'après mon expérience avec des cas similaires :\n\n${cleanResponse}\n\n💡 *Votre situation peut varier légèrement. N'hésitez pas à me donner plus de détails si besoin.*`;
                 } else {
-                    // Moyennement similaire : adapter davantage
-                    return `Voici ce que je peux vous dire basé sur mon expérience :\n\n${originalResponse}\n\n⚠️ *Important : Cette réponse provient d'un cas partiellement similaire. Je recommande une vérification approfondie pour votre situation spécifique.*`;
+                    // Peu similaire : demander clarification
+                    return `Je vais vous aider en me basant sur des situations proches :\n\n${cleanResponse}\n\n❓ **Pour être plus précis**, pouvez-vous me dire :\n• Quel modèle de véhicule exactement ?\n• Quels symptômes observez-vous ?\n• Depuis combien de temps ?`;
                 }
             }
 
