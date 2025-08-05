@@ -15,7 +15,7 @@
 </head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Julien - Expert FAP Re-Fap v2.0</title>
+    <title>Julien - Expert FAP Re-Fap v3.0</title>
     <style>
         * {
             margin: 0;
@@ -451,6 +451,36 @@
             background: #eff6ff;
         }
 
+        .collected-data-summary {
+            background: #f0f9ff;
+            border: 1px solid #3b82f6;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 11px;
+        }
+
+        .collected-data-summary h5 {
+            color: #1e40af;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        .collected-data-summary .data-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+        }
+
+        .collected-data-summary .data-label {
+            color: #64748b;
+        }
+
+        .collected-data-summary .data-value {
+            color: #1e293b;
+            font-weight: 600;
+        }
+
         @media (max-width: 768px) {
             .chat-container {
                 height: 100vh;
@@ -499,7 +529,7 @@
             <div class="session-info" id="sessionInfo">Session: Nouvelle</div>
             <div class="expert-avatar">👨‍🔧</div>
             <div class="expert-name">Julien</div>
-            <div class="expert-title">Expert FAP Re-Fap v2.0</div>
+            <div class="expert-title">Expert FAP Re-Fap v3.0</div>
         </div>
 
         <div class="chat-messages" id="chatMessages">
@@ -507,7 +537,7 @@
                 <div class="message-avatar">J</div>
                 <div class="message-content">
                     <div class="diagnostic-card">
-                        <h3>🔧 Bienvenue chez FAP Re-Fap Expert v2.0</h3>
+                        <h3>🔧 Bienvenue chez FAP Re-Fap Expert v3.0</h3>
                         <p>Je suis votre assistant intelligent pour diagnostiquer les problèmes de FAP (Filtre à Particules) avec précision.</p>
                         
                         <div class="progress-indicator">
@@ -588,7 +618,22 @@
                 this.messageHistory = [];
                 this.currentProgress = 0;
                 this.awaitingResponse = false;
-                this.useDatabase = true; // Flag pour activer/désactiver la DB
+                this.useDatabase = true;
+                
+                // NOUVEAU : Système de collecte de données amélioré
+                this.collectedData = {
+                    errorCode: null,
+                    duration: null,
+                    vehicleInfo: null,
+                    symptoms: [],
+                    drivingType: null,
+                    mileage: null,
+                    previousMaintenance: null,
+                    lastRegeneration: null
+                };
+                this.questionSequence = 0;
+                this.isCollectingData = false;
+                this.currentQuestionContext = null;
                 
                 this.initializeEventListeners();
                 this.generateSessionId();
@@ -619,7 +664,6 @@
                 const messageInput = document.getElementById('messageInput');
                 const sendButton = document.getElementById('sendButton');
 
-                // Enter pour envoyer (Shift+Enter pour nouvelle ligne)
                 if (messageInput) {
                     messageInput.addEventListener('keydown', (e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -628,14 +672,12 @@
                         }
                     });
 
-                    // Auto-resize du textarea
                     messageInput.addEventListener('input', () => {
                         messageInput.style.height = 'auto';
                         messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
                     });
                 }
 
-                // Bouton envoyer
                 if (sendButton) {
                     sendButton.addEventListener('click', () => {
                         this.sendMessage();
@@ -650,7 +692,6 @@
                     sessionInfo.textContent = `Session: ${this.sessionId.split('_')[1]}`;
                 }
                 
-                // Créer la session dans Supabase si connecté
                 if (this.useDatabase) {
                     this.createDatabaseSession();
                 }
@@ -678,17 +719,78 @@
                 }
             }
 
-            // FONCTION MODIFIÉE POUR UTILISER LA BASE DE DONNÉES
+            // NOUVELLE FONCTION : Obtenir la prochaine question
+            getNextQuestion() {
+                const questions = [
+                    {
+                        id: 'duration',
+                        text: 'Depuis combien de temps observez-vous ce problème ?',
+                        options: [
+                            { label: '📅 Moins d\'une semaine', value: 'recent' },
+                            { label: '📆 1-4 semaines', value: 'weeks' },
+                            { label: '🗓️ Plus d\'un mois', value: 'old' }
+                        ]
+                    },
+                    {
+                        id: 'vehicle',
+                        text: 'Quel est votre véhicule ? (marque, modèle, année)',
+                        freeText: true,
+                        placeholder: 'Ex: Audi A4 2.0 TDI 2018'
+                    },
+                    {
+                        id: 'mileage',
+                        text: 'Quel est le kilométrage de votre véhicule ?',
+                        options: [
+                            { label: '✅ Moins de 100 000 km', value: 'low' },
+                            { label: '⚠️ 100-200 000 km', value: 'medium' },
+                            { label: '🔴 Plus de 200 000 km', value: 'high' }
+                        ]
+                    },
+                    {
+                        id: 'driving',
+                        text: 'Quel type de conduite faites-vous principalement ?',
+                        options: [
+                            { label: '🏙️ Ville (80%+)', value: 'city' },
+                            { label: '🛣️ Autoroute (80%+)', value: 'highway' },
+                            { label: '⚖️ Mixte 50/50', value: 'mixed' }
+                        ]
+                    },
+                    {
+                        id: 'symptoms',
+                        text: 'Quels autres symptômes observez-vous ? (plusieurs choix possibles)',
+                        multiSelect: true,
+                        options: [
+                            { label: '💨 Fumée à l\'échappement', value: 'smoke' },
+                            { label: '⚡ Perte de puissance', value: 'power_loss' },
+                            { label: '⛽ Surconsommation', value: 'consumption' },
+                            { label: '🔊 Bruits anormaux', value: 'noise' },
+                            { label: '🚗 Mode dégradé', value: 'limp_mode' },
+                            { label: '✅ Aucun autre symptôme', value: 'none' }
+                        ]
+                    },
+                    {
+                        id: 'lastMaintenance',
+                        text: 'Quand avez-vous fait votre dernière vidange ?',
+                        options: [
+                            { label: '📅 < 10 000 km', value: 'recent' },
+                            { label: '📆 10-20 000 km', value: 'normal' },
+                            { label: '🔴 > 20 000 km', value: 'overdue' },
+                            { label: '❓ Je ne sais pas', value: 'unknown' }
+                        ]
+                    }
+                ];
+                
+                return questions[this.questionSequence] || null;
+            }
+
+            // FONCTION MODIFIÉE : Gérer les réponses de manière plus intelligente
             async sendMessage(message = null) {
                 const messageInput = document.getElementById('messageInput');
                 const userMessage = message || messageInput.value.trim();
                 
                 if (!userMessage || this.awaitingResponse) return;
 
-                // Désactiver l'interface pendant le traitement
                 this.setLoading(true);
-                
-                // Afficher le message utilisateur
                 this.displayMessage('user', userMessage);
                 
                 if (messageInput) {
@@ -697,7 +799,7 @@
                 }
 
                 try {
-                    // Sauvegarder dans Supabase si connecté
+                    // Sauvegarder le message utilisateur
                     if (this.useDatabase) {
                         const { data: messageData, error: messageError } = await supabaseClient
                             .from('chat_messages')
@@ -714,37 +816,62 @@
                         }
                     }
 
-                    // NOUVELLE LOGIQUE : Chercher d'abord dans la base
+                    // Déterminer le type de réponse nécessaire
                     let response;
-                    if (this.useDatabase) {
-                        // Chercher des conversations similaires
-                        const historicalResponse = await this.searchSimilarConversations(userMessage);
-                        
-                        if (historicalResponse) {
-                            console.log('✅ Réponse trouvée dans l\'historique');
-                            response = historicalResponse;
+                    
+                    // Si on est en mode collecte de données
+                    if (this.isCollectingData && this.currentQuestionContext) {
+                        response = await this.handleDataCollection(userMessage);
+                    }
+                    // Si c'est un code d'erreur, commencer la collecte
+                    else if (this.isErrorCode(userMessage)) {
+                        this.startDataCollection(userMessage);
+                        response = await this.generateNextQuestion();
+                    }
+                    // Sinon, chercher dans la base ou générer une réponse
+                    else {
+                        if (this.useDatabase) {
+                            const historicalResponse = await this.searchSimilarConversations(userMessage);
+                            
+                            if (historicalResponse && historicalResponse.confidence > 0.6) {
+                                console.log('✅ Réponse pertinente trouvée dans l\'historique');
+                                response = historicalResponse;
+                            } else {
+                                console.log('🔄 Génération de réponse contextuelle');
+                                response = await this.generateLocalResponse(userMessage);
+                            }
                         } else {
-                            console.log('🔄 Génération de réponse locale');
                             response = await this.generateLocalResponse(userMessage);
                         }
-                    } else {
-                        // Mode hors ligne
-                        response = await this.generateLocalResponse(userMessage);
                     }
                     
-                    // Sauvegarder la réponse dans Supabase
+                    // Sauvegarder la réponse enrichie
                     if (this.useDatabase && response.response) {
+                        const enrichedMetadata = {
+                            confidence: response.confidence,
+                            top_causes: response.top_causes,
+                            source: response.source || 'generated',
+                            diagnostic_context: this.isCollectingData ? {
+                                error_codes: this.collectedData.errorCode ? [this.collectedData.errorCode] : [],
+                                symptoms: this.collectedData.symptoms,
+                                vehicle_info: this.collectedData.vehicleInfo,
+                                driving_type: this.collectedData.drivingType,
+                                mileage_range: this.collectedData.mileage,
+                                duration: this.collectedData.duration,
+                                last_maintenance: this.collectedData.lastMaintenance
+                            } : null,
+                            solution_details: response.recommendedSolution || null,
+                            question_sequence: this.questionSequence,
+                            collected_data_complete: this.isDataCollectionComplete()
+                        };
+
                         const { error: responseError } = await supabaseClient
                             .from('chat_messages')
                             .insert([{
                                 session_id: this.sessionId,
                                 sender: 'assistant',
                                 content: response.response,
-                                metadata: {
-                                    confidence: response.confidence,
-                                    top_causes: response.top_causes,
-                                    source: response.source || 'generated'
-                                },
+                                metadata: enrichedMetadata,
                                 created_at: new Date().toISOString()
                             }]);
 
@@ -753,7 +880,6 @@
                         }
                     }
 
-                    // Afficher la réponse
                     this.handleResponse(response);
                     
                 } catch (error) {
@@ -765,7 +891,687 @@
                 }
             }
 
-            // NOUVELLE FONCTION : Recherche dans l'historique améliorée
+            // NOUVELLE FONCTION : Vérifier si c'est un code d'erreur
+            isErrorCode(message) {
+                const errorCodePattern = /p[0-9]{4}/i;
+                return errorCodePattern.test(message);
+            }
+
+            // NOUVELLE FONCTION : Démarrer la collecte de données
+            startDataCollection(message) {
+                this.isCollectingData = true;
+                this.questionSequence = 0;
+                
+                // Extraire le code d'erreur
+                const errorCodeMatch = message.match(/p[0-9]{4}/i);
+                if (errorCodeMatch) {
+                    this.collectedData.errorCode = errorCodeMatch[0].toUpperCase();
+                }
+                
+                console.log('🔄 Démarrage collecte de données pour:', this.collectedData.errorCode);
+            }
+
+            // NOUVELLE FONCTION : Gérer la collecte de données
+            async handleDataCollection(userMessage) {
+                const currentQuestion = this.currentQuestionContext;
+                
+                if (!currentQuestion) {
+                    return this.generateNextQuestion();
+                }
+                
+                // Stocker la réponse selon le type de question
+                switch (currentQuestion.id) {
+                    case 'duration':
+                        const durationMap = {
+                            'récent': 'recent', 'semaine': 'recent',
+                            'semaines': 'weeks', 'mois': 'old'
+                        };
+                        this.collectedData.duration = this.findMatchingValue(userMessage, durationMap) || 'unknown';
+                        break;
+                        
+                    case 'vehicle':
+                        this.collectedData.vehicleInfo = this.extractVehicleInfo(userMessage);
+                        break;
+                        
+                    case 'mileage':
+                        const mileageMap = {
+                            'moins': 'low', '100': 'medium', '200': 'high'
+                        };
+                        this.collectedData.mileage = this.findMatchingValue(userMessage, mileageMap) || 'medium';
+                        break;
+                        
+                    case 'driving':
+                        const drivingMap = {
+                            'ville': 'city', 'autoroute': 'highway', 'mixte': 'mixed'
+                        };
+                        this.collectedData.drivingType = this.findMatchingValue(userMessage, drivingMap) || 'mixed';
+                        break;
+                        
+                    case 'symptoms':
+                        this.collectedData.symptoms = this.extractSymptoms(userMessage);
+                        break;
+                        
+                    case 'lastMaintenance':
+                        const maintenanceMap = {
+                            'récent': 'recent', '10': 'recent', '20': 'normal', 'pas': 'overdue'
+                        };
+                        this.collectedData.lastMaintenance = this.findMatchingValue(userMessage, maintenanceMap) || 'unknown';
+                        break;
+                }
+                
+                // Passer à la question suivante
+                this.questionSequence++;
+                
+                // Si on a fini les questions, générer le diagnostic final
+                if (this.isDataCollectionComplete()) {
+                    return this.generateFinalDiagnosis();
+                } else {
+                    return this.generateNextQuestion();
+                }
+            }
+
+            // NOUVELLE FONCTION : Générer la prochaine question
+            async generateNextQuestion() {
+                const question = this.getNextQuestion();
+                
+                if (!question) {
+                    return this.generateFinalDiagnosis();
+                }
+                
+                this.currentQuestionContext = question;
+                
+                let response = {
+                    success: true,
+                    response: '',
+                    confidence: 0.3 + (this.questionSequence * 0.1),
+                    current_progress: 15 + (this.questionSequence * 12),
+                    ctas: []
+                };
+                
+                // Afficher un résumé des données collectées si on a déjà des infos
+                if (this.questionSequence > 0) {
+                    response.response = this.generateDataSummary() + '\n\n';
+                }
+                
+                response.response += `**${question.text}**`;
+                
+                if (question.freeText) {
+                    response.response += '\n\n💬 Entrez votre réponse ci-dessous.';
+                    response.form_active = true;
+                } else if (question.options) {
+                    response.ctas = question.options.map(opt => ({
+                        type: 'primary',
+                        title: opt.label,
+                        action: `answer_${question.id}_${opt.value}`
+                    }));
+                }
+                
+                return response;
+            }
+
+            // NOUVELLE FONCTION : Générer un résumé des données collectées
+            generateDataSummary() {
+                let summary = '📊 **Informations collectées :**\n';
+                
+                if (this.collectedData.errorCode) {
+                    summary += `• Code erreur : ${this.collectedData.errorCode}\n`;
+                }
+                if (this.collectedData.duration) {
+                    summary += `• Durée : ${this.formatDuration(this.collectedData.duration)}\n`;
+                }
+                if (this.collectedData.vehicleInfo?.make) {
+                    summary += `• Véhicule : ${this.collectedData.vehicleInfo.make} ${this.collectedData.vehicleInfo.model || ''}\n`;
+                }
+                if (this.collectedData.mileage) {
+                    summary += `• Kilométrage : ${this.formatMileage(this.collectedData.mileage)}\n`;
+                }
+                if (this.collectedData.drivingType) {
+                    summary += `• Conduite : ${this.formatDrivingType(this.collectedData.drivingType)}\n`;
+                }
+                
+                return summary;
+            }
+
+            // NOUVELLE FONCTION : Vérifier si la collecte est complète
+            isDataCollectionComplete() {
+                return this.questionSequence >= 6; // Nombre de questions à poser
+            }
+
+            // NOUVELLE FONCTION : Générer le diagnostic final enrichi
+            async generateFinalDiagnosis() {
+                this.isCollectingData = false;
+                
+                // D'abord chercher dans la base avec toutes les données collectées
+                let historicalDiagnosis = null;
+                if (this.useDatabase) {
+                    historicalDiagnosis = await this.searchEnrichedDiagnosis();
+                }
+                
+                let response = {
+                    success: true,
+                    response: '',
+                    confidence: 0.85,
+                    current_progress: 100,
+                    ctas: []
+                };
+                
+                // Construire le diagnostic personnalisé
+                response.response = `🎯 **Diagnostic personnalisé pour votre ${this.collectedData.vehicleInfo?.make || 'véhicule'} ${this.collectedData.vehicleInfo?.model || ''}**\n\n`;
+                
+                // Analyse basée sur les données collectées
+                const riskFactors = this.calculateRiskFactors();
+                
+                response.response += `**Analyse de votre situation :**\n`;
+                response.response += `• Code ${this.collectedData.errorCode} détecté\n`;
+                response.response += `• Problème présent depuis : ${this.formatDuration(this.collectedData.duration)}\n`;
+                response.response += `• Type de conduite : ${this.formatDrivingType(this.collectedData.drivingType)}\n`;
+                response.response += `• Kilométrage : ${this.formatMileage(this.collectedData.mileage)}\n\n`;
+                
+                // Niveau de risque
+                response.response += `**Niveau de gravité : ${riskFactors.severity}/5** ${this.getSeverityEmoji(riskFactors.severity)}\n\n`;
+                
+                // Diagnostic spécifique
+                if (historicalDiagnosis) {
+                    response.response += `**Diagnostic basé sur ${historicalDiagnosis.similarCases} cas similaires :**\n`;
+                    response.response += historicalDiagnosis.diagnosis + '\n\n';
+                    response.confidence = historicalDiagnosis.confidence;
+                } else {
+                    response.response += this.generateDiagnosisFromRules(riskFactors) + '\n\n';
+                }
+                
+                // Top causes avec probabilités ajustées
+                response.top_causes = this.calculateTopCauses(riskFactors);
+                
+                // Solutions personnalisées
+                response.response += '**Solutions recommandées par ordre de priorité :**\n\n';
+                const solutions = this.generatePersonalizedSolutions(riskFactors);
+                
+                solutions.forEach((solution, index) => {
+                    response.response += `**${index + 1}. ${solution.name}**\n`;
+                    response.response += `• Coût estimé : ${solution.cost}\n`;
+                    response.response += `• Taux de succès : ${solution.successRate}%\n`;
+                    response.response += `• ${solution.description}\n\n`;
+                });
+                
+                // CTAs personnalisés
+                response.ctas = this.generatePersonalizedCTAs(riskFactors, solutions);
+                
+                // Recommandation spéciale conduite urbaine
+                if (this.collectedData.drivingType === 'city') {
+                    response.response += `\n💡 **Conseil spécial conduite urbaine :**\n`;
+                    response.response += `Votre conduite principalement en ville favorise l'encrassement du FAP. `;
+                    response.response += `Je recommande des trajets réguliers sur autoroute (30-45 min à 90-110 km/h) pour prévenir les problèmes futurs.\n`;
+                }
+                
+                return response;
+            }
+
+            // NOUVELLE FONCTION : Recherche enrichie dans la base
+            async searchEnrichedDiagnosis() {
+                try {
+                    // Construire la requête multi-critères
+                    let query = supabaseClient
+                        .from('chat_messages')
+                        .select(`
+                            *,
+                            chat_sessions!inner(*)
+                        `)
+                        .eq('sender', 'assistant')
+                        .not('metadata->diagnostic_context', 'is', null)
+                        .eq('metadata->collected_data_complete', true);
+                    
+                    // Filtrer par code d'erreur si présent
+                    if (this.collectedData.errorCode) {
+                        query = query.contains('metadata->diagnostic_context->error_codes', [this.collectedData.errorCode]);
+                    }
+                    
+                    const { data: matches, error } = await query.limit(20);
+                    
+                    if (error) throw error;
+                    
+                    if (!matches || matches.length === 0) return null;
+                    
+                    // Calculer la similarité pour chaque match
+                    const scoredMatches = matches.map(match => {
+                        const context = match.metadata?.diagnostic_context || {};
+                        let score = 0;
+                        let matchedCriteria = [];
+                        
+                        // Score pour code d'erreur
+                        if (context.error_codes?.includes(this.collectedData.errorCode)) {
+                            score += 0.3;
+                            matchedCriteria.push('code_erreur');
+                        }
+                        
+                        // Score pour type de conduite
+                        if (context.driving_type === this.collectedData.drivingType) {
+                            score += 0.2;
+                            matchedCriteria.push('type_conduite');
+                        }
+                        
+                        // Score pour kilométrage similaire
+                        if (context.mileage_range === this.collectedData.mileage) {
+                            score += 0.15;
+                            matchedCriteria.push('kilometrage');
+                        }
+                        
+                        // Score pour symptômes communs
+                        if (context.symptoms && this.collectedData.symptoms.length > 0) {
+                            const commonSymptoms = context.symptoms.filter(s => 
+                                this.collectedData.symptoms.includes(s)
+                            ).length;
+                            const symptomScore = (commonSymptoms / this.collectedData.symptoms.length) * 0.25;
+                            score += symptomScore;
+                            if (symptomScore > 0) matchedCriteria.push('symptomes');
+                        }
+                        
+                        // Score pour durée similaire
+                        if (context.duration === this.collectedData.duration) {
+                            score += 0.1;
+                            matchedCriteria.push('duree');
+                        }
+                        
+                        return {
+                            ...match,
+                            relevanceScore: score,
+                            matchedCriteria
+                        };
+                    });
+                    
+                    // Filtrer et trier par score
+                    const relevantMatches = scoredMatches
+                        .filter(m => m.relevanceScore > 0.4)
+                        .sort((a, b) => b.relevanceScore - a.relevanceScore);
+                    
+                    if (relevantMatches.length === 0) return null;
+                    
+                    // Analyser les solutions qui ont fonctionné
+                    const successfulSolutions = relevantMatches
+                        .filter(m => m.metadata?.solution_details?.success_reported)
+                        .map(m => m.metadata.solution_details);
+                    
+                    return {
+                        diagnosis: this.synthesizeDiagnosis(relevantMatches),
+                        confidence: Math.min(relevantMatches[0].relevanceScore + 0.2, 0.95),
+                        similarCases: relevantMatches.length,
+                        successfulSolutions,
+                        bestMatch: relevantMatches[0]
+                    };
+                    
+                } catch (error) {
+                    console.error('Erreur recherche enrichie:', error);
+                    return null;
+                }
+            }
+
+            // NOUVELLE FONCTION : Synthétiser un diagnostic à partir de plusieurs cas
+            synthesizeDiagnosis(matches) {
+                const topMatch = matches[0];
+                const commonCauses = this.extractCommonCauses(matches);
+                
+                let synthesis = `D'après l'analyse de cas similaires, votre problème de FAP `;
+                
+                if (topMatch.relevanceScore > 0.7) {
+                    synthesis += `correspond très précisément à un encrassement typique. `;
+                } else {
+                    synthesis += `présente des caractéristiques d'encrassement classique. `;
+                }
+                
+                // Ajouter les causes les plus fréquentes
+                if (commonCauses.length > 0) {
+                    synthesis += `\n\nLes causes principales identifiées sont :\n`;
+                    commonCauses.slice(0, 3).forEach((cause, idx) => {
+                        synthesis += `${idx + 1}. ${cause.name} (${Math.round(cause.frequency * 100)}% des cas)\n`;
+                    });
+                }
+                
+                return synthesis;
+            }
+
+            // NOUVELLE FONCTION : Extraire les causes communes
+            extractCommonCauses(matches) {
+                const causesMap = new Map();
+                
+                matches.forEach(match => {
+                    const causes = match.metadata?.top_causes || [];
+                    causes.forEach(cause => {
+                        const key = cause.name;
+                        if (!causesMap.has(key)) {
+                            causesMap.set(key, { name: cause.name, count: 0, totalScore: 0 });
+                        }
+                        const existing = causesMap.get(key);
+                        existing.count++;
+                        existing.totalScore += cause.score || 0;
+                    });
+                });
+                
+                return Array.from(causesMap.values())
+                    .map(cause => ({
+                        name: cause.name,
+                        frequency: cause.count / matches.length,
+                        averageScore: cause.totalScore / cause.count
+                    }))
+                    .sort((a, b) => b.frequency - a.frequency);
+            }
+
+            // NOUVELLE FONCTION : Calculer les facteurs de risque
+            calculateRiskFactors() {
+                let severity = 1; // Base
+                let urgency = 'normal';
+                let factors = [];
+                
+                // Facteur : durée du problème
+                if (this.collectedData.duration === 'old') {
+                    severity += 1;
+                    factors.push('probleme_ancien');
+                } else if (this.collectedData.duration === 'weeks') {
+                    severity += 0.5;
+                }
+                
+                // Facteur : kilométrage
+                if (this.collectedData.mileage === 'high') {
+                    severity += 0.5;
+                    factors.push('kilometrage_eleve');
+                }
+                
+                // Facteur : conduite urbaine
+                if (this.collectedData.drivingType === 'city') {
+                    severity += 1;
+                    factors.push('conduite_urbaine');
+                }
+                
+                // Facteur : symptômes multiples
+                if (this.collectedData.symptoms.includes('power_loss')) {
+                    severity += 1;
+                    factors.push('perte_puissance');
+                    urgency = 'high';
+                }
+                
+                if (this.collectedData.symptoms.includes('limp_mode')) {
+                    severity += 1.5;
+                    factors.push('mode_degrade');
+                    urgency = 'urgent';
+                }
+                
+                // Facteur : maintenance en retard
+                if (this.collectedData.lastMaintenance === 'overdue') {
+                    severity += 0.5;
+                    factors.push('maintenance_retard');
+                }
+                
+                return {
+                    severity: Math.min(Math.round(severity), 5),
+                    urgency,
+                    factors,
+                    raw: severity
+                };
+            }
+
+            // NOUVELLE FONCTION : Générer un diagnostic basé sur les règles
+            generateDiagnosisFromRules(riskFactors) {
+                let diagnosis = '';
+                
+                if (riskFactors.severity >= 4) {
+                    diagnosis = `**⚠️ Situation critique détectée**\n\n`;
+                    diagnosis += `Votre FAP présente un encrassement sévère avec risque de dommages au moteur. `;
+                    diagnosis += `Une intervention rapide est nécessaire pour éviter des réparations coûteuses.\n`;
+                } else if (riskFactors.severity >= 3) {
+                    diagnosis = `**🟠 Encrassement important du FAP**\n\n`;
+                    diagnosis += `Le filtre à particules est significativement obstrué. `;
+                    diagnosis += `Sans intervention, la situation va s'aggraver rapidement.\n`;
+                } else {
+                    diagnosis = `**🟡 Début d'encrassement FAP**\n\n`;
+                    diagnosis += `Le filtre commence à s'encrasser mais la situation est encore gérable. `;
+                    diagnosis += `Une action préventive maintenant évitera des problèmes plus graves.\n`;
+                }
+                
+                // Ajouter des détails spécifiques
+                if (riskFactors.factors.includes('conduite_urbaine')) {
+                    diagnosis += `\n• La conduite urbaine empêche les régénérations naturelles du FAP`;
+                }
+                if (riskFactors.factors.includes('perte_puissance')) {
+                    diagnosis += `\n• La perte de puissance indique une contre-pression élevée`;
+                }
+                if (riskFactors.factors.includes('mode_degrade')) {
+                    diagnosis += `\n• Le mode dégradé protège votre moteur mais limite les performances`;
+                }
+                
+                return diagnosis;
+            }
+
+            // NOUVELLE FONCTION : Calculer les causes principales ajustées
+            calculateTopCauses(riskFactors) {
+                const causes = [
+                    { 
+                        name: 'FAP encrassé', 
+                        baseScore: 0.6,
+                        boost: riskFactors.factors.includes('conduite_urbaine') ? 0.2 : 0
+                    },
+                    { 
+                        name: 'Régénération incomplète', 
+                        baseScore: 0.2,
+                        boost: riskFactors.factors.includes('conduite_urbaine') ? 0.15 : 0
+                    },
+                    { 
+                        name: 'Capteur défaillant', 
+                        baseScore: 0.1,
+                        boost: riskFactors.duration === 'recent' ? 0.1 : 0
+                    },
+                    { 
+                        name: 'Qualité carburant/huile', 
+                        baseScore: 0.05,
+                        boost: riskFactors.factors.includes('maintenance_retard') ? 0.1 : 0
+                    },
+                    { 
+                        name: 'Vanne EGR encrassée', 
+                        baseScore: 0.05,
+                        boost: riskFactors.factors.includes('kilometrage_eleve') ? 0.05 : 0
+                    }
+                ];
+                
+                return causes
+                    .map(cause => ({
+                        name: cause.name,
+                        score: Math.min(cause.baseScore + cause.boost, 1),
+                        description: this.getCauseDescription(cause.name)
+                    }))
+                    .sort((a, b) => b.score - a.score)
+                    .slice(0, 3);
+            }
+
+            // NOUVELLE FONCTION : Générer des solutions personnalisées
+            generatePersonalizedSolutions(riskFactors) {
+                const solutions = [];
+                
+                if (riskFactors.severity >= 4) {
+                    solutions.push({
+                        name: 'Nettoyage professionnel urgent',
+                        cost: '200-300€',
+                        successRate: 85,
+                        description: 'Nettoyage chimique avec produit Re-Fap en atelier spécialisé',
+                        priority: 1
+                    });
+                } else if (riskFactors.severity >= 3) {
+                    solutions.push({
+                        name: 'Régénération forcée + Nettoyage',
+                        cost: '150-250€',
+                        successRate: 75,
+                        description: 'Combinaison régénération électronique et traitement chimique',
+                        priority: 1
+                    });
+                }
+                
+                // Solution préventive toujours proposée
+                if (riskFactors.drivingType === 'city') {
+                    solutions.push({
+                        name: 'Programme prévention urbaine',
+                        cost: '50-100€',
+                        successRate: 90,
+                        description: 'Additif préventif + conseils de conduite adaptés',
+                        priority: 2
+                    });
+                }
+                
+                // Régénération autoroute si pas trop grave
+                if (riskFactors.severity <= 3) {
+                    solutions.push({
+                        name: 'Régénération autoroute',
+                        cost: '20€ (carburant)',
+                        successRate: 60,
+                        description: '45 min à 90-110 km/h, régime > 2500 tr/min',
+                        priority: 3
+                    });
+                }
+                
+                // Solution définitive si très grave
+                if (riskFactors.severity >= 4 && riskFactors.factors.includes('kilometrage_eleve')) {
+                    solutions.push({
+                        name: 'Remplacement FAP',
+                        cost: '800-1500€',
+                        successRate: 100,
+                        description: 'Solution définitive si nettoyage inefficace',
+                        priority: 4
+                    });
+                }
+                
+                return solutions;
+            }
+
+            // NOUVELLE FONCTION : Générer des CTAs personnalisés
+            generatePersonalizedCTAs(riskFactors, solutions) {
+                const ctas = [];
+                
+                if (riskFactors.urgency === 'urgent') {
+                    ctas.push({
+                        type: 'urgent',
+                        title: '🚨 Intervention urgente',
+                        action: 'book_urgent_appointment',
+                        description: 'Réserver sous 48h'
+                    });
+                }
+                
+                // CTA principal basé sur la première solution
+                if (solutions[0]) {
+                    ctas.push({
+                        type: 'primary',
+                        title: `🔧 ${solutions[0].name}`,
+                        action: 'book_primary_solution',
+                        description: `${solutions[0].successRate}% de succès`
+                    });
+                }
+                
+                // Toujours proposer un devis
+                ctas.push({
+                    type: 'professional',
+                    title: '📋 Devis personnalisé',
+                    action: 'get_personalized_quote',
+                    description: 'Gratuit et sans engagement'
+                });
+                
+                // Prévention si conduite urbaine
+                if (this.collectedData.drivingType === 'city') {
+                    ctas.push({
+                        type: 'prevention',
+                        title: '🛡️ Pack prévention urbain',
+                        action: 'urban_prevention_pack'
+                    });
+                }
+                
+                // Contact expert
+                ctas.push({
+                    type: 'info',
+                    title: '💬 Parler à un expert',
+                    action: 'contact_expert'
+                });
+                
+                return ctas;
+            }
+
+            // Fonctions utilitaires de formatage
+            formatDuration(duration) {
+                const formats = {
+                    'recent': 'moins d\'une semaine',
+                    'weeks': '1-4 semaines',
+                    'old': 'plus d\'un mois',
+                    'unknown': 'durée inconnue'
+                };
+                return formats[duration] || duration;
+            }
+
+            formatMileage(mileage) {
+                const formats = {
+                    'low': '< 100 000 km',
+                    'medium': '100-200 000 km',
+                    'high': '> 200 000 km',
+                    'unknown': 'non précisé'
+                };
+                return formats[mileage] || mileage;
+            }
+
+            formatDrivingType(type) {
+                const formats = {
+                    'city': 'principalement urbaine',
+                    'highway': 'principalement autoroute',
+                    'mixed': 'mixte ville/route'
+                };
+                return formats[type] || type;
+            }
+
+            getSeverityEmoji(severity) {
+                const emojis = ['', '🟢', '🟡', '🟠', '🔴', '🚨'];
+                return emojis[severity] || '';
+            }
+
+            getCauseDescription(causeName) {
+                const descriptions = {
+                    'FAP encrassé': 'Accumulation de suie dans le filtre',
+                    'Régénération incomplète': 'Cycles de nettoyage interrompus',
+                    'Capteur défaillant': 'Capteur de pression ou température HS',
+                    'Qualité carburant/huile': 'Carburant ou huile inadaptés',
+                    'Vanne EGR encrassée': 'Recirculation des gaz perturbée'
+                };
+                return descriptions[causeName] || '';
+            }
+
+            findMatchingValue(text, valueMap) {
+                const lowerText = text.toLowerCase();
+                for (const [key, value] of Object.entries(valueMap)) {
+                    if (lowerText.includes(key)) {
+                        return value;
+                    }
+                }
+                return null;
+            }
+
+            extractSymptoms(text) {
+                const symptoms = [];
+                const lowerText = text.toLowerCase();
+                
+                const symptomMap = {
+                    'fumée': 'smoke',
+                    'fumee': 'smoke',
+                    'puissance': 'power_loss',
+                    'perte': 'power_loss',
+                    'consommation': 'consumption',
+                    'surconsommation': 'consumption',
+                    'bruit': 'noise',
+                    'mode': 'limp_mode',
+                    'dégradé': 'limp_mode',
+                    'degrade': 'limp_mode',
+                    'aucun': 'none',
+                    'non': 'none'
+                };
+                
+                for (const [key, value] of Object.entries(symptomMap)) {
+                    if (lowerText.includes(key) && !symptoms.includes(value)) {
+                        symptoms.push(value);
+                    }
+                }
+                
+                return symptoms.length > 0 ? symptoms : ['none'];
+            }
+
+            // FONCTION AMÉLIORÉE : searchSimilarConversations
             async searchSimilarConversations(userMessage) {
                 try {
                     const lowerMessage = userMessage.toLowerCase();
@@ -773,7 +1579,6 @@
                     
                     console.log('🔍 Recherche avec mots-clés:', keywords);
                     
-                    // Stratégie de recherche multiple
                     let results = [];
                     
                     // 1. Recherche exacte d'abord
@@ -811,7 +1616,6 @@
                     
                     // 3. Recherche par métadonnées si disponibles
                     if (results.length === 0) {
-                        // Extraire marque/modèle si mentionné
                         const vehicleInfo = this.extractVehicleInfo(lowerMessage);
                         if (vehicleInfo.make || vehicleInfo.model) {
                             const { data: metadataMatches } = await supabaseClient
@@ -822,7 +1626,6 @@
                                 .limit(10);
                             
                             if (metadataMatches && metadataMatches.length > 0) {
-                                // Récupérer les questions associées
                                 for (const match of metadataMatches) {
                                     const { data: userMsg } = await supabaseClient
                                         .from('chat_messages')
@@ -877,7 +1680,6 @@
                         return null;
                     }
                     
-                    // Adapter la réponse avec plus de contexte
                     const response = assistantResponse[0];
                     return {
                         success: true,
@@ -886,7 +1688,7 @@
                         source: 'database',
                         original_question: bestMatch.content,
                         similarity_score: bestScore,
-                        needs_clarification: bestScore < 0.5, // Demander des précisions si score faible
+                        needs_clarification: bestScore < 0.5,
                         ...response.metadata
                     };
                     
@@ -894,822 +1696,3 @@
                     console.error('Erreur recherche:', error);
                     return null;
                 }
-            }
-
-            // Extraire les informations de véhicule
-            extractVehicleInfo(text) {
-                const vehiclePatterns = {
-                    makes: ['audi', 'bmw', 'mercedes', 'volkswagen', 'vw', 'peugeot', 'renault', 'citroen', 'ford', 'opel', 'nissan', 'toyota'],
-                    models: ['a3', 'a4', 'a6', 'q7', 'q5', '320d', '520d', 'x3', 'x5', 'c220', 'e220', 'golf', 'passat', 'tiguan', '308', '3008', '508', 'megane', 'scenic', 'c4', 'c5', 'focus', 'mondeo']
-                };
-                
-                let info = { make: null, model: null, engine: null };
-                
-                // Rechercher la marque
-                for (const make of vehiclePatterns.makes) {
-                    if (text.includes(make)) {
-                        info.make = make.toUpperCase();
-                        break;
-                    }
-                }
-                
-                // Rechercher le modèle
-                for (const model of vehiclePatterns.models) {
-                    if (text.includes(model)) {
-                        info.model = model.toUpperCase();
-                        break;
-                    }
-                }
-                
-                // Rechercher le moteur
-                const engineMatch = text.match(/\d+\.?\d*\s*(tdi|hdi|dci|cdi|tdci|bluehdi|bluetec)/i);
-                if (engineMatch) {
-                    info.engine = engineMatch[0].toUpperCase();
-                }
-                
-                return info;
-            }
-
-            // Extraire les mots-clés importants (version améliorée)
-            extractKeywords(text) {
-                const keywords = [];
-                
-                // Mots-clés FAP spécifiques étendus
-                const fapKeywords = [
-                    'fumée', 'noire', 'blanche', 'bleue', 'fumee',
-                    'voyant', 'orange', 'rouge', 'moteur', 'témoin', 'temoin',
-                    'p2002', 'p2003', 'p242f', 'p2452', 'p244b', 'code', 'erreur',
-                    'perte', 'puissance', 'régénération', 'regeneration',
-                    'encrassé', 'bouché', 'colmaté', 'encrasse', 'bouche', 'colmate',
-                    'nettoyage', 'additif', 'turbo', 'nettoyer',
-                    'consommation', 'ville', 'autoroute', 'surconsommation',
-                    'garantie', 'prix', 'coût', 'cout', 'tarif', 'devis',
-                    'diagnostic', 'vidange', 'huile', 'adblue',
-                    'mode', 'dégradé', 'degrade', 'urgence',
-                    'démarrage', 'demarrage', 'démarre', 'demarre'
-                ];
-                
-                // Extraire les mots-clés présents
-                for (const keyword of fapKeywords) {
-                    if (text.includes(keyword)) {
-                        keywords.push(keyword);
-                    }
-                }
-                
-                // Ajouter les codes d'erreur
-                const errorCodes = text.match(/p\d{4}/gi);
-                if (errorCodes) {
-                    keywords.push(...errorCodes.map(code => code.toLowerCase()));
-                }
-                
-                // Ajouter les marques de véhicules
-                const vehicleInfo = this.extractVehicleInfo(text);
-                if (vehicleInfo.make) keywords.push(vehicleInfo.make.toLowerCase());
-                if (vehicleInfo.model) keywords.push(vehicleInfo.model.toLowerCase());
-                
-                return [...new Set(keywords)]; // Supprimer les doublons
-            }
-
-            // Calculer la similarité entre deux textes (version améliorée)
-            calculateSimilarity(text1, text2) {
-                // Normaliser les textes
-                const normalize = (text) => text
-                    .toLowerCase()
-                    .replace(/[^\w\s]/g, ' ')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-                
-                const norm1 = normalize(text1);
-                const norm2 = normalize(text2);
-                
-                // Si textes identiques
-                if (norm1 === norm2) return 1;
-                
-                // Méthode 1 : Mots communs
-                const words1 = norm1.split(' ');
-                const words2 = norm2.split(' ');
-                const commonWords = words1.filter(word => words2.includes(word));
-                const wordScore = commonWords.length / Math.max(words1.length, words2.length);
-                
-                // Méthode 2 : Mots-clés importants
-                const keywords1 = this.extractKeywords(text1);
-                const keywords2 = this.extractKeywords(text2);
-                const commonKeywords = keywords1.filter(k => keywords2.includes(k));
-                const keywordScore = keywords1.length > 0 ? commonKeywords.length / keywords1.length : 0;
-                
-                // Méthode 3 : Distance de Levenshtein normalisée (simplifiée)
-                const maxLength = Math.max(norm1.length, norm2.length);
-                let distance = 0;
-                for (let i = 0; i < maxLength; i++) {
-                    if (norm1[i] !== norm2[i]) distance++;
-                }
-                const distanceScore = 1 - (distance / maxLength);
-                
-                // Score final pondéré
-                const finalScore = (wordScore * 0.3) + (keywordScore * 0.5) + (distanceScore * 0.2);
-                
-                return Math.min(finalScore, 1);
-            }
-
-            // Adapter une réponse trouvée dans la base (version conversationnelle)
-            adaptResponse(originalResponse, similarity) {
-                // Nettoyer la réponse de certains patterns
-                let cleanResponse = originalResponse
-                    .replace(/Sur \w+ \d+\.\d+ \w+,/g, '') // Enlever "Sur A4 2.0 TDI,"
-                    .trim();
-                
-                if (similarity > 0.8) {
-                    // Très similaire : utiliser avec confiance
-                    return cleanResponse;
-                } else if (similarity > 0.5) {
-                    // Similaire : ajouter contexte
-                    return `D'après mon expérience avec des cas similaires :\n\n${cleanResponse}\n\n💡 *Votre situation peut varier légèrement. N'hésitez pas à me donner plus de détails si besoin.*`;
-                } else {
-                    // Peu similaire : demander clarification
-                    return `Je vais vous aider en me basant sur des situations proches :\n\n${cleanResponse}\n\n❓ **Pour être plus précis**, pouvez-vous me dire :\n• Quel modèle de véhicule exactement ?\n• Quels symptômes observez-vous ?\n• Depuis combien de temps ?`;
-                }
-            }
-
-            // Nouvelle fonction pour générer les réponses localement
-            async generateLocalResponse(userMessage) {
-                // Simuler un délai de traitement
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                const lowerMessage = userMessage.toLowerCase();
-                let response = {
-                    success: true,
-                    response: '',
-                    confidence: 0.5,
-                    top_causes: [],
-                    ctas: [],
-                    session_state: 'active',
-                    current_progress: 0
-                };
-
-                // Logique de réponse (identique à avant)
-                if (lowerMessage.includes('diagnostic rapide') || lowerMessage.includes('commencer')) {
-                    response.response = "Parfait ! Je vais diagnostiquer votre problème de FAP rapidement.\n\n**Question 1:** Observez-vous de la fumée à l'échappement ?";
-                    response.ctas = [
-                        { type: 'primary', title: '💨 Fumée noire', action: 'black_smoke' },
-                        { type: 'primary', title: '☁️ Fumée blanche', action: 'white_smoke' },
-                        { type: 'primary', title: '🔵 Fumée bleue', action: 'blue_smoke' },
-                        { type: 'secondary', title: '✅ Pas de fumée', action: 'no_smoke' }
-                    ];
-                    response.current_progress = 20;
-                }
-                else if (lowerMessage.includes('fumée noire') || lowerMessage.includes('fumee noire')) {
-                    response.response = "La fumée noire indique généralement un **FAP encrassé**. C'est le problème le plus courant sur les véhicules diesel.\n\n**Question 2:** Avez-vous également une perte de puissance ?";
-                    response.confidence = 0.75;
-                    response.top_causes = [
-                        { name: 'FAP encrassé', score: 0.8, description: 'Accumulation de suie dans le filtre' },
-                        { name: 'Régénération incomplète', score: 0.15, description: 'Cycles de régénération interrompus' }
-                    ];
-                    response.ctas = [
-                        { type: 'primary', title: '✅ Oui, perte de puissance', action: 'confirm_power_loss' },
-                        { type: 'primary', title: '❌ Non, pas de perte', action: 'no_power_loss' }
-                    ];
-                    response.current_progress = 50;
-                }
-                else if (lowerMessage.includes('oui') || lowerMessage.includes('perte de puissance')) {
-                    response.response = "⚠️ **Diagnostic confirmé : FAP très encrassé**\n\nLa combinaison fumée noire + perte de puissance nécessite une intervention rapide pour éviter des dommages au moteur.\n\n**Estimation des coûts :**\n• Nettoyage professionnel : 150-250€\n• Remplacement FAP : 800-1500€";
-                    response.confidence = 0.9;
-                    response.top_causes = [
-                        { name: 'FAP très encrassé', score: 0.9, description: 'Nécessite intervention urgente' },
-                        { name: 'Risque turbo', score: 0.1, description: 'Contre-pression dangereuse' }
-                    ];
-                    response.ctas = [
-                        { type: 'urgent', title: '🚨 Nettoyage urgent FAP', action: 'book_cleaning' },
-                        { type: 'primary', title: '🛣️ Essayer régénération autoroute', action: 'highway_regeneration' },
-                        { type: 'professional', title: '👨‍🔧 Contacter un pro', action: 'contact_expert' }
-                    ];
-                    response.recommended_workflow = {
-                        name: 'Nettoyage FAP professionnel',
-                        category: 'professional',
-                        success_probability: 0.85,
-                        steps: [
-                            { step: 1, title: 'Diagnostic complet', instructions: 'Vérification codes erreur et état FAP', duration: '30 min' },
-                            { step: 2, title: 'Nettoyage chimique', instructions: 'Application produit nettoyant Re-Fap', duration: '2h' },
-                            { step: 3, title: 'Test route', instructions: 'Vérification après nettoyage', duration: '30 min' }
-                        ]
-                    };
-                    response.current_progress = 80;
-                }
-                else if (lowerMessage.includes('voyant') || lowerMessage.includes('témoin')) {
-                    response.response = "Un voyant allumé est un signal d'alerte important.\n\n**De quelle couleur est le voyant ?**";
-                    response.ctas = [
-                        { type: 'warning', title: '🟠 Voyant orange', action: 'orange_light' },
-                        { type: 'urgent', title: '🔴 Voyant rouge', action: 'red_light' },
-                        { type: 'info', title: '🟡 Voyant jaune', action: 'yellow_light' }
-                    ];
-                    response.current_progress = 30;
-                }
-                else if (lowerMessage.includes('code') || lowerMessage.includes('p2002') || lowerMessage.includes('p2003')) {
-                    response.response = "Les codes P2002/P2003 confirment un problème FAP.\n\n**Analyse des codes :**\n• P2002 : FAP encrassé banque 1\n• P2003 : FAP encrassé banque 2\n\nCes codes nécessitent une action rapide.";
-                    response.confidence = 0.95;
-                    response.top_causes = [
-                        { name: 'FAP obstrué confirmé', score: 0.95, description: 'Diagnostic électronique confirmé' }
-                    ];
-                    response.ctas = [
-                        { type: 'urgent', title: '🔧 Solutions immédiates', action: 'show_solutions' },
-                        { type: 'info', title: '📊 Voir autres codes', action: 'other_codes' }
-                    ];
-                    response.current_progress = 70;
-                }
-                else if (lowerMessage.includes('aide') || lowerMessage.includes('help')) {
-                    response.response = "**💡 Comment utiliser l'expert FAP :**\n\n• Décrivez vos symptômes précisément\n• Mentionnez la couleur de fumée\n• Indiquez les voyants allumés\n• Précisez les codes d'erreur\n\n**Exemples :**\n• 'Fumée noire + perte de puissance'\n• 'Voyant moteur orange allumé'\n• 'Code erreur P2002'";
-                    response.ctas = [
-                        { type: 'primary', title: '🚀 Commencer diagnostic', action: 'quick_diagnosis' }
-                    ];
-                }
-                else {
-                    response.response = "Je suis Julien, votre expert FAP. Pour un diagnostic précis, décrivez-moi vos symptômes :\n\n• Fumée à l'échappement ? (couleur)\n• Voyants allumés ?\n• Perte de puissance ?\n• Codes d'erreur ?\n• Type de conduite (ville/route) ?";
-                    response.ctas = [
-                        { type: 'primary', title: '🚀 Diagnostic rapide', action: 'quick_diagnosis' },
-                        { type: 'secondary', title: '📋 Analyse complète', action: 'full_analysis' }
-                    ];
-                }
-
-                return response;
-            }
-
-            handleResponse(data) {
-                if (!data.success) {
-                    this.displayError(data.error || 'Erreur inconnue');
-                    return;
-                }
-
-                // Mettre à jour la progression
-                if (data.current_progress !== undefined) {
-                    this.updateProgress(data.current_progress);
-                }
-
-                // Mettre à jour la question courante si présente
-                this.updateCurrentQuestion(data);
-
-                // Afficher la réponse principale
-                this.displayMessage('assistant', data.response, {
-                    confidence: data.confidence,
-                    top_causes: data.top_causes,
-                    ctas: data.ctas,
-                    question_type: data.question_type,
-                    options: data.options,
-                    requires_confirmation: data.requires_confirmation,
-                    recommended_workflow: data.recommended_workflow,
-                    post_diagnostic_active: data.post_diagnostic_active,
-                    external_link: data.external_link,
-                    form_active: data.form_active,
-                    garages_found: data.garages_found
-                });
-
-                // Mettre à jour l'état
-                this.currentState = data.session_state || this.currentState;
-            }
-
-            displayMessage(sender, content, metadata = {}) {
-                const messagesContainer = document.getElementById('chatMessages');
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `message ${sender}`;
-
-                const avatar = document.createElement('div');
-                avatar.className = 'message-avatar';
-                avatar.textContent = sender === 'user' ? 'U' : 'J';
-
-                const messageContent = document.createElement('div');
-                messageContent.className = 'message-content';
-
-                if (sender === 'assistant') {
-                    messageContent.innerHTML = this.formatAssistantMessage(content, metadata);
-                } else {
-                    messageContent.innerHTML = this.formatMarkdown(content || '');
-                }
-
-                messageDiv.appendChild(avatar);
-                messageDiv.appendChild(messageContent);
-                messagesContainer.appendChild(messageDiv);
-
-                // Scroll automatique
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-                // Stocker dans l'historique
-                this.messageHistory.push({ sender, content, metadata, timestamp: new Date() });
-            }
-
-            formatAssistantMessage(content, metadata) {
-                // Sécurité : vérifier que content existe
-                if (!content) content = "Réponse vide reçue du serveur.";
-                
-                let html = `<div>${this.formatMarkdown(content)}</div>`;
-
-                // Affichage de la confiance si présente
-                if (metadata.confidence !== undefined) {
-                    const confidencePercent = Math.round(metadata.confidence * 100);
-                    html += `
-                        <div class="confidence-bar">
-                            <div class="confidence-fill" style="width: ${confidencePercent}%"></div>
-                        </div>
-                        <small>Confiance du diagnostic: ${confidencePercent}%</small>
-                    `;
-                    
-                    // Indicateur de source si disponible
-                    if (metadata.source === 'database') {
-                        html += `<small style="color: #10b981; margin-left: 10px;">📚 Basé sur l'historique</small>`;
-                    }
-                    
-                    // Afficher la similarité si disponible
-                    if (metadata.similarity_score) {
-                        const simPercent = Math.round(metadata.similarity_score * 100);
-                        html += `<br><small style="color: #6b7280;">Question similaire trouvée (${simPercent}% de correspondance)</small>`;
-                    }
-                }
-
-                // Affichage des causes principales
-                if (metadata.top_causes && metadata.top_causes.length > 0) {
-                    html += '<div class="diagnostic-card">';
-                    html += '<h4>🎯 Causes les plus probables:</h4>';
-                    metadata.top_causes.forEach((cause, index) => {
-                        const percentage = Math.round((cause.score || 0) * 100);
-                        html += `
-                            <div style="margin: 10px 0; padding: 10px; background: rgba(59, 130, 246, 0.1); border-radius: 8px;">
-                                <strong>${index + 1}. ${cause.name || 'Cause inconnue'}</strong> (${percentage}%)
-                                <br><small>${cause.description || ''}</small>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                }
-
-                // Workflow recommandé
-                if (metadata.recommended_workflow) {
-                    html += this.formatWorkflow(metadata.recommended_workflow);
-                }
-
-                // Options de questions à choix multiples
-                if (metadata.options && metadata.question_type === 'multiple_choice') {
-                    html += '<div class="question-options">';
-                    metadata.options.forEach(option => {
-                        html += `
-                            <button class="option-button" onclick="window.chat.selectOption('${option.id}', '${this.escapeHtml(option.label)}')">
-                                ${option.label}
-                            </button>
-                        `;
-                    });
-                    html += '</div>';
-                }
-
-                // Boutons CTA avec gestion des CTA enrichis
-                if (metadata.ctas && metadata.ctas.length > 0) {
-                    html += '<div class="cta-buttons">';
-                    metadata.ctas.forEach(cta => {
-                        const buttonClass = this.getCTAButtonClass(cta.type);
-                        
-                        // Description enrichie si disponible
-                        const description = cta.description ? `<small style="display: block; margin-top: 2px; opacity: 0.9;">${cta.description}</small>` : '';
-                        const successRate = cta.success_rate && !cta.description ? `<small style="display: block; margin-top: 2px; opacity: 0.9;">(${cta.success_rate}% succès)</small>` : '';
-                        
-                        const ctaDataStr = JSON.stringify(cta).replace(/"/g, '&quot;');
-                        
-                        html += `
-                            <button class="cta-button ${buttonClass}" onclick="window.chat.executeCTA('${cta.action}', '${this.escapeHtml(cta.title)}', JSON.parse('${ctaDataStr}'))">
-                                <span>
-                                    ${cta.title}
-                                    ${description || successRate}
-                                </span>
-                            </button>
-                        `;
-                    });
-                    html += '</div>';
-                    
-                    // Ajouter info sur l'arbre de décision si actif
-                    if (metadata.decision_tree_active) {
-                        html += '<div style="margin-top: 8px; font-size: 11px; color: #6b7280; font-style: italic;">💡 Solutions personnalisées selon votre situation</div>';
-                    }
-                    
-                    // Info post-diagnostic si actif
-                    if (metadata.post_diagnostic_active) {
-                        html += '<div style="margin-top: 8px; font-size: 11px; color: #6b7280; font-style: italic;">🎯 Je personnalise les solutions selon votre profil</div>';
-                    }
-                }
-
-                // Lien externe si présent
-                if (metadata.external_link) {
-                    html += `<div style="margin-top: 10px; text-align: center;">
-                        <a href="${metadata.external_link}" target="_blank" style="color: #3b82f6; text-decoration: underline;">
-                            🔗 Ouvrir le site dans un nouvel onglet
-                        </a>
-                    </div>`;
-                }
-
-                // Indicateur de formulaire actif
-                if (metadata.form_active) {
-                    html += '<div style="margin-top: 8px; font-size: 11px; color: #10b981; font-style: italic;">📝 Entrez les informations demandées ci-dessous</div>';
-                }
-
-                // Info garages trouvés
-                if (metadata.garages_found) {
-                    html += `<div style="margin-top: 8px; font-size: 11px; color: #10b981; font-style: italic;">✅ ${metadata.garages_found} garages partenaires trouvés</div>`;
-                }
-
-                return html;
-            }
-
-            formatWorkflow(workflow) {
-                if (!workflow) return '';
-                
-                let html = `
-                    <div class="workflow-card">
-                        <h4>🔧 ${workflow.name || 'Workflow'}</h4>
-                        <p><strong>Catégorie:</strong> ${this.formatCategory(workflow.category)}</p>
-                        <p><strong>Taux de succès:</strong> ${Math.round((workflow.success_probability || 0.5) * 100)}%</p>
-                `;
-
-                if (workflow.steps && workflow.steps.length > 0) {
-                    html += '<div class="workflow-steps">';
-                    workflow.steps.forEach(step => {
-                        html += `
-                            <div class="workflow-step">
-                                <div class="step-number">${step.step}</div>
-                                <div>
-                                    <strong>${step.title || 'Étape'}</strong>
-                                    <br><small>${step.instructions || ''}</small>
-                                    ${step.duration ? `<br><em>Durée: ${step.duration}</em>` : ''}
-                                </div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                }
-
-                html += '</div>';
-                return html;
-            }
-
-            formatCategory(category) {
-                const categories = {
-                    'self_service': '🛠️ Auto-service',
-                    'professional': '👨‍🔧 Professionnel',
-                    'urgent': '🚨 Urgent',
-                    'diagnostic': '🔍 Diagnostic'
-                };
-                return categories[category] || category;
-            }
-
-            getCTAButtonClass(type) {
-                const classes = {
-                    'primary': 'primary',
-                    'secondary': 'secondary',
-                    'confirmation': 'primary',
-                    'urgent': 'urgent',
-                    'emergency': 'urgent',
-                    'answer': 'primary',
-                    'professional': 'professional',
-                    'prevention': 'prevention',
-                    'subscription': 'subscription',
-                    'success': 'success',
-                    'info': 'info',
-                    'warning': 'warning',
-                    'alternative': 'alternative'
-                };
-                return classes[type] || '';
-            }
-
-            formatMarkdown(text) {
-                // Sécurité : vérifier que text existe et est une chaîne
-                if (!text || typeof text !== 'string') {
-                    return '';
-                }
-                
-                return text
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                    .replace(/\n/g, '<br>')
-                    .replace(/^• /gm, '• '); // Préserver les puces
-            }
-
-            escapeHtml(text) {
-                if (!text) return '';
-                const map = {
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#039;'
-                };
-                return text.replace(/[&<>"']/g, m => map[m]);
-            }
-
-            selectOption(optionId, optionLabel) {
-                this.sendMessage(optionLabel);
-            }
-
-            async executeCTA(action, title, ctaData) {
-                console.log(`Exécution CTA: ${action} - ${title}`, ctaData);
-                
-                // Gestion des actions avec des réponses spécifiques
-                switch (action) {
-                    case 'black_smoke':
-                        this.sendMessage('Fumée noire');
-                        break;
-                    
-                    case 'white_smoke':
-                        this.sendMessage('Fumée blanche');
-                        break;
-                    
-                    case 'blue_smoke':
-                        this.sendMessage('Fumée bleue');
-                        break;
-                    
-                    case 'no_smoke':
-                        this.sendMessage('Pas de fumée');
-                        break;
-                    
-                    case 'confirm_power_loss':
-                        this.sendMessage('Oui, j\'ai une perte de puissance');
-                        break;
-                    
-                    case 'no_power_loss':
-                        this.sendMessage('Non, pas de perte de puissance');
-                        break;
-                    
-                    case 'orange_light':
-                        this.displayMessage('assistant', "🟠 **Voyant orange = Alerte modérée**\n\nLe voyant orange indique un problème qui nécessite une attention dans les prochains jours.\n\n**Causes possibles :**\n• FAP en cours d'encrassement (60%)\n• Régénération nécessaire (30%)\n• Capteur défaillant (10%)\n\n**Que faire maintenant ?**", {
-                            confidence: 0.7,
-                            ctas: [
-                                { type: 'primary', title: '🛣️ Faire une régénération', action: 'highway_regeneration' },
-                                { type: 'info', title: '🔍 Diagnostic complet', action: 'full_diagnosis' }
-                            ],
-                            current_progress: 40
-                        });
-                        break;
-                    
-                    case 'red_light':
-                        this.displayMessage('assistant', "🔴 **VOYANT ROUGE = URGENCE !**\n\n⚠️ **Arrêtez le véhicule dès que possible !**\n\nUn voyant rouge indique un risque de dommages importants au moteur.\n\n**Actions immédiates :**\n• Garez-vous en sécurité\n• Coupez le moteur\n• Ne redémarrez pas", {
-                            confidence: 0.95,
-                            ctas: [
-                                { type: 'urgent', title: '📞 Appel dépannage', action: 'emergency_call' },
-                                { type: 'urgent', title: '🚨 Voir garages urgents', action: 'emergency_garages' }
-                            ],
-                            current_progress: 60
-                        });
-                        break;
-                    
-                    case 'yellow_light':
-                        this.displayMessage('assistant', "🟡 **Voyant jaune = Attention requise**\n\nLe voyant jaune est souvent lié à l'AdBlue ou à un début d'encrassement FAP.\n\n**Vérifications :**\n• Niveau AdBlue\n• Dernière régénération FAP\n• Kilométrage depuis dernier entretien", {
-                            confidence: 0.65,
-                            ctas: [
-                                { type: 'primary', title: '💧 Vérifier AdBlue', action: 'check_adblue' },
-                                { type: 'secondary', title: '🔧 Continuer diagnostic', action: 'continue_diagnosis' }
-                            ],
-                            current_progress: 35
-                        });
-                        break;
-                    
-                    case 'book_cleaning':
-                        this.displayMessage('assistant', "🧽 **Nettoyage professionnel FAP**\n\nJe vous recommande un nettoyage professionnel avec le produit Re-Fap.\n\n**Avantages :**\n• Économie de 80% vs remplacement\n• Garantie 1 an\n• Résultat en 2-3h\n\n**Tarif moyen :** 150-250€\n\n📞 Contactez un garage partenaire Re-Fap près de chez vous.", {
-                            ctas: [
-                                { type: 'professional', title: '📍 Trouver un garage', action: 'find_garage' },
-                                { type: 'info', title: '📄 Devis gratuit', action: 'free_quote' }
-                            ]
-                        });
-                        break;
-                    
-                    case 'highway_regeneration':
-                        this.displayMessage('assistant', "🛣️ **Guide régénération autoroute**\n\n**Instructions :**\n1. Réservoir > 1/4 plein\n2. Moteur chaud\n3. Roulez 30-45 min à 90-110 km/h\n4. Régime moteur > 2500 tr/min\n\n⚠️ **Important :** Ne pas s'arrêter pendant le trajet !\n\n**Taux de succès :** 70% si FAP peu encrassé", {
-                            ctas: [
-                                { type: 'success', title: '✅ C\'est fait !', action: 'regeneration_done' },
-                                { type: 'warning', title: '❌ Ça n\'a pas marché', action: 'regeneration_failed' }
-                            ]
-                        });
-                        break;
-                    
-                    case 'contact_expert':
-                        this.showContactInfo();
-                        break;
-                    
-                    case 'quick_diagnosis':
-                        this.sendMessage('Je veux un diagnostic rapide');
-                        break;
-                    
-                    case 'full_analysis':
-                        this.sendMessage('Je veux une analyse complète');
-                        break;
-                    
-                    case 'show_solutions':
-                        this.displayMessage('assistant', "🔧 **Solutions pour codes P2002/P2003**\n\n**1. Solution économique (150-250€)**\n• Nettoyage chimique professionnel\n• Efficace dans 85% des cas\n• Garantie 1 an\n\n**2. Régénération forcée (50-100€)**\n• Par diagnostic électronique\n• Succès : 60%\n\n**3. Remplacement FAP (800-1500€)**\n• Solution définitive\n• Si nettoyage échoué", {
-                            ctas: [
-                                { type: 'prevention', title: '💰 Option économique', action: 'economic_solution' },
-                                { type: 'professional', title: '🔧 Solution définitive', action: 'definitive_solution' }
-                            ]
-                        });
-                        break;
-                    
-                    default:
-                        this.sendMessage(`Je choisis : ${title}`);
-                }
-            }
-
-            showContactInfo() {
-                this.displayMessage('assistant', `
-                    📞 **Contact Expert FAP Re-Fap**
-                    
-                    **Julien - Expert FAP Certifié**
-                    • 📱 Téléphone: 06 XX XX XX XX
-                    • 📧 Email: contact@re-fap.fr
-                    • 🏢 Atelier: Paris et région
-                    
-                    **Horaires:**
-                    • Lun-Ven: 8h-18h
-                    • Sam: 8h-12h
-                    
-                    💡 **Mentionnez le code "CHATBOT" pour -10%**
-                `);
-            }
-
-            showHelp() {
-                this.displayMessage('assistant', `
-                    ❓ **Guide d'utilisation FAP Expert v2.0**
-                    
-                    **Types de problèmes que je peux diagnostiquer:**
-                    • 🔶 Voyants allumés (moteur, FAP, AdBlue...)
-                    • ⚡ Perte de puissance
-                    • 💨 Fumée d'échappement
-                    • 🔢 Codes d'erreur OBD
-                    • 🚗 Problèmes liés à la conduite urbaine
-                    
-                    **Comment bien me décrire votre problème:**
-                    • Soyez précis sur les symptômes
-                    • Mentionnez les codes d'erreur si vous en avez
-                    • Décrivez votre type de conduite
-                    • Indiquez le kilométrage de votre véhicule
-                    
-                    **Exemples de messages efficaces:**
-                    • "Voyant FAP allumé + perte de puissance en ville"
-                    • "Code P2002 + fumée noire à l'accélération"
-                    • "Conduite urbaine uniquement, voyant moteur"
-                    
-                    💡 **Plus vous êtes précis, plus mon diagnostic sera exact !**
-                `);
-            }
-
-            updateProgress(percentage) {
-                this.currentProgress = percentage;
-                const progressFill = document.getElementById('progressFill');
-                const progressText = document.getElementById('progressText');
-                
-                if (progressFill) {
-                    progressFill.style.width = `${percentage}%`;
-                }
-                if (progressText) {
-                    progressText.textContent = `${percentage}%`;
-                }
-            }
-
-            updateCurrentQuestion(data) {
-                const currentQuestionDiv = document.getElementById('currentQuestion');
-                const currentQuestionText = document.getElementById('currentQuestionText');
-                
-                if (!currentQuestionDiv || !currentQuestionText) return;
-
-                // Si on a une question directe dans next_question
-                if (data.next_question && data.next_question.text) {
-                    currentQuestionText.textContent = data.next_question.text;
-                    currentQuestionDiv.style.display = 'block';
-                    
-                    // Mettre à jour le placeholder
-                    const messageInput = document.getElementById('messageInput');
-                    if (messageInput) {
-                        messageInput.placeholder = "Votre réponse...";
-                    }
-                } else if (data.question_type && data.options) {
-                    // Si on a une question avec options
-                    const questionMatch = data.response.match(/\*\*(.*?)\*\*/);
-                    const question = questionMatch ? questionMatch[1] : 'Question en cours...';
-                    
-                    currentQuestionText.textContent = question;
-                    currentQuestionDiv.style.display = 'block';
-                    
-                    const messageInput = document.getElementById('messageInput');
-                    if (messageInput) {
-                        messageInput.placeholder = "Votre réponse...";
-                    }
-                } else if (data.response.includes('j\'ai besoin de') || data.response.includes('Pour affiner le diagnostic')) {
-                    // Si la réponse indique qu'on collecte des infos
-                    currentQuestionText.textContent = "Répondez aux questions pour affiner le diagnostic";
-                    currentQuestionDiv.style.display = 'block';
-                    
-                    const messageInput = document.getElementById('messageInput');
-                    if (messageInput) {
-                        messageInput.placeholder = "Décrivez vos symptômes plus précisément...";
-                    }
-                } else if (data.form_active) {
-                    // Si on collecte des données utilisateur
-                    currentQuestionText.textContent = "Entrez les informations demandées";
-                    currentQuestionDiv.style.display = 'block';
-                    
-                    const messageInput = document.getElementById('messageInput');
-                    if (messageInput) {
-                        messageInput.placeholder = "Ex: AB-123-CD et 75015";
-                    }
-                } else {
-                    // Masquer la question si diagnostic terminé
-                    currentQuestionDiv.style.display = 'none';
-                    this.resetInputPlaceholder();
-                }
-            }
-
-            resetInputPlaceholder() {
-                const messageInput = document.getElementById('messageInput');
-                if (messageInput) {
-                    messageInput.placeholder = "Décrivez votre problème FAP (voyants, perte puissance, fumée, codes erreur...)";
-                }
-            }
-
-            setLoading(loading) {
-                this.awaitingResponse = loading;
-                const sendButton = document.getElementById('sendButton');
-                const typingIndicator = document.getElementById('typingIndicator');
-                
-                if (sendButton) {
-                    sendButton.disabled = loading;
-                    sendButton.textContent = loading ? 'Analyse...' : 'Envoyer';
-                }
-                
-                if (typingIndicator) {
-                    typingIndicator.style.display = loading ? 'block' : 'none';
-                }
-            }
-
-            displayError(message) {
-                const messagesContainer = document.getElementById('chatMessages');
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'error-message';
-                errorDiv.innerHTML = `
-                    ⚠️ <strong>Erreur:</strong> ${message}
-                    <div style="margin-top: 10px;">
-                        <button class="cta-button" onclick="window.chat.retryLastMessage()">🔄 Réessayer</button>
-                    </div>
-                `;
-                messagesContainer.appendChild(errorDiv);
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            }
-
-            retryLastMessage() {
-                const lastUserMessage = this.messageHistory
-                    .slice()
-                    .reverse()
-                    .find(msg => msg.sender === 'user');
-                
-                if (lastUserMessage) {
-                    this.sendMessage(lastUserMessage.content);
-                }
-            }
-        }
-
-        // Instance globale
-        window.chat = new FAPExpertChat();
-
-        // Initialisation au chargement
-        window.addEventListener('load', () => {
-            const messageInput = document.getElementById('messageInput');
-            if (messageInput) {
-                messageInput.focus();
-            }
-
-            // Boutons d'action rapide
-            const quickStartBtn = document.getElementById('quickStartBtn');
-            if (quickStartBtn) {
-                quickStartBtn.addEventListener('click', () => {
-                    window.chat.sendMessage('Je veux un diagnostic rapide de mon problème FAP');
-                });
-            }
-
-            const detailedStartBtn = document.getElementById('detailedStartBtn');
-            if (detailedStartBtn) {
-                detailedStartBtn.addEventListener('click', () => {
-                    window.chat.sendMessage('Je veux une analyse complète et détaillée');
-                });
-            }
-
-            const helpBtn = document.getElementById('helpBtn');
-            if (helpBtn) {
-                helpBtn.addEventListener('click', () => {
-                    window.chat.showHelp();
-                });
-            }
-
-            const resetBtn = document.getElementById('resetBtn');
-            if (resetBtn) {
-                resetBtn.addEventListener('click', () => {
-                    if (confirm('Voulez-vous vraiment recommencer le diagnostic ?')) {
-                        const currentQuestionDiv = document.getElementById('currentQuestion');
-                        if (currentQuestionDiv) {
-                            currentQuestionDiv.style.display = 'none';
-                        }
-                        location.reload();
-                    }
-                });
-            }
-        });
-    </script>
-</body>
-</html>
-
