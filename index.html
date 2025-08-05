@@ -1,6 +1,18 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+  <!-- Autres balises meta -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self' https:;
+    style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://frontend-assets.supabase.com https://vercel.live;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://vercel.live;
+    img-src 'self' data: https:;
+    font-src 'self' data: https:;
+    connect-src 'self' https://*.supabase.co https://vercel.live wss://vercel.live;
+    frame-src 'self' https://vercel.live;
+  ">
+  <!-- Reste du head -->
+</head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Julien - Expert FAP Re-Fap v2.0</title>
@@ -1700,3 +1712,4 @@
     </script>
 </body>
 </html>
+
