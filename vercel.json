@@ -1,20 +1,9 @@
 {
-  "framework": null,
-  "outputDirectory": ".",
-  "buildCommand": "",
-  "devCommand": "",
-  "installCommand": "",
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/API/$1"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+  "functions": {
+    "app/api/*": {
+      "maxDuration": 10
     }
-  ]
+  },
+  "buildCommand": "echo 'No build needed'",
+  "outputDirectory": "."
 }
